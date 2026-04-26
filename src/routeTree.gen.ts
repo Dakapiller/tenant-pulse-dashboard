@@ -9,38 +9,82 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UploadRouteImport } from './routes/upload'
+import { Route as AtRiskRouteImport } from './routes/at-risk'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TenantNameRouteImport } from './routes/tenant.$name'
 
+const UploadRoute = UploadRouteImport.update({
+  id: '/upload',
+  path: '/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AtRiskRoute = AtRiskRouteImport.update({
+  id: '/at-risk',
+  path: '/at-risk',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TenantNameRoute = TenantNameRouteImport.update({
+  id: '/tenant/$name',
+  path: '/tenant/$name',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/at-risk': typeof AtRiskRoute
+  '/upload': typeof UploadRoute
+  '/tenant/$name': typeof TenantNameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/at-risk': typeof AtRiskRoute
+  '/upload': typeof UploadRoute
+  '/tenant/$name': typeof TenantNameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/at-risk': typeof AtRiskRoute
+  '/upload': typeof UploadRoute
+  '/tenant/$name': typeof TenantNameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/at-risk' | '/upload' | '/tenant/$name'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/at-risk' | '/upload' | '/tenant/$name'
+  id: '__root__' | '/' | '/at-risk' | '/upload' | '/tenant/$name'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AtRiskRoute: typeof AtRiskRoute
+  UploadRoute: typeof UploadRoute
+  TenantNameRoute: typeof TenantNameRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/upload': {
+      id: '/upload'
+      path: '/upload'
+      fullPath: '/upload'
+      preLoaderRoute: typeof UploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/at-risk': {
+      id: '/at-risk'
+      path: '/at-risk'
+      fullPath: '/at-risk'
+      preLoaderRoute: typeof AtRiskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +92,21 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tenant/$name': {
+      id: '/tenant/$name'
+      path: '/tenant/$name'
+      fullPath: '/tenant/$name'
+      preLoaderRoute: typeof TenantNameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AtRiskRoute: AtRiskRoute,
+  UploadRoute: UploadRoute,
+  TenantNameRoute: TenantNameRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
