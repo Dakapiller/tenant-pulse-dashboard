@@ -1,4 +1,5 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { Sidebar } from "@/components/Sidebar";
 
 import appCss from "../styles.css?url";
 
@@ -29,14 +30,8 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { title: "Tenant Pulse — Tenant Health Monitoring" },
+      { name: "description", content: "Monitor tenant health, GMV, revenue, and risk signals across your portfolio." },
     ],
     links: [
       {
@@ -65,5 +60,12 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  return <Outlet />;
+  return (
+    <div className="flex min-h-screen bg-background text-foreground">
+      <Sidebar />
+      <main className="flex-1 min-w-0 overflow-x-hidden">
+        <Outlet />
+      </main>
+    </div>
+  );
 }
