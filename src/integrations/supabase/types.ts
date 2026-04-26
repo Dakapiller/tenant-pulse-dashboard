@@ -14,7 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      tenant_snapshots: {
+        Row: {
+          b2b_commissions: number | null
+          b2c_commissions: number | null
+          created_at: string | null
+          games_online: number | null
+          gmv_all: number | null
+          gmv_games: number | null
+          id: string
+          period: string
+          revenue: number | null
+          saas: number | null
+          tenant_name: string
+          transacted_amount: number | null
+          transacted_rate: number | null
+        }
+        Insert: {
+          b2b_commissions?: number | null
+          b2c_commissions?: number | null
+          created_at?: string | null
+          games_online?: number | null
+          gmv_all?: number | null
+          gmv_games?: number | null
+          id?: string
+          period: string
+          revenue?: number | null
+          saas?: number | null
+          tenant_name: string
+          transacted_amount?: number | null
+          transacted_rate?: number | null
+        }
+        Update: {
+          b2b_commissions?: number | null
+          b2c_commissions?: number | null
+          created_at?: string | null
+          games_online?: number | null
+          gmv_all?: number | null
+          gmv_games?: number | null
+          id?: string
+          period?: string
+          revenue?: number | null
+          saas?: number | null
+          tenant_name?: string
+          transacted_amount?: number | null
+          transacted_rate?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
