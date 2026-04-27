@@ -450,11 +450,11 @@ function CSPage() {
           </div>
         ) : (
           <div className="p-5">
-            {historyTasks.length === 0 ? (
+            {visibleHistory.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-8">Sem tarefas concluídas.</div>
             ) : (
               <ul className="divide-y divide-border">
-                {historyTasks.map((t) => (
+                {visibleHistory.map((t) => (
                   <li key={t.id} className="py-3 flex items-start justify-between gap-3 text-sm">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
