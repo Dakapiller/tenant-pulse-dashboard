@@ -186,17 +186,48 @@ function ClubsPage() {
         </button>
       )}
 
+      {newCount > 0 && (
+        <div className="w-full mb-5 rounded-lg border border-success/40 bg-success/10 p-4 flex items-start gap-3">
+          <Sparkles className="h-5 w-5 text-success shrink-0 mt-0.5" />
+          <div className="text-sm flex-1">
+            <div className="font-medium text-success">
+              {newCount} {newCount === 1 ? "novo clube" : "novos clubes"} em {latestPeriod ? periodLabel(latestPeriod) : "—"}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Apareceram pela primeira vez no último carregamento. Estão marcados com a etiqueta "Novo" na lista abaixo.
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="rounded-xl border border-border bg-background overflow-hidden">
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground">
-          <span>{rows.length} clubes</span>
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground gap-3 flex-wrap">
+          <span>
+            {visibleRows.length} {visibleRows.length === 1 ? "clube" : "clubes"}
+            {!showInactive && inactiveCount > 0 && (
+              <span className="ml-1 text-muted-foreground/70">
+                · {inactiveCount} ocultos (em churn / fechados)
+              </span>
+            )}
+          </span>
+          {inactiveCount > 0 && (
+            <button
+              onClick={() => setShowInactive((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-surface"
+              title={showInactive ? "Ocultar clubes em churn e fechados" : "Mostrar clubes em churn e fechados"}
+            >
+              {showInactive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              {showInactive ? "Ocultar inativos" : "Mostrar inativos"}
+            </button>
+          )}
         </div>
         <DataTable<ClubRow>
-          rows={rows}
+          rows={visibleRows}
           rowKey={(r) => r.name}
           defaultSort={{ key: "name", dir: "asc" }}
           stickyHeader
           containerClassName="max-h-[700px]"
-          rowClassName={(r) => r.missingFromLatest ? "bg-warning/5" : ""}
+          rowClassName={(r) => r.isNew ? "bg-success/5" : r.missingFromLatest ? "bg-warning/5" : ""}
           emptyMessage="Sem clubes."
           selectable
           selectedKeys={selectedKeys}
@@ -211,6 +242,11 @@ function ClubsPage() {
               render: (r) => (
                 <>
                   <button onClick={() => setDrawerTenant(r.name)} className="font-medium hover:underline text-left">{r.name}</button>
+                  {r.isNew && (
+                    <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase font-semibold text-success bg-success/10 px-1.5 py-0.5 rounded-full">
+                      <Sparkles className="h-2.5 w-2.5" /> Novo
+                    </span>
+                  )}
                   {r.missingFromLatest && <span className="ml-2 text-[10px] uppercase text-warning font-semibold">Em falta</span>}
                 </>
               ),
