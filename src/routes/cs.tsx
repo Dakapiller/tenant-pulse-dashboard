@@ -106,12 +106,13 @@ function CSPage() {
     const filtered = chartMode === "tenant" && selectedTenant
       ? snapshots.filter((s) => s.tenant_name === selectedTenant)
       : snapshots;
-    const byPeriod = new Map<string, { games: number; gmv_all: number; revenue: number }>();
+    const byPeriod = new Map<string, { games: number; gmv_all: number; revenue: number; activeClubs: Set<string> }>();
     filtered.forEach((s) => {
-      const cur = byPeriod.get(s.period) ?? { games: 0, gmv_all: 0, revenue: 0 };
+      const cur = byPeriod.get(s.period) ?? { games: 0, gmv_all: 0, revenue: 0, activeClubs: new Set<string>() };
       cur.games += Number(s.games_online ?? 0);
       cur.gmv_all += Number(s.gmv_all ?? 0);
       cur.revenue += Number(s.revenue ?? 0);
+      if (Number(s.gmv_all ?? 0) > 0) cur.activeClubs.add(s.tenant_name);
       byPeriod.set(s.period, cur);
     });
     return Array.from(byPeriod.entries())
@@ -122,6 +123,7 @@ function CSPage() {
         games: v.games,
         gmv_all: Math.round(v.gmv_all),
         revenue: Math.round(v.revenue),
+        activeClubs: v.activeClubs.size,
       }));
   }, [snapshots, chartMode, selectedTenant]);
 
@@ -269,10 +271,13 @@ function CSPage() {
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" tickFormatter={(v) => `€${Math.round(Number(v) / 1000)}k`} />
               <Tooltip
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid oklch(0.93 0.01 250)" }}
-                formatter={(v, name) => name === "Jogos online" ? formatNumber(Number(v)) : formatEuro(Number(v))}
+                formatter={(v, name) => name === "Jogos online" || name === "Clubes ativos" ? formatNumber(Number(v)) : formatEuro(Number(v))}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Line yAxisId="left" type="monotone" dataKey="games" name="Jogos online" stroke="oklch(0.18 0.02 250)" strokeWidth={2} dot={{ r: 2 }} />
+              {chartMode === "aggregate" && (
+                <Line yAxisId="left" type="monotone" dataKey="activeClubs" name="Clubes ativos" stroke="oklch(0.6 0.18 200)" strokeWidth={2} dot={{ r: 2 }} />
+              )}
               <Line yAxisId="right" type="monotone" dataKey="gmv_all" name="GMV total" stroke="oklch(0.55 0.18 260)" strokeWidth={2} dot={{ r: 2 }} />
               <Line yAxisId="right" type="monotone" dataKey="revenue" name="Receita" stroke="oklch(0.65 0.18 145)" strokeWidth={2} dot={{ r: 2 }} />
             </LineChart>
