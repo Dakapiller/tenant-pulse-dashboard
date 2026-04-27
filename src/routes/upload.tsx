@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,12 +49,35 @@ function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [history, setHistory] = useState<{ period: string; club_count: number; uploaded_at: string }[]>([]);
   const [result, setResult] = useState<{
     success: number;
     errors: { tenant: string; message: string }[];
     newClubs?: string[];
     missingClubs?: string[];
   } | null>(null);
+
+  async function loadHistory() {
+    const { data } = await supabase
+      .from("tenant_snapshots")
+      .select("period, created_at")
+      .order("period", { ascending: false });
+    if (!data) return;
+    const map = new Map<string, { count: number; latest: string }>();
+    (data as { period: string; created_at: string }[]).forEach((r) => {
+      const cur = map.get(r.period) ?? { count: 0, latest: r.created_at };
+      cur.count += 1;
+      if (r.created_at > cur.latest) cur.latest = r.created_at;
+      map.set(r.period, cur);
+    });
+    setHistory(
+      Array.from(map.entries())
+        .map(([period, v]) => ({ period, club_count: v.count, uploaded_at: v.latest }))
+        .sort((a, b) => b.period.localeCompare(a.period)),
+    );
+  }
+
+  useEffect(() => { loadHistory(); }, []);
 
   const periodIso = useMemo(() => {
     const m = String(month).padStart(2, "0");
@@ -198,6 +221,7 @@ function UploadPage() {
       }
 
       setResult({ success, errors, newClubs, missingClubs });
+      await loadHistory();
     } catch (e) {
       errors.push({ tenant: "—", message: e instanceof Error ? e.message : "Erro desconhecido" });
       setResult({ success, errors });
@@ -331,6 +355,39 @@ function UploadPage() {
           </div>
         )}
       </section>
+
+      {history.length > 0 && (
+        <section className="rounded-xl border border-border bg-background overflow-hidden mt-6">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="text-sm font-semibold">Histórico de carregamentos</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Re-carregar este mês substitui os dados existentes.</p>
+          </div>
+          <div className="overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-surface text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2.5 text-left">Período</th>
+                  <th className="px-4 py-2.5 text-right">Nº de clubes</th>
+                  <th className="px-4 py-2.5 text-left">Data de carregamento</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h) => (
+                  <tr key={h.period} className="border-t border-border hover:bg-surface">
+                    <td className="px-4 py-2 font-medium capitalize">
+                      {new Date(`${h.period}T00:00:00Z`).toLocaleString("pt-PT", { month: "long", year: "numeric", timeZone: "UTC" })}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">{h.club_count}</td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground">
+                      {new Date(h.uploaded_at).toLocaleString("pt-PT")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, Download, Search, X,
+  AlertTriangle, Building2, Check, Download, X,
 } from "lucide-react";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
@@ -17,6 +17,7 @@ import {
   setClubStatus,
   currentClubStatus,
   currentChurnCompetitor,
+  scoreWithDelta,
   sumCSImpact,
   lastCompletedActivityAt,
   currentWeekStart,
@@ -31,6 +32,7 @@ import {
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
 import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/format";
+import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 
 export const Route = createFileRoute("/clubs")({
   component: ClubsPage,
@@ -45,6 +47,7 @@ interface ClubRow {
   status: ClubStatus;
   competitor: string | null;
   score: number;
+  scoreDelta: number | null;
   level: "high" | "medium" | "healthy";
   csImpact: number;
   lastActivity: string | null;
@@ -58,11 +61,6 @@ function ClubsPage() {
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | ClubStatus>("all");
-  const [pendingFilter, setPendingFilter] = useState<"all" | "has" | "none">("all");
-  const [riskFilter, setRiskFilter] = useState<"all" | "high" | "medium" | "healthy">("all");
 
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
@@ -107,14 +105,14 @@ function ClubsPage() {
       const latest = sorted[sorted.length - 1] ?? null;
       const sts = stsByTenant.get(name) ?? [];
       const tks = tasksByTenant.get(name) ?? [];
-      const risk = computeRiskWithCS(sorted, sts);
+      const sd = scoreWithDelta(sorted, sts);
       const status = currentClubStatus(sts);
       const competitor = currentChurnCompetitor(sts);
       const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
       const missing = !!latestPeriod && !sorted.some((s) => s.period === latestPeriod);
       result.push({
         name, latest, history: sorted, statuses: sts, tasks: tks,
-        status, competitor, score: risk.score, level: risk.level,
+        status, competitor, score: sd.score, scoreDelta: sd.delta, level: sd.level,
         csImpact: sumCSImpact(sts),
         lastActivity: lastCompletedActivityAt(tks),
         pending, missingFromLatest: missing,
@@ -122,21 +120,6 @@ function ClubsPage() {
     }
     return result;
   }, [snapshots, statuses, tasks, weekStart, latestPeriod]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (q && !r.name.toLowerCase().includes(q)) return false;
-      if (statusFilter !== "all" && r.status !== statusFilter) return false;
-      if (pendingFilter === "has" && r.pending === 0) return false;
-      if (pendingFilter === "none" && r.pending > 0) return false;
-      if (riskFilter !== "all" && r.level !== riskFilter) return false;
-      return true;
-    }).sort((a, b) => {
-      if (a.missingFromLatest !== b.missingFromLatest) return a.missingFromLatest ? -1 : 1;
-      return b.score - a.score;
-    });
-  }, [rows, search, statusFilter, pendingFilter, riskFilter]);
 
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
 
@@ -180,103 +163,105 @@ function ClubsPage() {
       )}
 
       <section className="rounded-xl border border-border bg-background overflow-hidden">
-        <div className="p-4 border-b border-border flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-60 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Procurar clube…"
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-md border border-border bg-background"
-            />
-          </div>
-          <Filter label="Estado" value={statusFilter} onChange={(v) => setStatusFilter(v as typeof statusFilter)}
-            options={[{ v: "all", l: "Todos" }, ...CLUB_STATUS_OPTIONS.map((o) => ({ v: o.value, l: o.label }))]} />
-          <Filter label="Tarefas" value={pendingFilter} onChange={(v) => setPendingFilter(v as typeof pendingFilter)}
-            options={[{ v: "all", l: "Todas" }, { v: "has", l: "Com pendentes" }, { v: "none", l: "Sem pendentes" }]} />
-          <Filter label="Risco" value={riskFilter} onChange={(v) => setRiskFilter(v as typeof riskFilter)}
-            options={[
-              { v: "all", l: "Todos" },
-              { v: "high", l: "Alto" },
-              { v: "medium", l: "Médio" },
-              { v: "healthy", l: "Saudável" },
-            ]} />
-          <div className="ml-auto text-xs text-muted-foreground">{filtered.length} de {rows.length}</div>
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground">
+          <span>{rows.length} clubes</span>
+          <span className="opacity-70">Use os ícones de filtro nas colunas para refinar</span>
         </div>
-
-        <div className="overflow-auto max-h-[700px]">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-surface z-10 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 text-left">Clube</th>
-                <th className="px-4 py-3 text-right">Jogos</th>
-                <th className="px-4 py-3 text-right">GMV</th>
-                <th className="px-4 py-3 text-right">Receita</th>
-                <th className="px-4 py-3 text-right">Taxa</th>
-                <th className="px-4 py-3 text-center">Saúde</th>
-                <th className="px-4 py-3 text-center">CS Δ</th>
-                <th className="px-4 py-3 text-left">Última atividade</th>
-                <th className="px-4 py-3 text-center">Pendentes</th>
-                <th className="px-4 py-3 text-left">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => {
+        <DataTable<ClubRow>
+          rows={rows}
+          rowKey={(r) => r.name}
+          defaultSort={{ key: "name", dir: "asc" }}
+          stickyHeader
+          containerClassName="max-h-[700px]"
+          rowClassName={(r) => r.missingFromLatest ? "bg-warning/5" : ""}
+          emptyMessage="Sem clubes."
+          columns={[
+            {
+              key: "name",
+              header: "Clube",
+              sortValue: (r) => r.name,
+              filterValue: (r) => r.name,
+              filter: { kind: "text" },
+              render: (r) => (
+                <>
+                  <button onClick={() => setDrawerTenant(r.name)} className="font-medium hover:underline text-left">{r.name}</button>
+                  {r.missingFromLatest && <span className="ml-2 text-[10px] uppercase text-warning font-semibold">Em falta</span>}
+                </>
+              ),
+            },
+            { key: "games", header: "Jogos", align: "right", sortValue: (r) => r.latest?.games_online ?? null, render: (r) => r.latest ? formatNumber(r.latest.games_online) : "—" },
+            { key: "gmv", header: "GMV", align: "right", sortValue: (r) => r.latest?.gmv_all ?? null, render: (r) => r.latest ? formatEuro(r.latest.gmv_all) : "—" },
+            { key: "revenue", header: "Receita", align: "right", sortValue: (r) => r.latest?.revenue ?? null, render: (r) => r.latest ? formatEuro(r.latest.revenue) : "—" },
+            { key: "rate", header: "Taxa", align: "right", sortValue: (r) => r.latest?.transacted_rate ?? null, render: (r) => r.latest ? formatPercent(r.latest.transacted_rate) : "—" },
+            {
+              key: "score",
+              header: "Saúde",
+              align: "center",
+              sortValue: (r) => r.score,
+              filter: { kind: "select", options: [
+                { value: "high", label: "Alto" }, { value: "medium", label: "Médio" }, { value: "healthy", label: "Saudável" },
+              ]},
+              filterValue: (r) => r.level,
+              render: (r) => {
                 const healthColor = r.score >= 60 ? "text-danger bg-danger/10" : r.score >= 30 ? "text-warning bg-warning/15" : "text-success bg-success/10";
+                return (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${healthColor}`}>{r.score}</span>
+                    <ScoreDelta delta={r.scoreDelta} />
+                  </span>
+                );
+              },
+            },
+            {
+              key: "csImpact",
+              header: "CS Δ",
+              align: "center",
+              sortValue: (r) => r.csImpact,
+              render: (r) => {
                 const impactColor = r.csImpact > 0 ? "text-danger" : r.csImpact < 0 ? "text-success" : "text-muted-foreground";
                 return (
-                  <tr key={r.name} className={`border-t border-border hover:bg-surface ${r.missingFromLatest ? "bg-warning/5" : ""}`}>
-                    <td className="px-4 py-2.5">
-                      <button onClick={() => setDrawerTenant(r.name)} className="font-medium hover:underline text-left">
-                        {r.name}
-                      </button>
-                      {r.missingFromLatest && (
-                        <span className="ml-2 text-[10px] uppercase text-warning font-semibold">Em falta</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{r.latest ? formatNumber(r.latest.games_online) : "—"}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{r.latest ? formatEuro(r.latest.gmv_all) : "—"}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{r.latest ? formatEuro(r.latest.revenue) : "—"}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{r.latest ? formatPercent(r.latest.transacted_rate) : "—"}</td>
-                    <td className="px-4 py-2.5 text-center">
-                      <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${healthColor}`}>{r.score}</span>
-                    </td>
-                    <td className={`px-4 py-2.5 text-center text-xs font-semibold tabular-nums ${impactColor}`}>
-                      {r.csImpact > 0 ? `+${r.csImpact}` : r.csImpact < 0 ? r.csImpact : "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                      {r.lastActivity ? new Date(r.lastActivity).toLocaleDateString("pt-PT") : "Nunca"}
-                    </td>
-                    <td className="px-4 py-2.5 text-center">
-                      {r.pending > 0 ? (
-                        <span className="inline-flex items-center justify-center rounded-full bg-warning/15 text-warning px-2 py-0.5 text-xs font-medium">{r.pending}</span>
-                      ) : (
-                        <span className="text-success">✓</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {editingTenant === r.name ? (
-                        <InlineStatusEditor
-                          current={r.status}
-                          competitor={r.competitor}
-                          onCancel={() => setEditingTenant(null)}
-                          onSave={(next, comp) => handleStatusChange(r.name, r.status, next, comp)}
-                        />
-                      ) : (
-                        <button onClick={() => setEditingTenant(r.name)} className="text-left">
-                          <ClubStatusBadge status={r.status} competitor={r.competitor} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
+                  <span className={`text-xs font-semibold tabular-nums ${impactColor}`}>
+                    {r.csImpact > 0 ? `+${r.csImpact}` : r.csImpact < 0 ? r.csImpact : "—"}
+                  </span>
                 );
-              })}
-              {filtered.length === 0 && (
-                <tr><td colSpan={10} className="px-4 py-10 text-center text-muted-foreground text-sm">Sem clubes para os filtros atuais.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              },
+            },
+            {
+              key: "lastActivity",
+              header: "Última atividade",
+              sortValue: (r) => r.lastActivity ?? "",
+              render: (r) => <span className="text-xs text-muted-foreground">{r.lastActivity ? new Date(r.lastActivity).toLocaleDateString("pt-PT") : "Nunca"}</span>,
+            },
+            {
+              key: "pending",
+              header: "Pendentes",
+              align: "center",
+              sortValue: (r) => r.pending,
+              render: (r) => r.pending > 0
+                ? <span className="inline-flex items-center justify-center rounded-full bg-warning/15 text-warning px-2 py-0.5 text-xs font-medium">{r.pending}</span>
+                : <span className="text-success">✓</span>,
+            },
+            {
+              key: "status",
+              header: "Estado",
+              sortValue: (r) => CLUB_STATUS_LABEL[r.status],
+              filter: { kind: "select", options: CLUB_STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label })) },
+              filterValue: (r) => r.status,
+              render: (r) => editingTenant === r.name ? (
+                <InlineStatusEditor
+                  current={r.status}
+                  competitor={r.competitor}
+                  onCancel={() => setEditingTenant(null)}
+                  onSave={(next, comp) => handleStatusChange(r.name, r.status, next, comp)}
+                />
+              ) : (
+                <button onClick={(e) => { e.stopPropagation(); setEditingTenant(r.name); }} className="text-left">
+                  <ClubStatusBadge status={r.status} competitor={r.competitor} />
+                </button>
+              ),
+            },
+          ]}
+        />
       </section>
 
       {drawerTenant && (
