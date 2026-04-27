@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, ChevronRight, Download, X,
+  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Sparkles, X,
 } from "lucide-react";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
@@ -69,6 +69,7 @@ function ClubsPage() {
   const [editingTenant, setEditingTenant] = useState<string | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [missingOpen, setMissingOpen] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
 
   async function loadAll() {
     const [s, p, sts, tks] = await Promise.all([
@@ -129,6 +130,12 @@ function ClubsPage() {
   }, [snapshots, statuses, tasks, weekStart, latestPeriod]);
 
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
+  const newCount = rows.filter((r) => r.isNew).length;
+  const inactiveCount = rows.filter((r) => r.status === "churned" || r.status === "closed").length;
+  const visibleRows = useMemo(
+    () => showInactive ? rows : rows.filter((r) => r.status !== "churned" && r.status !== "closed"),
+    [rows, showInactive],
+  );
 
   async function handleStatusChange(tenant: string, current: ClubStatus, next: ClubStatus, competitor: string | null) {
     if (next === "churned" && current !== "churned") {
