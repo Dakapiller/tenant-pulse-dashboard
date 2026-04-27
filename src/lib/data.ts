@@ -22,13 +22,14 @@ const PAGE_SIZE = 1000;
  * Calls `build(from, to)` repeatedly until a page returns fewer rows than the page size.
  */
 export async function fetchAllPaged<T>(
-  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  build: (from: number, to: number) => any,
 ): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await build(from, from + PAGE_SIZE - 1);
     if (error) throw error;
-    const rows = data ?? [];
+    const rows = (data ?? []) as T[];
     out.push(...rows);
     if (rows.length < PAGE_SIZE) break;
   }

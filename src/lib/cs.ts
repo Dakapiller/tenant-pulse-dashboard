@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { computeRiskWithCS } from "@/lib/risk";
-import type { Snapshot } from "@/lib/data";
+import { fetchAllPaged, type Snapshot } from "@/lib/data";
 
 export interface CSTask {
   id: string;
