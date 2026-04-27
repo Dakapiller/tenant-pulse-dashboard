@@ -7,7 +7,7 @@ import {
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
   fetchAllCSStatuses, fetchAllCSTasks, currentClubStatus, currentWeekStart, lastCompletedActivityAt,
-  outcomeLabel, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
+  outcomeLabel, excludedTenants, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
 import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
@@ -87,6 +87,13 @@ function DashboardPage() {
     return m;
   }, [tasks]);
 
+  // Tenants in churned/closed status — excluded from ALL aggregate metrics
+  const excluded = useMemo(() => excludedTenants(statuses), [statuses]);
+  const includedSnapshots = useMemo(
+    () => snapshots.filter((s) => !excluded.has(s.tenant_name)),
+    [snapshots, excluded],
+  );
+
   // Per-tenant aggregate with score + previous-month score
   const clubs: ClubAgg[] = useMemo(() => {
     const list: ClubAgg[] = [];
@@ -145,19 +152,19 @@ function DashboardPage() {
     const highRisk = clubs.filter((c) => c.score >= 60 && c.status !== "churned" && c.status !== "closed").length;
     const monthGmv = (() => {
       if (!latestPeriod) return 0;
-      return snapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.gmv_all ?? 0), 0);
+      return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.gmv_all ?? 0), 0);
     })();
     const monthRevenue = (() => {
       if (!latestPeriod) return 0;
-      return snapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.revenue ?? 0), 0);
+      return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.revenue ?? 0), 0);
     })();
     return { activeClubs, churnedThisYear, highRisk, monthGmv, monthRevenue };
-  }, [clubs, statuses, snapshots, latestPeriod]);
+  }, [clubs, statuses, includedSnapshots, latestPeriod]);
 
   // Monthly trend series — current and prior-year overlay
   const monthlySeries = useMemo(() => {
     const byPeriod = new Map<string, { games: number; gmv: number; revenue: number }>();
-    snapshots.forEach((s) => {
+    includedSnapshots.forEach((s) => {
       const cur = byPeriod.get(s.period) ?? { games: 0, gmv: 0, revenue: 0 };
       cur.games += Number(s.games_online ?? 0);
       cur.gmv += Number(s.gmv_all ?? 0);
@@ -186,7 +193,7 @@ function DashboardPage() {
         revenuePrev: prior?.revenue ?? null,
       };
     });
-  }, [snapshots]);
+  }, [includedSnapshots]);
 
   // YoY comparison row
   const yoyRow = useMemo(() => {
@@ -203,11 +210,11 @@ function DashboardPage() {
 
   // Health distribution per month — count ALL clubs in that period
   const healthByMonth = useMemo(() => {
-    const periodsAsc = [...new Set(snapshots.map((s) => s.period))].sort();
+    const periodsAsc = [...new Set(includedSnapshots.map((s) => s.period))].sort();
     return periodsAsc.map((p) => {
-      // All tenants present in this exact month (the upload).
+      // All non-excluded tenants present in this exact month.
       const tenantsThatMonth = new Set(
-        snapshots.filter((s) => s.period === p).map((s) => s.tenant_name),
+        includedSnapshots.filter((s) => s.period === p).map((s) => s.tenant_name),
       );
       let healthy = 0, medium = 0, high = 0;
       for (const name of tenantsThatMonth) {
@@ -228,7 +235,7 @@ function DashboardPage() {
         total: healthy + medium + high,
       };
     });
-  }, [snapshots, tenantHistory, tenantStatuses]);
+  }, [includedSnapshots, tenantHistory, tenantStatuses]);
 
   // Positive metrics
   const positives = useMemo(() => {
@@ -236,6 +243,7 @@ function DashboardPage() {
     let improved = 0, leftHighRisk = 0, revenueGrew = 0, csImpacted = 0;
     const monthStart = new Date(`${latestPeriod}T00:00:00Z`).toISOString();
     for (const c of clubs) {
+      if (excluded.has(c.name)) continue;
       if (c.scoreDelta !== null && c.scoreDelta < 0) improved++;
       if (c.prevLevel === "high" && c.level !== "high") leftHighRisk++;
       if (c.latest && c.prevSnapshot && Number(c.latest.revenue ?? 0) > Number(c.prevSnapshot.revenue ?? 0)) revenueGrew++;
@@ -244,9 +252,9 @@ function DashboardPage() {
       if (completedThisMonth && c.scoreDelta !== null && c.scoreDelta < 0) csImpacted++;
     }
     return { improved, leftHighRisk, revenueGrew, csImpacted };
-  }, [clubs, latestPeriod, tasksByTenant]);
+  }, [clubs, latestPeriod, tasksByTenant, excluded]);
 
-  // Status distribution donut
+  // Status distribution donut — keep ALL clubs so users still see the breakdown.
   const statusDistribution = useMemo(() => {
     const counts: Record<ClubStatus, number> = {
       active: 0, possible_churn: 0, churned: 0, closed: 0, changed_owner: 0,
@@ -370,6 +378,7 @@ function DashboardPage() {
         <KpiCard icon={<Euro className="h-4 w-4" />} label="GMV mês" value={formatEuro(kpis.monthGmv)} />
         <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita mês" value={formatEuro(kpis.monthRevenue)} />
       </section>
+      <p className="text-[11px] text-muted-foreground -mt-3 mb-6">Clubes em churn e fechados excluídos dos cálculos.</p>
 
       {/* Row 2 — Charts */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">

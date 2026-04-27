@@ -38,6 +38,11 @@ export interface DataTableProps<T> {
   searchable?: boolean;
   searchPlaceholder?: string;
   toolbar?: ReactNode;
+  /** Bulk selection */
+  selectable?: boolean;
+  selectedKeys?: Set<string>;
+  onSelectionChange?: (next: Set<string>) => void;
+  isRowSelectable?: (row: T) => boolean;
 }
 
 export function DataTable<T>({
@@ -54,6 +59,10 @@ export function DataTable<T>({
   searchable = true,
   searchPlaceholder = "Pesquisar…",
   toolbar,
+  selectable = false,
+  selectedKeys,
+  onSelectionChange,
+  isRowSelectable,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>(
     defaultSort ?? { key: "", dir: null },
@@ -131,6 +140,44 @@ export function DataTable<T>({
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
+  // Bulk-selection helpers (computed against the filtered, currently-visible rows)
+  const visibleSelectableRows = useMemo(
+    () => (selectable ? filtered.filter((r) => (isRowSelectable ? isRowSelectable(r) : true)) : []),
+    [selectable, filtered, isRowSelectable],
+  );
+  
+  const visibleSelectedCount = useMemo(() => {
+    if (!selectable || !selectedKeys) return 0;
+    let n = 0;
+    for (const r of visibleSelectableRows) if (selectedKeys.has(rowKey(r))) n++;
+    return n;
+  }, [selectable, selectedKeys, visibleSelectableRows, rowKey]);
+  const allVisibleSelected = visibleSelectableRows.length > 0 && visibleSelectedCount === visibleSelectableRows.length;
+  const someVisibleSelected = visibleSelectedCount > 0 && !allVisibleSelected;
+  const headerCheckRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (headerCheckRef.current) headerCheckRef.current.indeterminate = someVisibleSelected;
+  }, [someVisibleSelected]);
+
+  function toggleAllVisible() {
+    if (!selectable || !onSelectionChange) return;
+    const next = new Set(selectedKeys ?? []);
+    if (allVisibleSelected) {
+      for (const r of visibleSelectableRows) next.delete(rowKey(r));
+    } else {
+      for (const r of visibleSelectableRows) next.add(rowKey(r));
+    }
+    onSelectionChange(next);
+  }
+
+  function toggleRow(row: T) {
+    if (!selectable || !onSelectionChange) return;
+    const k = rowKey(row);
+    const next = new Set(selectedKeys ?? []);
+    if (next.has(k)) next.delete(k); else next.add(k);
+    onSelectionChange(next);
+  }
+
   return (
     <div className="flex flex-col">
       {(searchable || toolbar) && (
@@ -173,6 +220,19 @@ export function DataTable<T>({
         <table className="w-full text-sm">
           <thead className={`bg-surface text-xs uppercase tracking-wide text-muted-foreground ${stickyHeader ? "sticky top-0 z-10" : ""}`}>
             <tr>
+              {selectable && (
+                <th className="px-3 py-3 w-10 text-center">
+                  <input
+                    ref={headerCheckRef}
+                    type="checkbox"
+                    aria-label="Selecionar todos"
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisible}
+                    className="h-4 w-4 align-middle accent-foreground cursor-pointer"
+                    disabled={visibleSelectableRows.length === 0}
+                  />
+                </th>
+              )}
               {columns.map((col) => {
                 const align = col.align ?? "left";
                 const sortable = col.sortable !== false && !!col.sortValue;
@@ -266,12 +326,29 @@ export function DataTable<T>({
           <tbody>
             {filtered.map((row) => {
               const expandedContent = expandedRow?.(row);
+              const k = rowKey(row);
+              const isSelected = !!selectedKeys?.has(k);
+              const canSelect = selectable && (isRowSelectable ? isRowSelectable(row) : true);
+              const totalCols = columns.length + (selectable ? 1 : 0);
               return (
-                <Fragment key={rowKey(row)}>
+                <Fragment key={k}>
                   <tr
-                    className={`border-t border-border hover:bg-surface ${onRowClick ? "cursor-pointer" : ""} ${rowClassName?.(row) ?? ""}`}
+                    className={`border-t border-border hover:bg-surface ${onRowClick ? "cursor-pointer" : ""} ${isSelected ? "bg-foreground/[0.04]" : ""} ${rowClassName?.(row) ?? ""}`}
                     onClick={() => onRowClick?.(row)}
                   >
+                    {selectable && (
+                      <td className="px-3 py-2.5 w-10 text-center" onClick={(e) => e.stopPropagation()}>
+                        {canSelect ? (
+                          <input
+                            type="checkbox"
+                            aria-label="Selecionar linha"
+                            checked={isSelected}
+                            onChange={() => toggleRow(row)}
+                            className="h-4 w-4 align-middle accent-foreground cursor-pointer"
+                          />
+                        ) : null}
+                      </td>
+                    )}
                     {columns.map((col) => {
                       const align = col.align ?? "left";
                       return (
@@ -286,7 +363,7 @@ export function DataTable<T>({
                   </tr>
                   {expandedContent && (
                     <tr className="bg-surface/40">
-                      <td colSpan={columns.length} className="px-3 sm:px-4 py-4 border-t border-border">
+                      <td colSpan={totalCols} className="px-3 sm:px-4 py-4 border-t border-border">
                         {expandedContent}
                       </td>
                     </tr>
@@ -296,7 +373,7 @@ export function DataTable<T>({
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-10 text-center text-muted-foreground text-sm">
+                <td colSpan={columns.length + (selectable ? 1 : 0)} className="px-4 py-10 text-center text-muted-foreground text-sm">
                   {search || activeFilterCount > 0 ? "Sem resultados para a pesquisa atual." : emptyMessage}
                 </td>
               </tr>

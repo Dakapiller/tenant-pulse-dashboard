@@ -193,6 +193,32 @@ export function currentClubStatus(statuses: CSTenantStatus[]): ClubStatus {
   return "active";
 }
 
+/** Build a map of tenant -> current ClubStatus from a flat statuses list. */
+export function buildCurrentStatusMap(statuses: CSTenantStatus[]): Map<string, ClubStatus> {
+  const byTenant = new Map<string, CSTenantStatus[]>();
+  for (const s of statuses) {
+    if (!byTenant.has(s.tenant_name)) byTenant.set(s.tenant_name, []);
+    byTenant.get(s.tenant_name)!.push(s);
+  }
+  const out = new Map<string, ClubStatus>();
+  for (const [name, list] of byTenant) out.set(name, currentClubStatus(list));
+  return out;
+}
+
+/** Tenants whose current status excludes them from aggregate metrics. */
+export function excludedTenants(statuses: CSTenantStatus[]): Set<string> {
+  const set = new Set<string>();
+  const map = buildCurrentStatusMap(statuses);
+  for (const [name, st] of map) {
+    if (st === "churned" || st === "closed") set.add(name);
+  }
+  return set;
+}
+
+export function isExcludedStatus(status: ClubStatus): boolean {
+  return status === "churned" || status === "closed";
+}
+
 // Latest competitor recorded for a churned tenant.
 export function currentChurnCompetitor(statuses: CSTenantStatus[]): string | null {
   const sorted = [...statuses].sort((a, b) => (b.recorded_at ?? "").localeCompare(a.recorded_at ?? ""));

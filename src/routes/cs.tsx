@@ -14,6 +14,7 @@ import {
   outcomeLabel,
   lastCompletedActivityAt,
   scoreWithDelta,
+  excludedTenants,
   OUTCOME_OPTIONS,
   type CSTenantStatus,
   type CSTask,
@@ -39,6 +40,8 @@ function CSPage() {
 
   const [chartMode, setChartMode] = useState<"aggregate" | "tenant">("aggregate");
   const [selectedTenant, setSelectedTenant] = useState<string>("");
+
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 
   const weekStart = useMemo(() => currentWeekStart(), []);
 
@@ -101,11 +104,15 @@ function CSPage() {
     }
   }, [chartMode, selectedTenant, tenantNames]);
 
+  // Tenants in churned/closed excluded from aggregate timeline metrics.
+  const excluded = useMemo(() => excludedTenants(statuses), [statuses]);
+
   // Build monthly timeline series
   const series = useMemo(() => {
-    const filtered = chartMode === "tenant" && selectedTenant
+    const base = chartMode === "tenant" && selectedTenant
       ? snapshots.filter((s) => s.tenant_name === selectedTenant)
-      : snapshots;
+      : snapshots.filter((s) => !excluded.has(s.tenant_name));
+    const filtered = base;
     const byPeriod = new Map<string, { games: number; gmv_all: number; revenue: number; activeClubs: Set<string> }>();
     filtered.forEach((s) => {
       const cur = byPeriod.get(s.period) ?? { games: 0, gmv_all: 0, revenue: 0, activeClubs: new Set<string>() };
@@ -125,7 +132,7 @@ function CSPage() {
         revenue: Math.round(v.revenue),
         activeClubs: v.activeClubs.size,
       }));
-  }, [snapshots, chartMode, selectedTenant]);
+  }, [snapshots, chartMode, selectedTenant, excluded]);
 
   const yoyPairs = useMemo(() => {
     const map = new Map(series.map((p) => [p.period, p]));
@@ -345,6 +352,10 @@ function CSPage() {
                   defaultSort={{ key: "score", dir: "desc" }}
                   onRowClick={(r) => setExpanded(expanded === r.name ? null : r.name)}
                   rowClassName={(r) => expanded === r.name ? "bg-surface/40" : ""}
+                  selectable
+                  selectedKeys={selectedKeys}
+                  onSelectionChange={setSelectedKeys}
+                  isRowSelectable={(r) => r.pending.length > 0}
                   expandedRow={(r) => expanded === r.name ? (
                     <ExpandedClubPanel
                       row={r}
@@ -441,6 +452,25 @@ function CSPage() {
           </div>
         )}
       </section>
+
+      {tab === "contacts" && selectedKeys.size > 0 && (
+        <BulkCompleteBar
+          count={selectedKeys.size}
+          onApply={async (outcome, note) => {
+            const names = Array.from(selectedKeys);
+            for (const name of names) {
+              const r = rows.find((x) => x.name === name);
+              if (!r) continue;
+              for (const t of r.pending) {
+                await completeCSTask(t.id, t.tenant_name, outcome, note.trim() || null);
+              }
+            }
+            setSelectedKeys(new Set());
+            await loadAll();
+          }}
+          onCancel={() => setSelectedKeys(new Set())}
+        />
+      )}
     </div>
   );
 }
@@ -643,4 +673,56 @@ async function generateWeeklyTasks(snapshots: Snapshot[], statuses: CSTenantStat
   }
 
   if (tasks.length > 0) await insertCSTasks(tasks);
+}
+
+// ---------- Bulk complete-tasks bar (floating) ----------
+
+function BulkCompleteBar({
+  count, onApply, onCancel,
+}: {
+  count: number;
+  onApply: (outcome: string, note: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <div
+      className="fixed left-0 right-0 bottom-0 z-40 lg:left-60 border-t border-border bg-background/95 backdrop-blur shadow-lg"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      <div className="mx-auto max-w-[1400px] px-4 py-3 flex items-center gap-3 flex-wrap">
+        <span className="text-sm font-medium">
+          {count} {count === 1 ? "clube selecionado" : "clubes selecionados"} — marcar todas as pendentes como feitas
+        </span>
+        <div className="flex items-center gap-2 flex-wrap ml-auto">
+          <select
+            value={outcome}
+            onChange={(e) => setOutcome(e.target.value)}
+            className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background"
+          >
+            {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Nota opcional…"
+            className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background min-w-[180px]"
+          />
+          <button
+            onClick={async () => {
+              setBusy(true);
+              try { await onApply(outcome, note); } finally { setBusy(false); }
+            }}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            <CheckCircle2 className="h-4 w-4" /> {busy ? "A guardar…" : "Marcar todas como feitas"}
+          </button>
+          <button onClick={onCancel} className="text-sm text-muted-foreground hover:text-foreground px-2 py-2">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
 }

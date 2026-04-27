@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
-import { fetchAllCSStatuses, fetchAllCSTasks, currentWeekStart, scoreWithDelta, type CSTenantStatus, type CSTask } from "@/lib/cs";
+import { fetchAllCSStatuses, fetchAllCSTasks, currentWeekStart, scoreWithDelta, excludedTenants, type CSTenantStatus, type CSTask } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META, FLAG_CTA, type RiskFlag } from "@/lib/risk";
 import { ScoreDelta } from "@/components/DataTable";
 import { ArrowRight, ListChecks, Search, ShieldCheck, X } from "lucide-react";
@@ -63,10 +63,13 @@ function AtRiskPage() {
     return m;
   }, [tasks, weekStart]);
 
+  const excluded = useMemo(() => excludedTenants(statuses), [statuses]);
+
   const cards = useMemo(() => {
     if (!latest) return [];
     const list: { name: string; risk: ReturnType<typeof computeRiskWithCS>; scoreDelta: number | null; spark: { period: string; games: number }[]; pending: number }[] = [];
     for (const [name, hist] of tenantHistory) {
+      if (excluded.has(name)) continue;
       const sorted = [...hist].sort((a, b) => a.period.localeCompare(b.period));
       const hasLatest = sorted.some((s) => s.period === latest);
       if (!hasLatest) continue;
@@ -78,7 +81,7 @@ function AtRiskPage() {
       list.push({ name, risk, scoreDelta: sd.delta, spark, pending: pendingByTenant.get(name) ?? 0 });
     }
     return list.sort((a, b) => b.risk.score - a.risk.score);
-  }, [tenantHistory, latest, statusByTenant, pendingByTenant]);
+  }, [tenantHistory, latest, statusByTenant, pendingByTenant, excluded]);
 
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
