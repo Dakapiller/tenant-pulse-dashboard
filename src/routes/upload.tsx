@@ -176,8 +176,8 @@ function UploadPage() {
               await supabase.from("cs_tenant_status").insert(
                 toFlag.map((n) => ({
                   tenant_name: n,
-                  relationship_status: "status_churn_candidate",
-                  club_status: "churn_candidate",
+                  relationship_status: "status_possible_churn",
+                  club_status: "possible_churn",
                   note: `Em falta no carregamento de ${periodLabel}`,
                 })) as never,
               );
@@ -185,7 +185,7 @@ function UploadPage() {
                 toFlag.map((n) => ({
                   tenant_name: n,
                   previous_status: "active",
-                  new_status: "churn_candidate",
+                  new_status: "possible_churn",
                   note: `Em falta no carregamento de ${periodLabel}`,
                   changed_by: "upload",
                 })) as never,
