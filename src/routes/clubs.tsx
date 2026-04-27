@@ -316,6 +316,18 @@ function ClubsPage() {
           count={selectedKeys.size}
           onApply={async (next, competitor) => {
             const names = Array.from(selectedKeys);
+            if (next === "churned") {
+              const toChurn = names.filter((n) => {
+                const r = rows.find((x) => x.name === n);
+                return r && r.status !== "churned";
+              });
+              if (toChurn.length > 0) {
+                const ok = window.confirm(
+                  `Tens a certeza que queres marcar ${toChurn.length} ${toChurn.length === 1 ? "clube" : "clubes"} como Em Churn?\n\nEsta ação remove-os das métricas agregadas.`,
+                );
+                if (!ok) return;
+              }
+            }
             for (const name of names) {
               const r = rows.find((x) => x.name === name);
               if (!r) continue;
