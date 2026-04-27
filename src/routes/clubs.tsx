@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Download, MoreVertical, Search, X,
+  AlertTriangle, Building2, Check, Download, Search, X,
 } from "lucide-react";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
@@ -16,11 +16,14 @@ import {
   fetchCSTasksForTenant,
   setClubStatus,
   currentClubStatus,
+  currentChurnCompetitor,
   sumCSImpact,
   lastCompletedActivityAt,
   currentWeekStart,
   outcomeLabel,
   CLUB_STATUS_LABEL,
+  CLUB_STATUS_OPTIONS,
+  COMPETITOR_OPTIONS,
   type CSTenantStatus,
   type CSTask,
   type ClubStatus,
@@ -40,6 +43,7 @@ interface ClubRow {
   statuses: CSTenantStatus[];
   tasks: CSTask[];
   status: ClubStatus;
+  competitor: string | null;
   score: number;
   level: "high" | "medium" | "healthy";
   csImpact: number;
@@ -62,7 +66,7 @@ function ClubsPage() {
 
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
-  const [actionMenuFor, setActionMenuFor] = useState<string | null>(null);
+  const [editingTenant, setEditingTenant] = useState<string | null>(null);
 
   async function loadAll() {
     const [s, p, sts, tks] = await Promise.all([
@@ -105,11 +109,12 @@ function ClubsPage() {
       const tks = tasksByTenant.get(name) ?? [];
       const risk = computeRiskWithCS(sorted, sts);
       const status = currentClubStatus(sts);
+      const competitor = currentChurnCompetitor(sts);
       const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
       const missing = !!latestPeriod && !sorted.some((s) => s.period === latestPeriod);
       result.push({
         name, latest, history: sorted, statuses: sts, tasks: tks,
-        status, score: risk.score, level: risk.level,
+        status, competitor, score: risk.score, level: risk.level,
         csImpact: sumCSImpact(sts),
         lastActivity: lastCompletedActivityAt(tks),
         pending, missingFromLatest: missing,
@@ -133,12 +138,12 @@ function ClubsPage() {
     });
   }, [rows, search, statusFilter, pendingFilter, riskFilter]);
 
-  const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned").length;
+  const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
 
-  async function handleStatusChange(tenant: string, current: ClubStatus, next: ClubStatus) {
-    await setClubStatus(tenant, next, current, null);
+  async function handleStatusChange(tenant: string, current: ClubStatus, next: ClubStatus, competitor: string | null) {
+    await setClubStatus(tenant, next, current, null, "cs", competitor);
     await loadAll();
-    setActionMenuFor(null);
+    setEditingTenant(null);
   }
 
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
@@ -165,10 +170,10 @@ function ClubsPage() {
           <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
           <div className="text-sm">
             <div className="font-medium text-warning">
-              {missingCount} {missingCount === 1 ? "clube não foi encontrado" : "clubes não foram encontrados"} no último carregamento — reveja abaixo.
+              {missingCount} {missingCount === 1 ? "clube em falta" : "clubes em falta"} no último carregamento — reveja abaixo.
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              Estes clubes existiam em períodos anteriores mas estão ausentes em {latestPeriod ? periodLabel(latestPeriod) : "—"}. Foram sinalizados automaticamente como candidatos a churn.
+              Estes clubes existiam em períodos anteriores mas estão ausentes em {latestPeriod ? periodLabel(latestPeriod) : "—"}. Foram sinalizados como possível churn.
             </div>
           </div>
         </div>
@@ -186,12 +191,7 @@ function ClubsPage() {
             />
           </div>
           <Filter label="Estado" value={statusFilter} onChange={(v) => setStatusFilter(v as typeof statusFilter)}
-            options={[
-              { v: "all", l: "Todos" },
-              { v: "active", l: "Ativo" },
-              { v: "churn_candidate", l: "Candidato a churn" },
-              { v: "churned", l: "Em churn" },
-            ]} />
+            options={[{ v: "all", l: "Todos" }, ...CLUB_STATUS_OPTIONS.map((o) => ({ v: o.value, l: o.label }))]} />
           <Filter label="Tarefas" value={pendingFilter} onChange={(v) => setPendingFilter(v as typeof pendingFilter)}
             options={[{ v: "all", l: "Todas" }, { v: "has", l: "Com pendentes" }, { v: "none", l: "Sem pendentes" }]} />
           <Filter label="Risco" value={riskFilter} onChange={(v) => setRiskFilter(v as typeof riskFilter)}
@@ -218,7 +218,6 @@ function ClubsPage() {
                 <th className="px-4 py-3 text-left">Última atividade</th>
                 <th className="px-4 py-3 text-center">Pendentes</th>
                 <th className="px-4 py-3 text-left">Estado</th>
-                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -256,28 +255,24 @@ function ClubsPage() {
                       )}
                     </td>
                     <td className="px-4 py-2.5">
-                      <ClubStatusBadge status={r.status} />
-                    </td>
-                    <td className="px-4 py-2.5 text-right relative">
-                      <button
-                        onClick={() => setActionMenuFor(actionMenuFor === r.name ? null : r.name)}
-                        className="p-1 rounded hover:bg-background"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                      {actionMenuFor === r.name && (
-                        <div className="absolute right-2 top-9 z-20 w-56 rounded-md border border-border bg-background shadow-lg text-left">
-                          <ActionItem onClick={() => handleStatusChange(r.name, r.status, "churn_candidate")} disabled={r.status === "churn_candidate"}>Sinalizar como candidato a churn</ActionItem>
-                          <ActionItem onClick={() => handleStatusChange(r.name, r.status, "churned")} disabled={r.status === "churned"}>Marcar como churned</ActionItem>
-                          <ActionItem onClick={() => handleStatusChange(r.name, r.status, "active")} disabled={r.status === "active"}>Limpar (voltar a ativo)</ActionItem>
-                        </div>
+                      {editingTenant === r.name ? (
+                        <InlineStatusEditor
+                          current={r.status}
+                          competitor={r.competitor}
+                          onCancel={() => setEditingTenant(null)}
+                          onSave={(next, comp) => handleStatusChange(r.name, r.status, next, comp)}
+                        />
+                      ) : (
+                        <button onClick={() => setEditingTenant(r.name)} className="text-left">
+                          <ClubStatusBadge status={r.status} competitor={r.competitor} />
+                        </button>
                       )}
                     </td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={11} className="px-4 py-10 text-center text-muted-foreground text-sm">Sem clubes para os filtros atuais.</td></tr>
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-muted-foreground text-sm">Sem clubes para os filtros atuais.</td></tr>
               )}
             </tbody>
           </table>
@@ -315,26 +310,76 @@ function Filter({ label, value, onChange, options }: { label: string; value: str
   );
 }
 
-function ActionItem({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+function InlineStatusEditor({
+  current, competitor, onCancel, onSave,
+}: {
+  current: ClubStatus;
+  competitor: string | null;
+  onCancel: () => void;
+  onSave: (next: ClubStatus, competitor: string | null) => void | Promise<void>;
+}) {
+  const [next, setNext] = useState<ClubStatus>(current);
+  const [comp, setComp] = useState<string>(competitor ?? COMPETITOR_OPTIONS[0].value);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onCancel();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onCancel]);
+
   return (
-    <button onClick={onClick} disabled={disabled}
-      className="w-full text-left px-3 py-2 text-xs hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed">
-      {children}
-    </button>
+    <div ref={ref} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background p-1 shadow-sm">
+      <select
+        value={next}
+        onChange={(e) => setNext(e.target.value as ClubStatus)}
+        className="px-2 py-1 rounded text-xs border border-border bg-background"
+        autoFocus
+      >
+        {CLUB_STATUS_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      {next === "churned" && (
+        <select
+          value={comp}
+          onChange={(e) => setComp(e.target.value)}
+          className="px-2 py-1 rounded text-xs border border-border bg-background"
+        >
+          {COMPETITOR_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      )}
+      <button
+        onClick={() => onSave(next, next === "churned" ? comp : null)}
+        className="p-1 rounded bg-foreground text-background hover:opacity-90"
+        aria-label="Confirmar"
+      >
+        <Check className="h-3 w-3" />
+      </button>
+    </div>
   );
 }
 
-function ClubStatusBadge({ status }: { status: ClubStatus }) {
-  const map = {
+function ClubStatusBadge({ status, competitor }: { status: ClubStatus; competitor?: string | null }) {
+  const map: Record<ClubStatus, { bg: string; text: string }> = {
     active: { bg: "bg-success/10", text: "text-success" },
-    churn_candidate: { bg: "bg-warning/15", text: "text-warning" },
+    possible_churn: { bg: "bg-warning/15", text: "text-warning" },
     churned: { bg: "bg-danger/10", text: "text-danger" },
-  } as const;
+    closed: { bg: "bg-muted", text: "text-muted-foreground" },
+    changed_owner: { bg: "bg-accent", text: "text-accent-foreground" },
+  };
   const m = map[status];
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${m.bg} ${m.text}`}>
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
       {CLUB_STATUS_LABEL[status]}
+      {status === "churned" && competitor && (
+        <span className="ml-1 opacity-70">· {competitor}</span>
+      )}
     </span>
   );
 }
@@ -391,7 +436,7 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
           <div>
             <h2 className="text-lg font-semibold">{tenant}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <ClubStatusBadge status={row.status} />
+              <ClubStatusBadge status={row.status} competitor={row.competitor} />
               <Link to="/tenant/$name" params={{ name: tenant }} className="text-xs text-muted-foreground hover:text-foreground underline">
                 Abrir página completa
               </Link>
@@ -401,7 +446,6 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Health breakdown */}
           <section className="rounded-lg border border-border p-4">
             <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Score de saúde</div>
             <div className="flex items-end gap-4 mb-3">
@@ -423,7 +467,6 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
             )}
           </section>
 
-          {/* Performance history */}
           <section className="rounded-lg border border-border overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de performance</div>
             <div className="max-h-80 overflow-auto">
@@ -458,7 +501,6 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
             </div>
           </section>
 
-          {/* CS task history */}
           <section className="rounded-lg border border-border overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico CS — Tarefas</div>
             {completedTasks.length === 0 ? (
@@ -492,7 +534,6 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
             )}
           </section>
 
-          {/* Status history */}
           <section className="rounded-lg border border-border overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de estado</div>
             {statusLogs.length === 0 ? (
@@ -561,7 +602,6 @@ function ExportModal({ rows, onClose }: { rows: ClubRow[]; onClose: () => void }
       const dateNow = new Date().toISOString().slice(0, 10);
       const baseName = `tenant-pulse-export-${period}-${dateNow}`;
 
-      // Build datasets
       const perfRows: Record<string, unknown>[] = [];
       const csRows: Record<string, unknown>[] = [];
       const statusRows: Record<string, unknown>[] = [];
@@ -743,14 +783,21 @@ function ExportModal({ rows, onClose }: { rows: ClubRow[]; onClose: () => void }
 
 function sheetToCsv(rows: Record<string, unknown>[]): string {
   if (rows.length === 0) return "";
-  const sheet = XLSX.utils.json_to_sheet(rows);
-  return XLSX.utils.sheet_to_csv(sheet);
+  const headers = Object.keys(rows[0]);
+  const escape = (v: unknown) => {
+    const s = String(v ?? "");
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [headers.join(",")];
+  rows.forEach((r) => lines.push(headers.map((h) => escape(r[h])).join(",")));
+  return lines.join("\n");
 }
 
-function downloadText(filename: string, content: string) {
+function downloadText(name: string, content: string) {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
 }
