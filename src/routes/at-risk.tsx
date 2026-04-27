@@ -5,7 +5,7 @@ import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import { fetchAllCSStatuses, fetchAllCSTasks, currentWeekStart, scoreWithDelta, type CSTenantStatus, type CSTask } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META, FLAG_CTA, type RiskFlag } from "@/lib/risk";
 import { ScoreDelta } from "@/components/DataTable";
-import { ArrowRight, ListChecks, ShieldCheck } from "lucide-react";
+import { ArrowRight, ListChecks, Search, ShieldCheck, X } from "lucide-react";
 
 export const Route = createFileRoute("/at-risk")({
   component: AtRiskPage,
@@ -17,6 +17,7 @@ function AtRiskPage() {
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     (async () => {
