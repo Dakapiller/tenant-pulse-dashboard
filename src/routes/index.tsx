@@ -226,9 +226,9 @@ function Th({ children, onClick, active, align }: { children: React.ReactNode; o
 
 export function RiskBadge({ level, score }: { level: "high" | "medium" | "healthy"; score: number }) {
   const map = {
-    high: { bg: "bg-danger/10", text: "text-danger", label: "High risk" },
-    medium: { bg: "bg-warning/15", text: "text-warning", label: "Medium" },
-    healthy: { bg: "bg-success/10", text: "text-success", label: "Healthy" },
+    high: { bg: "bg-danger/10", text: "text-danger", label: "Risco alto" },
+    medium: { bg: "bg-warning/15", text: "text-warning", label: "Médio" },
+    healthy: { bg: "bg-success/10", text: "text-success", label: "Saudável" },
   } as const;
   const m = map[level];
   return (
