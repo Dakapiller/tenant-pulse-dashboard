@@ -65,6 +65,8 @@ function ClubsPage() {
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<string | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [missingOpen, setMissingOpen] = useState(false);
 
   async function loadAll() {
     const [s, p, sts, tks] = await Promise.all([
