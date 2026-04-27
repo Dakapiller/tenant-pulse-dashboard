@@ -243,6 +243,7 @@ function DashboardPage() {
     let improved = 0, leftHighRisk = 0, revenueGrew = 0, csImpacted = 0;
     const monthStart = new Date(`${latestPeriod}T00:00:00Z`).toISOString();
     for (const c of clubs) {
+      if (excluded.has(c.name)) continue;
       if (c.scoreDelta !== null && c.scoreDelta < 0) improved++;
       if (c.prevLevel === "high" && c.level !== "high") leftHighRisk++;
       if (c.latest && c.prevSnapshot && Number(c.latest.revenue ?? 0) > Number(c.prevSnapshot.revenue ?? 0)) revenueGrew++;
@@ -251,9 +252,9 @@ function DashboardPage() {
       if (completedThisMonth && c.scoreDelta !== null && c.scoreDelta < 0) csImpacted++;
     }
     return { improved, leftHighRisk, revenueGrew, csImpacted };
-  }, [clubs, latestPeriod, tasksByTenant]);
+  }, [clubs, latestPeriod, tasksByTenant, excluded]);
 
-  // Status distribution donut
+  // Status distribution donut — keep ALL clubs so users still see the breakdown.
   const statusDistribution = useMemo(() => {
     const counts: Record<ClubStatus, number> = {
       active: 0, possible_churn: 0, churned: 0, closed: 0, changed_owner: 0,
