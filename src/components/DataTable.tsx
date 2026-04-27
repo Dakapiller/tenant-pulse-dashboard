@@ -38,6 +38,11 @@ export interface DataTableProps<T> {
   searchable?: boolean;
   searchPlaceholder?: string;
   toolbar?: ReactNode;
+  /** Bulk selection */
+  selectable?: boolean;
+  selectedKeys?: Set<string>;
+  onSelectionChange?: (next: Set<string>) => void;
+  isRowSelectable?: (row: T) => boolean;
 }
 
 export function DataTable<T>({
@@ -54,6 +59,10 @@ export function DataTable<T>({
   searchable = true,
   searchPlaceholder = "Pesquisar…",
   toolbar,
+  selectable = false,
+  selectedKeys,
+  onSelectionChange,
+  isRowSelectable,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>(
     defaultSort ?? { key: "", dir: null },
