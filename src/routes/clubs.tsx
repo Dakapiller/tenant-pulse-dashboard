@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, Download, X,
+  AlertTriangle, Building2, Check, ChevronRight, Download, X,
 } from "lucide-react";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
