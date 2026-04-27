@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
-import { computeRisk, FLAG_META } from "@/lib/risk";
+import { fetchAllCSStatuses, type CSTenantStatus } from "@/lib/cs";
+import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/at-risk")({
@@ -12,14 +13,16 @@ export const Route = createFileRoute("/at-risk")({
 function AtRiskPage() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [periods, setPeriods] = useState<string[]>([]);
+  const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const [s, p] = await Promise.all([fetchAllSnapshots(), fetchPeriods()]);
+        const [s, p, st] = await Promise.all([fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses()]);
         setSnapshots(s);
         setPeriods(p);
+        setStatuses(st);
       } finally {
         setLoading(false);
       }
@@ -37,20 +40,29 @@ function AtRiskPage() {
     return map;
   }, [snapshots]);
 
+  const statusByTenant = useMemo(() => {
+    const m = new Map<string, CSTenantStatus[]>();
+    statuses.forEach((s) => {
+      if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
+      m.get(s.tenant_name)!.push(s);
+    });
+    return m;
+  }, [statuses]);
+
   const cards = useMemo(() => {
     if (!latest) return [];
-    const list: { name: string; risk: ReturnType<typeof computeRisk>; spark: { period: string; games: number }[] }[] = [];
+    const list: { name: string; risk: ReturnType<typeof computeRiskWithCS>; spark: { period: string; games: number }[] }[] = [];
     for (const [name, hist] of tenantHistory) {
       const sorted = [...hist].sort((a, b) => a.period.localeCompare(b.period));
       const hasLatest = sorted.some((s) => s.period === latest);
       if (!hasLatest) continue;
-      const risk = computeRisk(sorted);
+      const risk = computeRiskWithCS(sorted, statusByTenant.get(name) ?? []);
       if (risk.flags.length === 0) continue;
       const spark = sorted.slice(-6).map((s) => ({ period: s.period, games: s.games_online }));
       list.push({ name, risk, spark });
     }
     return list.sort((a, b) => b.risk.score - a.risk.score);
-  }, [tenantHistory, latest]);
+  }, [tenantHistory, latest, statusByTenant]);
 
   if (loading) return <div className="p-10 text-muted-foreground">Loading…</div>;
 
