@@ -165,7 +165,6 @@ function ClubsPage() {
       <section className="rounded-xl border border-border bg-background overflow-hidden">
         <div className="px-4 py-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground">
           <span>{rows.length} clubes</span>
-          <span className="opacity-70">Use os ícones de filtro nas colunas para refinar</span>
         </div>
         <DataTable<ClubRow>
           rows={rows}
@@ -189,10 +188,10 @@ function ClubsPage() {
                 </>
               ),
             },
-            { key: "games", header: "Jogos", align: "right", sortValue: (r) => r.latest?.games_online ?? null, render: (r) => r.latest ? formatNumber(r.latest.games_online) : "—" },
+            { key: "games", header: "Jogos", align: "right", hideOnMobile: true, sortValue: (r) => r.latest?.games_online ?? null, render: (r) => r.latest ? formatNumber(r.latest.games_online) : "—" },
             { key: "gmv", header: "GMV", align: "right", sortValue: (r) => r.latest?.gmv_all ?? null, render: (r) => r.latest ? formatEuro(r.latest.gmv_all) : "—" },
-            { key: "revenue", header: "Receita", align: "right", sortValue: (r) => r.latest?.revenue ?? null, render: (r) => r.latest ? formatEuro(r.latest.revenue) : "—" },
-            { key: "rate", header: "Taxa", align: "right", sortValue: (r) => r.latest?.transacted_rate ?? null, render: (r) => r.latest ? formatPercent(r.latest.transacted_rate) : "—" },
+            { key: "revenue", header: "Receita", align: "right", hideOnMobile: true, sortValue: (r) => r.latest?.revenue ?? null, render: (r) => r.latest ? formatEuro(r.latest.revenue) : "—" },
+            { key: "rate", header: "Taxa", align: "right", hideOnMobile: true, sortValue: (r) => r.latest?.transacted_rate ?? null, render: (r) => r.latest ? formatPercent(r.latest.transacted_rate) : "—" },
             {
               key: "score",
               header: "Saúde",
