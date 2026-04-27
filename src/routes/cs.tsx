@@ -334,61 +334,73 @@ function CSPage() {
               </div>
             ) : (
               <div className="rounded-lg border border-border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-surface text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Clube</th>
-                      <th className="px-4 py-3 text-left">Saúde</th>
-                      <th className="px-4 py-3 text-left">Pendentes</th>
-                      <th className="px-4 py-3 text-left">Último contacto</th>
-                      <th className="px-4 py-3" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => {
-                      const isOpen = expanded === r.name;
-                      return (
-                        <Fragment key={r.name}>
-                          <tr
-                            className="border-t border-border hover:bg-surface cursor-pointer"
-                            onClick={() => setExpanded(isOpen ? null : r.name)}
-                          >
-                            <td className="px-4 py-3 font-semibold">{r.name}</td>
-                            <td className="px-4 py-3"><RiskBadge level={r.level} score={r.score} /></td>
-                            <td className="px-4 py-3">
-                              {r.pending.length > 0 ? (
-                                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-danger/10 text-danger font-medium">
-                                  {r.pending.length} pendentes
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-xs text-success">
-                                  <CheckCircle2 className="h-3.5 w-3.5" /> Concluído
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-xs text-muted-foreground">
-                              {r.lastContact ? new Date(r.lastContact).toLocaleDateString("pt-PT") : "Nunca"}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              {isOpen ? <ChevronDown className="h-4 w-4 inline" /> : <ChevronRight className="h-4 w-4 inline" />}
-                            </td>
-                          </tr>
-                          {isOpen && (
-                            <tr className="bg-surface/40">
-                              <td colSpan={5} className="px-4 py-4">
-                                <ExpandedClubPanel
-                                  row={r}
-                                  weekStart={weekStart}
-                                  onComplete={handleComplete}
-                                />
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <DataTable<typeof rows[number]>
+                  rows={rows}
+                  rowKey={(r) => r.name}
+                  defaultSort={{ key: "score", dir: "desc" }}
+                  onRowClick={(r) => setExpanded(expanded === r.name ? null : r.name)}
+                  rowClassName={(r) => expanded === r.name ? "bg-surface/40" : ""}
+                  columns={[
+                    {
+                      key: "name", header: "Clube",
+                      sortValue: (r) => r.name,
+                      filterValue: (r) => r.name, filter: { kind: "text" },
+                      render: (r) => <span className="font-semibold">{r.name}</span>,
+                    },
+                    {
+                      key: "score", header: "Saúde",
+                      sortValue: (r) => r.score,
+                      filter: { kind: "select", options: [
+                        { value: "high", label: "Alto" }, { value: "medium", label: "Médio" }, { value: "healthy", label: "Saudável" },
+                      ]},
+                      filterValue: (r) => r.level,
+                      render: (r) => (
+                        <span className="inline-flex items-center gap-1.5">
+                          <RiskBadge level={r.level} score={r.score} />
+                          <ScoreDelta delta={r.scoreDelta} />
+                        </span>
+                      ),
+                    },
+                    {
+                      key: "pending", header: "Pendentes",
+                      sortValue: (r) => r.pending.length,
+                      render: (r) => r.pending.length > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-danger/10 text-danger font-medium">
+                          {r.pending.length} pendentes
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-success">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Concluído
+                        </span>
+                      ),
+                    },
+                    {
+                      key: "lastContact", header: "Último contacto",
+                      sortValue: (r) => r.lastContact ?? "",
+                      render: (r) => (
+                        <span className="text-xs text-muted-foreground">
+                          {r.lastContact ? new Date(r.lastContact).toLocaleDateString("pt-PT") : "Nunca"}
+                        </span>
+                      ),
+                    },
+                    {
+                      key: "expand", header: "",
+                      align: "right",
+                      render: (r) => expanded === r.name
+                        ? <ChevronDown className="h-4 w-4 inline" />
+                        : <ChevronRight className="h-4 w-4 inline" />,
+                    },
+                  ]}
+                />
+                {expanded && rows.find((r) => r.name === expanded) && (
+                  <div className="border-t border-border bg-surface/40 px-4 py-4">
+                    <ExpandedClubPanel
+                      row={rows.find((r) => r.name === expanded)!}
+                      weekStart={weekStart}
+                      onComplete={handleComplete}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
