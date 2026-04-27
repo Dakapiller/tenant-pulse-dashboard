@@ -104,11 +104,15 @@ function CSPage() {
     }
   }, [chartMode, selectedTenant, tenantNames]);
 
+  // Tenants in churned/closed excluded from aggregate timeline metrics.
+  const excluded = useMemo(() => excludedTenants(statuses), [statuses]);
+
   // Build monthly timeline series
   const series = useMemo(() => {
-    const filtered = chartMode === "tenant" && selectedTenant
+    const base = chartMode === "tenant" && selectedTenant
       ? snapshots.filter((s) => s.tenant_name === selectedTenant)
-      : snapshots;
+      : snapshots.filter((s) => !excluded.has(s.tenant_name));
+    const filtered = base;
     const byPeriod = new Map<string, { games: number; gmv_all: number; revenue: number; activeClubs: Set<string> }>();
     filtered.forEach((s) => {
       const cur = byPeriod.get(s.period) ?? { games: 0, gmv_all: 0, revenue: 0, activeClubs: new Set<string>() };
