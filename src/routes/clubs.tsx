@@ -300,6 +300,18 @@ function ClubsPage() {
         <MissingClubsModal
           rows={rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed")}
           onApply={async (names, next, competitor) => {
+            if (next === "churned") {
+              const toChurn = names.filter((n) => {
+                const r = rows.find((x) => x.name === n);
+                return r && r.status !== "churned";
+              });
+              if (toChurn.length > 0) {
+                const ok = window.confirm(
+                  `Tens a certeza que queres marcar ${toChurn.length} ${toChurn.length === 1 ? "clube" : "clubes"} como Em Churn?\n\nEsta ação remove-os das métricas agregadas.`,
+                );
+                if (!ok) return;
+              }
+            }
             for (const name of names) {
               const r = rows.find((x) => x.name === name);
               if (!r) continue;
