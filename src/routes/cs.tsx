@@ -13,12 +13,14 @@ import {
   currentWeekStart,
   outcomeLabel,
   lastCompletedActivityAt,
+  scoreWithDelta,
   OUTCOME_OPTIONS,
   type CSTenantStatus,
   type CSTask,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_CTA, FLAG_META, type RiskFlag } from "@/lib/risk";
 import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
+import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 import { CheckCircle2, ChevronDown, ChevronRight, ListChecks } from "lucide-react";
 
 export const Route = createFileRoute("/cs")({
@@ -165,6 +167,7 @@ function CSPage() {
   type Row = {
     name: string;
     score: number;
+    scoreDelta: number | null;
     level: "high" | "medium" | "healthy";
     pending: CSTask[];
     completed: CSTask[];
@@ -178,7 +181,7 @@ function CSPage() {
       if (!r) {
         const hist = tenantHistory.get(name) ?? [];
         const sts = tenantStatuses.get(name) ?? [];
-        const live = computeRiskWithCS(hist, sts);
+        const sd = scoreWithDelta(hist, sts);
         r = {
           name,
           score: live.score,
