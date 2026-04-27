@@ -289,6 +289,38 @@ function ClubsPage() {
           onClose={() => setExportOpen(false)}
         />
       )}
+
+      {missingOpen && (
+        <MissingClubsModal
+          rows={rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed")}
+          onApply={async (names, next, competitor) => {
+            for (const name of names) {
+              const r = rows.find((x) => x.name === name);
+              if (!r) continue;
+              await setClubStatus(name, next, r.status, null, "cs", competitor);
+            }
+            await loadAll();
+          }}
+          onClose={() => setMissingOpen(false)}
+        />
+      )}
+
+      {selectedKeys.size > 0 && (
+        <BulkStatusBar
+          count={selectedKeys.size}
+          onApply={async (next, competitor) => {
+            const names = Array.from(selectedKeys);
+            for (const name of names) {
+              const r = rows.find((x) => x.name === name);
+              if (!r) continue;
+              await setClubStatus(name, next, r.status, null, "cs", competitor);
+            }
+            setSelectedKeys(new Set());
+            await loadAll();
+          }}
+          onCancel={() => setSelectedKeys(new Set())}
+        />
+      )}
     </div>
   );
 }
