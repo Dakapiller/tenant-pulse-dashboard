@@ -57,7 +57,7 @@ function UploadPage() {
   }, [year, month]);
 
   const periodLabel = useMemo(() => {
-    return new Date(`${periodIso}T00:00:00Z`).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+    return new Date(`${periodIso}T00:00:00Z`).toLocaleString("pt-PT", { month: "long", year: "numeric", timeZone: "UTC" });
   }, [periodIso]);
 
   const onDrop = useCallback((accepted: File[]) => {
@@ -108,7 +108,7 @@ function UploadPage() {
           }
         }
         if (!tenant) {
-          errors.push({ tenant: `Row ${idx + 2}`, message: "Missing Tenant Name" });
+          errors.push({ tenant: `Linha ${idx + 2}`, message: "Tenant Name em falta" });
           return;
         }
         records.push(rec);
@@ -141,7 +141,7 @@ function UploadPage() {
 
       setResult({ success, errors });
     } catch (e) {
-      errors.push({ tenant: "—", message: e instanceof Error ? e.message : "Unknown error" });
+      errors.push({ tenant: "—", message: e instanceof Error ? e.message : "Erro desconhecido" });
       setResult({ success, errors });
     } finally {
       setIsUploading(false);
@@ -153,21 +153,21 @@ function UploadPage() {
     return [cur - 2, cur - 1, cur, cur + 1];
   }, [now]);
   const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
   ];
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Upload monthly snapshot</h1>
-        <p className="text-sm text-muted-foreground mt-1">Drag an .xlsx export to write tenant KPIs for a given month. Re-uploading overwrites that month safely.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Carregar snapshot mensal</h1>
+        <p className="text-sm text-muted-foreground mt-1">Arraste um ficheiro .xlsx exportado para registar os KPIs dos tenants para um mês. Voltar a carregar substitui esse mês em segurança.</p>
       </header>
 
       <section className="rounded-xl border border-border bg-background p-6">
         <div className="grid grid-cols-2 gap-3 mb-5">
           <div>
-            <label className="text-xs uppercase tracking-wide text-muted-foreground">Month</label>
+            <label className="text-xs uppercase tracking-wide text-muted-foreground">Mês</label>
             <select
               value={month}
               onChange={(e) => setMonth(Number(e.target.value))}
@@ -177,7 +177,7 @@ function UploadPage() {
             </select>
           </div>
           <div>
-            <label className="text-xs uppercase tracking-wide text-muted-foreground">Year</label>
+            <label className="text-xs uppercase tracking-wide text-muted-foreground">Ano</label>
             <select
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
@@ -205,8 +205,8 @@ function UploadPage() {
             </div>
           ) : (
             <>
-              <p className="text-sm font-medium">Drop your .xlsx here</p>
-              <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
+              <p className="text-sm font-medium">Largue aqui o ficheiro .xlsx</p>
+              <p className="text-xs text-muted-foreground mt-1">ou clique para procurar</p>
             </>
           )}
         </div>
@@ -217,11 +217,11 @@ function UploadPage() {
             disabled={!file || isUploading}
             className="inline-flex items-center gap-2 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium disabled:opacity-40 hover:opacity-90"
           >
-            {isUploading ? "Uploading…" : `Upload for ${periodLabel}`}
+            {isUploading ? "A carregar…" : `Carregar para ${periodLabel}`}
           </button>
           {file && !isUploading && (
             <button onClick={() => { setFile(null); setResult(null); }} className="text-sm text-muted-foreground hover:text-foreground">
-              Clear
+              Limpar
             </button>
           )}
         </div>
@@ -239,12 +239,12 @@ function UploadPage() {
           <div className="mt-6 space-y-3">
             <div className="flex items-center gap-2 rounded-md bg-success/10 text-success px-3 py-2 text-sm">
               <CheckCircle2 className="h-4 w-4" />
-              {result.success} tenants written for {periodLabel}
+              {result.success} tenants registados para {periodLabel}
             </div>
             {result.errors.length > 0 && (
               <div className="rounded-md border border-danger/30 bg-danger/5 p-3">
                 <div className="flex items-center gap-2 text-sm text-danger font-medium mb-2">
-                  <XCircle className="h-4 w-4" /> {result.errors.length} row error{result.errors.length === 1 ? "" : "s"}
+                  <XCircle className="h-4 w-4" /> {result.errors.length} {result.errors.length === 1 ? "linha com erro" : "linhas com erro"}
                 </div>
                 <ul className="text-xs space-y-1 max-h-48 overflow-auto">
                   {result.errors.map((e, i) => (
