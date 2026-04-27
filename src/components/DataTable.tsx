@@ -140,6 +140,44 @@ export function DataTable<T>({
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
+  // Bulk-selection helpers (computed against the filtered, currently-visible rows)
+  const visibleSelectableRows = useMemo(
+    () => (selectable ? filtered.filter((r) => (isRowSelectable ? isRowSelectable(r) : true)) : []),
+    [selectable, filtered, isRowSelectable],
+  );
+  const selSize = selectedKeys?.size ?? 0;
+  const visibleSelectedCount = useMemo(() => {
+    if (!selectable || !selectedKeys) return 0;
+    let n = 0;
+    for (const r of visibleSelectableRows) if (selectedKeys.has(rowKey(r))) n++;
+    return n;
+  }, [selectable, selectedKeys, visibleSelectableRows, rowKey]);
+  const allVisibleSelected = visibleSelectableRows.length > 0 && visibleSelectedCount === visibleSelectableRows.length;
+  const someVisibleSelected = visibleSelectedCount > 0 && !allVisibleSelected;
+  const headerCheckRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (headerCheckRef.current) headerCheckRef.current.indeterminate = someVisibleSelected;
+  }, [someVisibleSelected]);
+
+  function toggleAllVisible() {
+    if (!selectable || !onSelectionChange) return;
+    const next = new Set(selectedKeys ?? []);
+    if (allVisibleSelected) {
+      for (const r of visibleSelectableRows) next.delete(rowKey(r));
+    } else {
+      for (const r of visibleSelectableRows) next.add(rowKey(r));
+    }
+    onSelectionChange(next);
+  }
+
+  function toggleRow(row: T) {
+    if (!selectable || !onSelectionChange) return;
+    const k = rowKey(row);
+    const next = new Set(selectedKeys ?? []);
+    if (next.has(k)) next.delete(k); else next.add(k);
+    onSelectionChange(next);
+  }
+
   return (
     <div className="flex flex-col">
       {(searchable || toolbar) && (
