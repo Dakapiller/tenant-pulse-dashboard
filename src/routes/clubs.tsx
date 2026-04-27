@@ -215,6 +215,7 @@ function ClubsPage() {
               key: "csImpact",
               header: "CS Δ",
               align: "center",
+              hideOnMobile: true,
               sortValue: (r) => r.csImpact,
               render: (r) => {
                 const impactColor = r.csImpact > 0 ? "text-danger" : r.csImpact < 0 ? "text-success" : "text-muted-foreground";
@@ -228,6 +229,7 @@ function ClubsPage() {
             {
               key: "lastActivity",
               header: "Última atividade",
+              hideOnMobile: true,
               sortValue: (r) => r.lastActivity ?? "",
               render: (r) => <span className="text-xs text-muted-foreground">{r.lastActivity ? new Date(r.lastActivity).toLocaleDateString("pt-PT") : "Nunca"}</span>,
             },
