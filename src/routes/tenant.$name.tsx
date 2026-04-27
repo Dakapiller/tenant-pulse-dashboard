@@ -4,9 +4,10 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { fetchSnapshotsForTenant, type Snapshot } from "@/lib/data";
-import { computeRisk, riskHistory, FLAG_META } from "@/lib/risk";
+import { computeRiskWithCS, riskHistory, FLAG_META } from "@/lib/risk";
+import { fetchCSStatusesForTenant, fetchCSTasksForTenant, outcomeLabel, type CSTenantStatus, type CSTask } from "@/lib/cs";
 import { formatEuro, formatNumber, formatPercent, periodLabel, periodShort } from "@/lib/format";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MessageSquare } from "lucide-react";
 import { RiskBadge } from "./index";
 
 export const Route = createFileRoute("/tenant/$name")({
@@ -16,6 +17,8 @@ export const Route = createFileRoute("/tenant/$name")({
 function TenantDetail() {
   const { name } = useParams({ from: "/tenant/$name" });
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
+  const [csStatuses, setCsStatuses] = useState<CSTenantStatus[]>([]);
+  const [csTasks, setCsTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<string>("");
@@ -25,9 +28,15 @@ function TenantDetail() {
     setLoading(true);
     (async () => {
       try {
-        const data = await fetchSnapshotsForTenant(name);
+        const [data, sts, tks] = await Promise.all([
+          fetchSnapshotsForTenant(name),
+          fetchCSStatusesForTenant(name),
+          fetchCSTasksForTenant(name),
+        ]);
         if (cancelled) return;
         setSnapshots(data);
+        setCsStatuses(sts);
+        setCsTasks(tks);
         if (data.length > 0) setPeriod(data[data.length - 1].period);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed");
@@ -51,7 +60,7 @@ function TenantDetail() {
   );
 
   const selected = useMemo(() => sorted.find((s) => s.period === period), [sorted, period]);
-  const risk = useMemo(() => computeRisk(sorted), [sorted]);
+  const risk = useMemo(() => computeRiskWithCS(sorted, csStatuses), [sorted, csStatuses]);
   const history = useMemo(() => riskHistory(sorted), [sorted]);
 
   const monthly = useMemo(() => {
