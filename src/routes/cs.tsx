@@ -184,8 +184,9 @@ function CSPage() {
         const sd = scoreWithDelta(hist, sts);
         r = {
           name,
-          score: live.score,
-          level: live.level,
+          score: sd.score,
+          scoreDelta: sd.delta,
+          level: sd.level,
           pending: [],
           completed: [],
           lastContact: lastCompletedActivityAt(allTasks.filter((t) => t.tenant_name === name)),
