@@ -457,6 +457,17 @@ function ExpandedClubPanel({
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-end gap-3 -mt-1">
+        <Link
+          to="/tenant/$name"
+          params={{ name: row.name }}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 text-xs font-medium text-foreground hover:underline"
+        >
+          Ver histórico do clube <ArrowRight className="h-3 w-3" />
+        </Link>
+      </div>
+
       {row.pending.length > 0 && (
         <ul className="space-y-2">
           {row.pending.map((t) => {
