@@ -4,9 +4,10 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { fetchSnapshotsForTenant, type Snapshot } from "@/lib/data";
-import { computeRisk, riskHistory, FLAG_META } from "@/lib/risk";
+import { computeRiskWithCS, riskHistory, FLAG_META } from "@/lib/risk";
+import { fetchCSStatusesForTenant, fetchCSTasksForTenant, outcomeLabel, type CSTenantStatus, type CSTask } from "@/lib/cs";
 import { formatEuro, formatNumber, formatPercent, periodLabel, periodShort } from "@/lib/format";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MessageSquare } from "lucide-react";
 import { RiskBadge } from "./index";
 
 export const Route = createFileRoute("/tenant/$name")({
@@ -16,6 +17,8 @@ export const Route = createFileRoute("/tenant/$name")({
 function TenantDetail() {
   const { name } = useParams({ from: "/tenant/$name" });
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
+  const [csStatuses, setCsStatuses] = useState<CSTenantStatus[]>([]);
+  const [csTasks, setCsTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<string>("");
@@ -25,9 +28,15 @@ function TenantDetail() {
     setLoading(true);
     (async () => {
       try {
-        const data = await fetchSnapshotsForTenant(name);
+        const [data, sts, tks] = await Promise.all([
+          fetchSnapshotsForTenant(name),
+          fetchCSStatusesForTenant(name),
+          fetchCSTasksForTenant(name),
+        ]);
         if (cancelled) return;
         setSnapshots(data);
+        setCsStatuses(sts);
+        setCsTasks(tks);
         if (data.length > 0) setPeriod(data[data.length - 1].period);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed");
@@ -51,7 +60,7 @@ function TenantDetail() {
   );
 
   const selected = useMemo(() => sorted.find((s) => s.period === period), [sorted, period]);
-  const risk = useMemo(() => computeRisk(sorted), [sorted]);
+  const risk = useMemo(() => computeRiskWithCS(sorted, csStatuses), [sorted, csStatuses]);
   const history = useMemo(() => riskHistory(sorted), [sorted]);
 
   const monthly = useMemo(() => {
@@ -196,7 +205,93 @@ function TenantDetail() {
           </ul>
         )}
       </section>
+
+      <section className="rounded-xl border border-border p-5 mt-6">
+        <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+          <MessageSquare className="h-4 w-4" /> CS History
+        </h3>
+        <CSHistory tasks={csTasks} statuses={csStatuses} />
+      </section>
     </div>
+  );
+}
+
+function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantStatus[] }) {
+  const completed = tasks.filter((t) => t.status === "completed");
+
+  type Entry = {
+    key: string;
+    date: string;
+    outcome: string | null;
+    note: string | null;
+    reason: string | null;
+    flags: string[];
+  };
+
+  const entries: Entry[] = [];
+  completed.forEach((t) => {
+    entries.push({
+      key: `t-${t.id}`,
+      date: t.completed_at ?? t.created_at,
+      outcome: t.outcome,
+      note: null,
+      reason: t.reason,
+      flags: t.flags ?? [],
+    });
+  });
+
+  // Add standalone statuses (not within 60s of a task completion)
+  statuses.forEach((s) => {
+    const matched = completed.find((t) =>
+      t.completed_at && Math.abs(new Date(t.completed_at).getTime() - new Date(s.recorded_at).getTime()) < 60_000
+      && t.outcome === s.relationship_status
+    );
+    if (matched) {
+      // attach note to the matched entry
+      const e = entries.find((x) => x.key === `t-${matched.id}`);
+      if (e) e.note = s.note;
+      return;
+    }
+    entries.push({
+      key: `s-${s.id}`,
+      date: s.recorded_at,
+      outcome: s.relationship_status,
+      note: s.note,
+      reason: null,
+      flags: [],
+    });
+  });
+
+  entries.sort((a, b) => b.date.localeCompare(a.date));
+
+  if (entries.length === 0) {
+    return <div className="text-sm text-muted-foreground">No CS interactions recorded yet.</div>;
+  }
+
+  return (
+    <ul className="divide-y divide-border">
+      {entries.map((e) => (
+        <li key={e.key} className="py-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs text-muted-foreground">
+              {new Date(e.date).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+            </div>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-surface font-medium">{outcomeLabel(e.outcome)}</span>
+          </div>
+          {e.reason && <div className="text-sm mt-1.5">{e.reason}</div>}
+          {e.flags.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {e.flags.map((f) => (
+                <span key={f} className="rounded-full bg-surface px-2 py-0.5 text-[10px]">
+                  {FLAG_META[f as keyof typeof FLAG_META]?.label ?? f}
+                </span>
+              ))}
+            </div>
+          )}
+          {e.note && <div className="text-xs text-muted-foreground mt-1.5 italic">"{e.note}"</div>}
+        </li>
+      ))}
+    </ul>
   );
 }
 

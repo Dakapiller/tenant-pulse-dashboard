@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
-import { computeRisk } from "@/lib/risk";
+import { fetchAllCSStatuses, type CSTenantStatus } from "@/lib/cs";
+import { computeRiskWithCS } from "@/lib/risk";
 import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/format";
 import { ArrowUpDown, Search, Upload } from "lucide-react";
 
@@ -14,6 +15,7 @@ type SortKey = "tenant_name" | "games_online" | "gmv_games" | "gmv_all" | "reven
 function OverviewPage() {
   const [allSnapshots, setAllSnapshots] = useState<Snapshot[]>([]);
   const [periods, setPeriods] = useState<string[]>([]);
+  const [csStatuses, setCsStatuses] = useState<CSTenantStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -24,10 +26,15 @@ function OverviewPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [snaps, ps] = await Promise.all([fetchAllSnapshots(), fetchPeriods()]);
+        const [snaps, ps, sts] = await Promise.all([
+          fetchAllSnapshots(),
+          fetchPeriods(),
+          fetchAllCSStatuses(),
+        ]);
         if (cancelled) return;
         setAllSnapshots(snaps);
         setPeriods(ps);
+        setCsStatuses(sts);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load");
       } finally {
@@ -53,6 +60,15 @@ function OverviewPage() {
     });
     return map;
   }, [allSnapshots]);
+
+  const tenantStatusMap = useMemo(() => {
+    const m = new Map<string, CSTenantStatus[]>();
+    csStatuses.forEach((s) => {
+      if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
+      m.get(s.tenant_name)!.push(s);
+    });
+    return m;
+  }, [csStatuses]);
 
   const totals = useMemo(() => {
     const t = { tenants: latestRows.length, games: 0, gmvAll: 0, revenue: 0 };
@@ -149,7 +165,10 @@ function OverviewPage() {
             </thead>
             <tbody>
               {filteredSorted.map((r) => {
-                const risk = computeRisk(tenantHistory.get(r.tenant_name) ?? []);
+                const risk = computeRiskWithCS(
+                  tenantHistory.get(r.tenant_name) ?? [],
+                  tenantStatusMap.get(r.tenant_name) ?? [],
+                );
                 const ratePct = r.transacted_rate ?? 0;
                 const rateColor = ratePct >= 40 ? "text-success" : ratePct >= 15 ? "text-warning" : "text-danger";
                 const games = r.games_online ?? 0;

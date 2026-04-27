@@ -1,10 +1,11 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Upload, LayoutDashboard, AlertTriangle, Activity } from "lucide-react";
+import { Upload, LayoutDashboard, AlertTriangle, Activity, Users } from "lucide-react";
 
 const items = [
   { to: "/", label: "Overview", icon: LayoutDashboard },
   { to: "/upload", label: "Upload", icon: Upload },
   { to: "/at-risk", label: "At-risk", icon: AlertTriangle },
+  { to: "/cs", label: "Customer Success", icon: Users },
 ];
 
 export function Sidebar() {

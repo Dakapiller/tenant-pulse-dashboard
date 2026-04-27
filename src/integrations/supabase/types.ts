@@ -14,6 +14,72 @@ export type Database = {
   }
   public: {
     Tables: {
+      cs_tasks: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          cta: string
+          flags: string[] | null
+          id: string
+          outcome: string | null
+          priority: number
+          reason: string
+          status: string
+          tenant_name: string
+          week_start: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          cta: string
+          flags?: string[] | null
+          id?: string
+          outcome?: string | null
+          priority: number
+          reason: string
+          status?: string
+          tenant_name: string
+          week_start: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          cta?: string
+          flags?: string[] | null
+          id?: string
+          outcome?: string | null
+          priority?: number
+          reason?: string
+          status?: string
+          tenant_name?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
+      cs_tenant_status: {
+        Row: {
+          id: string
+          note: string | null
+          recorded_at: string | null
+          relationship_status: string
+          tenant_name: string
+        }
+        Insert: {
+          id?: string
+          note?: string | null
+          recorded_at?: string | null
+          relationship_status: string
+          tenant_name: string
+        }
+        Update: {
+          id?: string
+          note?: string | null
+          recorded_at?: string | null
+          relationship_status?: string
+          tenant_name?: string
+        }
+        Relationships: []
+      }
       tenant_snapshots: {
         Row: {
           b2b_commissions: number | null
