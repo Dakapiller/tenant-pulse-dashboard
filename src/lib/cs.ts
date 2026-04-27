@@ -179,10 +179,23 @@ export async function fetchClubStatusLogsForTenant(tenant: string): Promise<Club
 export function currentClubStatus(statuses: CSTenantStatus[]): ClubStatus {
   const sorted = [...statuses].sort((a, b) => (b.recorded_at ?? "").localeCompare(a.recorded_at ?? ""));
   for (const s of sorted) {
-    if (s.club_status && s.club_status !== "active") return s.club_status as ClubStatus;
-    if (s.club_status === "active") return "active";
+    if (s.club_status) {
+      const cs = s.club_status as ClubStatus;
+      // accept legacy value "churn_candidate" → map to possible_churn for safety
+      if ((cs as string) === "churn_candidate") return "possible_churn";
+      return cs;
+    }
   }
   return "active";
+}
+
+// Latest competitor recorded for a churned tenant.
+export function currentChurnCompetitor(statuses: CSTenantStatus[]): string | null {
+  const sorted = [...statuses].sort((a, b) => (b.recorded_at ?? "").localeCompare(a.recorded_at ?? ""));
+  for (const s of sorted) {
+    if (s.churn_competitor) return s.churn_competitor;
+  }
+  return null;
 }
 
 export async function setClubStatus(
@@ -191,6 +204,7 @@ export async function setClubStatus(
   previousStatus: ClubStatus,
   note: string | null,
   changedBy: string = "cs",
+  competitor: string | null = null,
 ): Promise<void> {
   const { error: e1 } = await supabase
     .from("cs_tenant_status")
@@ -199,6 +213,7 @@ export async function setClubStatus(
       relationship_status: `status_${newStatus}`,
       club_status: newStatus,
       note,
+      churn_competitor: newStatus === "churned" ? competitor : null,
     } as never);
   if (e1) throw e1;
   const { error: e2 } = await supabase
@@ -207,7 +222,7 @@ export async function setClubStatus(
       tenant_name: tenant,
       previous_status: previousStatus,
       new_status: newStatus,
-      note,
+      note: competitor && newStatus === "churned" ? `${note ?? ""}${note ? " · " : ""}Competidor: ${competitor}` : note,
       changed_by: changedBy,
     } as never);
   if (e2) throw e2;
