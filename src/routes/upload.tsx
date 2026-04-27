@@ -49,7 +49,12 @@ function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState<{ success: number; errors: { tenant: string; message: string }[] } | null>(null);
+  const [result, setResult] = useState<{
+    success: number;
+    errors: { tenant: string; message: string }[];
+    newClubs?: string[];
+    missingClubs?: string[];
+  } | null>(null);
 
   const periodIso = useMemo(() => {
     const m = String(month).padStart(2, "0");
