@@ -347,6 +347,10 @@ function CSPage() {
                   defaultSort={{ key: "score", dir: "desc" }}
                   onRowClick={(r) => setExpanded(expanded === r.name ? null : r.name)}
                   rowClassName={(r) => expanded === r.name ? "bg-surface/40" : ""}
+                  selectable
+                  selectedKeys={selectedKeys}
+                  onSelectionChange={setSelectedKeys}
+                  isRowSelectable={(r) => r.pending.length > 0}
                   expandedRow={(r) => expanded === r.name ? (
                     <ExpandedClubPanel
                       row={r}
