@@ -20,7 +20,26 @@ export interface CSTenantStatus {
   relationship_status: string;
   note: string | null;
   recorded_at: string;
+  club_status?: string | null;
 }
+
+export type ClubStatus = "active" | "churn_candidate" | "churned";
+
+export interface ClubStatusLog {
+  id: string;
+  tenant_name: string;
+  previous_status: string;
+  new_status: string;
+  note: string | null;
+  changed_by: string | null;
+  changed_at: string;
+}
+
+export const CLUB_STATUS_LABEL: Record<ClubStatus, string> = {
+  active: "Ativo",
+  churn_candidate: "Candidato a churn",
+  churned: "Em churn",
+};
 
 export const OUTCOME_OPTIONS: { value: string; label: string }[] = [
   { value: "bad_relationship", label: "Má relação" },
