@@ -7,56 +7,58 @@ import {
 import { fetchAllSnapshots, type Snapshot } from "@/lib/data";
 import {
   fetchAllCSStatuses,
-  fetchCSTasksForWeek,
   fetchAllCSTasks,
   insertCSTasks,
   completeCSTask,
   currentWeekStart,
   outcomeLabel,
+  lastCompletedActivityAt,
   OUTCOME_OPTIONS,
   type CSTenantStatus,
   type CSTask,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_CTA, FLAG_META, type RiskFlag } from "@/lib/risk";
-import { formatEuro, formatNumber, periodShort, periodLabel } from "@/lib/format";
-import { CheckCircle2, ChevronDown, ChevronRight, ListChecks, ArrowUpRight } from "lucide-react";
+import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
+import { CheckCircle2, ChevronDown, ChevronRight, ListChecks } from "lucide-react";
 
 export const Route = createFileRoute("/cs")({
   component: CSPage,
 });
 
+type RangeKey = "week" | "month" | "year";
+
 function CSPage() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
-  const [weekTasks, setWeekTasks] = useState<CSTask[]>([]);
   const [allTasks, setAllTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"week" | "history">("week");
+  const [tab, setTab] = useState<"contacts" | "history">("contacts");
+  const [range, setRange] = useState<RangeKey>("week");
+
   const [chartMode, setChartMode] = useState<"aggregate" | "tenant">("aggregate");
   const [selectedTenant, setSelectedTenant] = useState<string>("");
 
   const weekStart = useMemo(() => currentWeekStart(), []);
 
   async function loadAll() {
-    const [snaps, sts, wt, at] = await Promise.all([
+    const [snaps, sts, at] = await Promise.all([
       fetchAllSnapshots(),
       fetchAllCSStatuses(),
-      fetchCSTasksForWeek(weekStart),
       fetchAllCSTasks(),
     ]);
     setSnapshots(snaps);
     setStatuses(sts);
-    setWeekTasks(wt);
     setAllTasks(at);
-    return { snaps, sts, wt };
+    return { snaps, sts, at };
   }
 
   useEffect(() => {
     (async () => {
       try {
-        const { snaps, sts, wt } = await loadAll();
+        const { snaps, sts, at } = await loadAll();
         // Generate this week's tasks if none yet
-        if (wt.length === 0) {
+        const wk = at.filter((t) => t.week_start === weekStart);
+        if (wk.length === 0) {
           await generateWeeklyTasks(snaps, sts, weekStart);
           await loadAll();
         }
@@ -110,7 +112,7 @@ function CSPage() {
       cur.revenue += Number(s.revenue ?? 0);
       byPeriod.set(s.period, cur);
     });
-    const arr = Array.from(byPeriod.entries())
+    return Array.from(byPeriod.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([period, v]) => ({
         period,
@@ -119,10 +121,8 @@ function CSPage() {
         gmv_all: Math.round(v.gmv_all),
         revenue: Math.round(v.revenue),
       }));
-    return arr;
   }, [snapshots, chartMode, selectedTenant]);
 
-  // YoY pairs
   const yoyPairs = useMemo(() => {
     const map = new Map(series.map((p) => [p.period, p]));
     const pairs: { current: typeof series[number]; prior: typeof series[number] }[] = [];
@@ -136,55 +136,79 @@ function CSPage() {
     return pairs;
   }, [series]);
 
-  // Tasks split
-  const pendingTasks = useMemo(
-    () => weekTasks.filter((t) => t.status === "pending"),
-    [weekTasks],
-  );
-  const completedThisWeek = useMemo(
-    () => weekTasks.filter((t) => t.status === "completed").sort((a, b) =>
-      (b.completed_at ?? "").localeCompare(a.completed_at ?? "")),
-    [weekTasks],
-  );
+  // Range bounds
+  const rangeBounds = useMemo(() => {
+    const now = new Date();
+    let from: Date;
+    if (range === "week") {
+      // Monday of current week
+      from = new Date(weekStart + "T00:00:00Z");
+    } else if (range === "month") {
+      from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    } else {
+      from = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+    }
+    return { fromIso: from.toISOString() };
+  }, [range, weekStart]);
+
+  // Carry-over rule: pending tasks (week_start <= current week)
+  // Completed: completed_at >= rangeBounds.fromIso
+  const pendingTasks = useMemo(() => {
+    return allTasks.filter((t) => t.status === "pending");
+  }, [allTasks]);
+
+  const completedInRange = useMemo(() => {
+    return allTasks.filter((t) => t.status === "completed" && t.completed_at && t.completed_at >= rangeBounds.fromIso);
+  }, [allTasks, rangeBounds.fromIso]);
+
+  // Build per-club rows: clubs with pending OR recently completed in range
+  type Row = {
+    name: string;
+    score: number;
+    level: "high" | "medium" | "healthy";
+    pending: CSTask[];
+    completed: CSTask[];
+    lastContact: string | null;
+  };
+
+  const rows: Row[] = useMemo(() => {
+    const map = new Map<string, Row>();
+    const ensure = (name: string): Row => {
+      let r = map.get(name);
+      if (!r) {
+        const hist = tenantHistory.get(name) ?? [];
+        const sts = tenantStatuses.get(name) ?? [];
+        const live = computeRiskWithCS(hist, sts);
+        r = {
+          name,
+          score: live.score,
+          level: live.level,
+          pending: [],
+          completed: [],
+          lastContact: lastCompletedActivityAt(allTasks.filter((t) => t.tenant_name === name)),
+        };
+        map.set(name, r);
+      }
+      return r;
+    };
+    pendingTasks.forEach((t) => ensure(t.tenant_name).pending.push(t));
+    completedInRange.forEach((t) => ensure(t.tenant_name).completed.push(t));
+    return Array.from(map.values()).sort((a, b) => {
+      // pending desc, then score desc
+      if ((b.pending.length > 0 ? 1 : 0) !== (a.pending.length > 0 ? 1 : 0)) {
+        return (b.pending.length > 0 ? 1 : 0) - (a.pending.length > 0 ? 1 : 0);
+      }
+      return b.score - a.score;
+    });
+  }, [pendingTasks, completedInRange, tenantHistory, tenantStatuses, allTasks]);
+
   const historyTasks = useMemo(
-    () => allTasks.filter((t) => t.status === "completed" && t.week_start !== weekStart),
-    [allTasks, weekStart],
+    () => allTasks.filter((t) => t.status === "completed").sort((a, b) =>
+      (b.completed_at ?? "").localeCompare(a.completed_at ?? "")),
+    [allTasks],
   );
-
-  // Group tasks by club + compute per-club info
-  const clubGroups = useMemo(() => {
-    const byTenant = new Map<string, CSTask[]>();
-    pendingTasks.forEach((t) => {
-      if (!byTenant.has(t.tenant_name)) byTenant.set(t.tenant_name, []);
-      byTenant.get(t.tenant_name)!.push(t);
-    });
-    const out = Array.from(byTenant.entries()).map(([name, tasks]) => {
-      const hist = tenantHistory.get(name) ?? [];
-      const sts = tenantStatuses.get(name) ?? [];
-      const live = computeRiskWithCS(hist, sts);
-      // last completed task across all weeks for this tenant
-      const allForTenant = allTasks.filter((t) => t.tenant_name === name && t.status === "completed");
-      let lastActivity: string | null = null;
-      allForTenant.forEach((t) => {
-        if (t.completed_at && (!lastActivity || t.completed_at > lastActivity)) lastActivity = t.completed_at;
-      });
-      return { name, tasks, score: live.score, level: live.level, lastActivity };
-    });
-    // sort by score desc
-    return out.sort((a, b) => b.score - a.score);
-  }, [pendingTasks, tenantHistory, tenantStatuses, allTasks]);
-
-  const completedGroups = useMemo(() => {
-    const byTenant = new Map<string, CSTask[]>();
-    completedThisWeek.forEach((t) => {
-      if (!byTenant.has(t.tenant_name)) byTenant.set(t.tenant_name, []);
-      byTenant.get(t.tenant_name)!.push(t);
-    });
-    return Array.from(byTenant.entries()).map(([name, tasks]) => ({ name, tasks }));
-  }, [completedThisWeek]);
 
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [expandedCompleted, setExpandedCompleted] = useState<string | null>(null);
 
   async function handleComplete(task: CSTask, outcome: string, note: string) {
     await completeCSTask(task.id, task.tenant_name, outcome, note.trim() || null);
@@ -197,7 +221,7 @@ function CSPage() {
     <div className="p-8 max-w-[1400px] mx-auto">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Customer Success</h1>
-        <p className="text-sm text-muted-foreground mt-1">Tendências YoY e plano semanal de contactos.</p>
+        <p className="text-sm text-muted-foreground mt-1">Tendências YoY e plano de contactos.</p>
       </header>
 
       {/* SECÇÃO A — TIMELINE */}
@@ -241,10 +265,7 @@ function CSPage() {
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" tickFormatter={(v) => `€${Math.round(Number(v) / 1000)}k`} />
               <Tooltip
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid oklch(0.93 0.01 250)" }}
-                formatter={(v, name) => {
-                  if (name === "Jogos online") return formatNumber(Number(v));
-                  return formatEuro(Number(v));
-                }}
+                formatter={(v, name) => name === "Jogos online" ? formatNumber(Number(v)) : formatEuro(Number(v))}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Line yAxisId="left" type="monotone" dataKey="games" name="Jogos online" stroke="oklch(0.18 0.02 250)" strokeWidth={2} dot={{ r: 2 }} />
@@ -254,7 +275,6 @@ function CSPage() {
           </ResponsiveContainer>
         </div>
 
-        {/* YoY badges */}
         {yoyPairs.length > 0 && (
           <div className="mt-5">
             <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Comparação ano a ano</div>
@@ -274,69 +294,89 @@ function CSPage() {
         )}
       </section>
 
-      {/* SECTION B — WEEKLY TODOS GROUPED BY CLUB */}
+      {/* SECTION B — CONTACTOS */}
       <section className="rounded-xl border border-border overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <ListChecks className="h-4 w-4" />
-            <h2 className="text-base font-semibold">Contactos da semana</h2>
-            <span className="text-xs text-muted-foreground">Semana de {periodLabel(weekStart)}</span>
+            <h2 className="text-base font-semibold">Contactos</h2>
           </div>
-          <div className="inline-flex rounded-md border border-border p-0.5 bg-background">
-            <button onClick={() => setTab("week")} className={`px-3 py-1.5 text-xs rounded ${tab === "week" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>Esta semana</button>
-            <button onClick={() => setTab("history")} className={`px-3 py-1.5 text-xs rounded ${tab === "history" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>Histórico</button>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-md border border-border p-0.5 bg-background">
+              <button onClick={() => setTab("contacts")} className={`px-3 py-1.5 text-xs rounded ${tab === "contacts" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>Contactos</button>
+              <button onClick={() => setTab("history")} className={`px-3 py-1.5 text-xs rounded ${tab === "history" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>Histórico</button>
+            </div>
+            {tab === "contacts" && (
+              <div className="inline-flex rounded-md border border-border p-0.5 bg-background">
+                {(["week", "month", "year"] as RangeKey[]).map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => setRange(k)}
+                    className={`px-3 py-1.5 text-xs rounded ${range === k ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {k === "week" ? "Esta semana" : k === "month" ? "Este mês" : "Este ano"}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {tab === "week" ? (
-          <div className="p-5 space-y-6">
-            {clubGroups.length === 0 && completedGroups.length === 0 ? (
+        {tab === "contacts" ? (
+          <div className="p-5">
+            {rows.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-8">
-                Sem tarefas geradas para esta semana. Todos os tenants saudáveis ou suprimidos.
+                Sem clubes com tarefas neste período.
               </div>
-            ) : null}
-
-            {clubGroups.length > 0 && (
+            ) : (
               <div className="rounded-lg border border-border overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-surface text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th className="px-4 py-3 text-left">Clube</th>
-                      <th className="px-4 py-3 text-left">Risco</th>
-                      <th className="px-4 py-3 text-left">Sinalizações</th>
-                      <th className="px-4 py-3 text-left">Última atividade CS</th>
+                      <th className="px-4 py-3 text-left">Saúde</th>
+                      <th className="px-4 py-3 text-left">Pendentes</th>
+                      <th className="px-4 py-3 text-left">Último contacto</th>
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
                   <tbody>
-                    {clubGroups.map((c) => {
-                      const isOpen = expanded === c.name;
+                    {rows.map((r) => {
+                      const isOpen = expanded === r.name;
                       return (
-                        <Fragment key={c.name}>
+                        <Fragment key={r.name}>
                           <tr
                             className="border-t border-border hover:bg-surface cursor-pointer"
-                            onClick={() => setExpanded(isOpen ? null : c.name)}
+                            onClick={() => setExpanded(isOpen ? null : r.name)}
                           >
-                            <td className="px-4 py-3 font-semibold">{c.name}</td>
-                            <td className="px-4 py-3"><RiskBadge level={c.level} score={c.score} /></td>
-                            <td className="px-4 py-3 text-xs text-muted-foreground">{c.tasks.length} sinalizações</td>
+                            <td className="px-4 py-3 font-semibold">{r.name}</td>
+                            <td className="px-4 py-3"><RiskBadge level={r.level} score={r.score} /></td>
+                            <td className="px-4 py-3">
+                              {r.pending.length > 0 ? (
+                                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-danger/10 text-danger font-medium">
+                                  {r.pending.length} pendentes
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs text-success">
+                                  <CheckCircle2 className="h-3.5 w-3.5" /> Concluído
+                                </span>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-xs text-muted-foreground">
-                              {c.lastActivity ? new Date(c.lastActivity).toLocaleDateString("pt-PT") : "Nunca"}
+                              {r.lastContact ? new Date(r.lastContact).toLocaleDateString("pt-PT") : "Nunca"}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <button className="p-1 rounded hover:bg-background" aria-label="Expandir">
-                                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              </button>
+                              {isOpen ? <ChevronDown className="h-4 w-4 inline" /> : <ChevronRight className="h-4 w-4 inline" />}
                             </td>
                           </tr>
                           {isOpen && (
                             <tr className="bg-surface/40">
                               <td colSpan={5} className="px-4 py-4">
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                                  {c.tasks.map((t) => (
-                                    <TaskCard key={t.id} task={t} score={c.score} onComplete={handleComplete} />
-                                  ))}
-                                </div>
+                                <ExpandedClubPanel
+                                  row={r}
+                                  weekStart={weekStart}
+                                  onComplete={handleComplete}
+                                />
                               </td>
                             </tr>
                           )}
@@ -347,54 +387,11 @@ function CSPage() {
                 </table>
               </div>
             )}
-
-            {completedGroups.length > 0 && (
-              <Collapsible title={`Concluídas esta semana (${completedThisWeek.length})`}>
-                <div className="rounded-md border border-border overflow-hidden">
-                  <table className="w-full text-sm">
-                    <tbody>
-                      {completedGroups.map((c) => {
-                        const isOpen = expandedCompleted === c.name;
-                        return (
-                          <Fragment key={c.name}>
-                            <tr
-                              className="border-b border-border hover:bg-surface cursor-pointer"
-                              onClick={() => setExpandedCompleted(isOpen ? null : c.name)}
-                            >
-                              <td className="px-4 py-2.5 font-medium flex items-center gap-2">
-                                <CheckCircle2 className="h-4 w-4 text-success" />
-                                <Link to="/tenant/$name" params={{ name: c.name }} onClick={(e) => e.stopPropagation()} className="hover:underline">{c.name}</Link>
-                              </td>
-                              <td className="px-4 py-2.5 text-xs text-muted-foreground">{c.tasks.length} concluídas</td>
-                              <td className="px-4 py-2.5 text-right">{isOpen ? <ChevronDown className="h-4 w-4 inline" /> : <ChevronRight className="h-4 w-4 inline" />}</td>
-                            </tr>
-                            {isOpen && (
-                              <tr>
-                                <td colSpan={3} className="px-4 py-3 bg-surface/40">
-                                  <ul className="space-y-1.5 text-xs">
-                                    {c.tasks.map((t) => (
-                                      <li key={t.id} className="flex items-center justify-between gap-2">
-                                        <span className="text-muted-foreground">{t.reason}</span>
-                                        <span className="px-2 py-0.5 rounded-full bg-background border border-border">{outcomeLabel(t.outcome)}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </td>
-                              </tr>
-                            )}
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </Collapsible>
-            )}
           </div>
         ) : (
           <div className="p-5">
             {historyTasks.length === 0 ? (
-              <div className="text-sm text-muted-foreground text-center py-8">Sem tarefas concluídas em semanas anteriores.</div>
+              <div className="text-sm text-muted-foreground text-center py-8">Sem tarefas concluídas.</div>
             ) : (
               <ul className="divide-y divide-border">
                 {historyTasks.map((t) => (
@@ -402,7 +399,9 @@ function CSPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <Link to="/tenant/$name" params={{ name: t.tenant_name }} className="font-medium hover:underline">{t.tenant_name}</Link>
-                        <span className="text-xs text-muted-foreground">Semana de {periodLabel(t.week_start)}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : ""} · Semana de {periodLabel(t.week_start)}
+                        </span>
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">{t.reason}</div>
                     </div>
@@ -418,6 +417,145 @@ function CSPage() {
   );
 }
 
+function ExpandedClubPanel({
+  row, weekStart, onComplete,
+}: {
+  row: { name: string; pending: CSTask[]; completed: CSTask[] };
+  weekStart: string;
+  onComplete: (t: CSTask, outcome: string, note: string) => Promise<void>;
+}) {
+  const [completedOpen, setCompletedOpen] = useState(false);
+  const [completingId, setCompletingId] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-3">
+      {row.pending.length > 0 && (
+        <ul className="space-y-2">
+          {row.pending.map((t) => {
+            const flag = (t.flags ?? [])[0] as RiskFlag | undefined;
+            const flagLabel = flag ? FLAG_META[flag]?.label ?? flag : "Sinalização";
+            const carryover = t.week_start < weekStart;
+            const isCompleting = completingId === t.id;
+            return (
+              <li key={t.id} className="rounded-md border border-border bg-background">
+                <div className="flex items-start gap-3 px-3 py-2.5 text-sm">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-foreground/60 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium">{flagLabel}</span>
+                      {carryover && (
+                        <span className="text-[10px] uppercase rounded-full bg-muted text-muted-foreground px-1.5 py-0.5">
+                          Carry-over
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{t.reason}</div>
+                  </div>
+                  {!isCompleting && (
+                    <button
+                      onClick={() => setCompletingId(t.id)}
+                      className="text-xs font-medium text-foreground hover:underline shrink-0"
+                    >
+                      Marcar feita ▸
+                    </button>
+                  )}
+                </div>
+                {isCompleting && (
+                  <CompleteForm
+                    onCancel={() => setCompletingId(null)}
+                    onConfirm={async (outcome, note) => {
+                      await onComplete(t, outcome, note);
+                      setCompletingId(null);
+                    }}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {row.completed.length > 0 && (
+        <div className="rounded-md border border-border">
+          <button
+            onClick={() => setCompletedOpen((v) => !v)}
+            className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-surface inline-flex items-center gap-1.5"
+          >
+            {completedOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            Ver {row.completed.length} concluída{row.completed.length === 1 ? "" : "s"}
+          </button>
+          {completedOpen && (
+            <ul className="border-t border-border divide-y divide-border">
+              {row.completed
+                .sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""))
+                .map((t) => {
+                  const flag = (t.flags ?? [])[0] as RiskFlag | undefined;
+                  const flagLabel = flag ? FLAG_META[flag]?.label ?? flag : "—";
+                  return (
+                    <li key={t.id} className="px-3 py-2 text-xs flex items-start gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" />
+                      <span className="text-muted-foreground shrink-0">
+                        {t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : "—"}
+                      </span>
+                      <span className="font-medium shrink-0">{flagLabel}</span>
+                      <span className="text-muted-foreground">— {outcomeLabel(t.outcome)}</span>
+                      {t.outcome && (
+                        <span className="text-muted-foreground italic truncate">
+                          {/* Note isn't on task; outcome is the label */}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CompleteForm({
+  onCancel, onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: (outcome: string, note: string) => Promise<void>;
+}) {
+  const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="border-t border-border bg-surface/40 px-3 py-2.5 space-y-2">
+      <select
+        value={outcome}
+        onChange={(e) => setOutcome(e.target.value)}
+        className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs"
+      >
+        {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <input
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Nota opcional…"
+        className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs"
+      />
+      <div className="flex items-center justify-end gap-2">
+        <button onClick={onCancel} disabled={busy} className="text-xs text-muted-foreground hover:text-foreground">Cancelar</button>
+        <button
+          onClick={async () => {
+            setBusy(true);
+            try { await onConfirm(outcome, note); } finally { setBusy(false); }
+          }}
+          disabled={busy}
+          className="px-3 py-1 text-xs rounded-md bg-foreground text-background font-medium hover:opacity-90 disabled:opacity-50"
+        >
+          {busy ? "A guardar…" : "Confirmar"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function YoyBadge({ label, cur, prev }: { label: string; cur: number; prev: number }) {
   if (prev === 0) return null;
   const diff = ((cur - prev) / Math.abs(prev)) * 100;
@@ -429,128 +567,8 @@ function YoyBadge({ label, cur, prev }: { label: string; cur: number; prev: numb
   );
 }
 
-function TaskGroup({
-  level, tasks, statuses, histories, onComplete,
-}: {
-  level: "high" | "medium";
-  tasks: CSTask[];
-  statuses: Map<string, CSTenantStatus[]>;
-  histories: Map<string, Snapshot[]>;
-  onComplete: (t: CSTask, outcome: string, note: string) => Promise<void>;
-}) {
-  const tone = level === "high"
-    ? { header: "bg-danger/10 text-danger border-danger/30", label: "Risco alto" }
-    : { header: "bg-warning/15 text-warning border-warning/30", label: "Risco médio" };
-  return (
-    <div>
-      <div className={`inline-flex items-center gap-2 rounded-md border px-3 py-1 text-xs font-medium mb-3 ${tone.header}`}>
-        <span className="h-1.5 w-1.5 rounded-full bg-current" />
-        {tone.label} · {tasks.length}
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {tasks.map((t) => {
-          const tenantSnaps = histories.get(t.tenant_name) ?? [];
-          const tenantStatus = statuses.get(t.tenant_name) ?? [];
-          const live = computeRiskWithCS(tenantSnaps, tenantStatus);
-          return <TaskCard key={t.id} task={t} score={live.score} onComplete={onComplete} />;
-        })}
-      </div>
-    </div>
-  );
-}
-
-function TaskCard({ task, score, onComplete }: { task: CSTask; score: number; onComplete: (t: CSTask, outcome: string, note: string) => Promise<void> }) {
-  const [open, setOpen] = useState(false);
-  const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const tone = score >= 60 ? { text: "text-danger", bg: "bg-danger/10" } : { text: "text-warning", bg: "bg-warning/15" };
-
-  return (
-    <div className="rounded-xl border border-border bg-background p-4 flex flex-col">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Link to="/tenant/$name" params={{ name: task.tenant_name }} className="font-semibold hover:underline inline-flex items-center gap-1">
-            {task.tenant_name}
-            <ArrowUpRight className="h-3.5 w-3.5 opacity-60" />
-          </Link>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {(task.flags ?? []).map((f) => (
-              <span key={f} className="text-[10px] rounded-full bg-surface px-1.5 py-0.5">{FLAG_META[f as RiskFlag]?.label ?? f}</span>
-            ))}
-          </div>
-        </div>
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${tone.bg} ${tone.text}`}>
-          {score}
-        </span>
-      </div>
-
-      <p className="text-sm mt-3">{task.reason}</p>
-      <div className="mt-3 rounded-md bg-surface border border-border p-3 text-xs leading-relaxed">
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Ação sugerida</div>
-        {task.cta}
-      </div>
-
-      {!open ? (
-        <button
-          onClick={() => setOpen(true)}
-          className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-md bg-foreground text-background px-3 py-2 text-sm font-medium hover:opacity-90"
-        >
-          <CheckCircle2 className="h-4 w-4" /> Marcar como feita
-        </button>
-      ) : (
-        <div className="mt-4 rounded-md border border-border p-3 space-y-2">
-          <label className="block text-xs font-medium">Resultado</label>
-          <select
-            value={outcome}
-            onChange={(e) => setOutcome(e.target.value)}
-            className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-sm"
-          >
-            {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Nota opcional…"
-            rows={2}
-            className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-sm"
-          />
-          <div className="flex gap-2 justify-end">
-            <button onClick={() => setOpen(false)} className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-surface" disabled={busy}>Cancelar</button>
-            <button
-              onClick={async () => {
-                setBusy(true);
-                try { await onComplete(task, outcome, note); } finally { setBusy(false); }
-              }}
-              disabled={busy}
-              className="px-3 py-1.5 text-xs rounded-md bg-foreground text-background font-medium hover:opacity-90 disabled:opacity-50"
-            >
-              {busy ? "A guardar…" : "Confirmar"}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Collapsible({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="rounded-md border border-border">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium hover:bg-surface">
-        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        {title}
-      </button>
-      {open && <div className="px-3 pb-3">{children}</div>}
-    </div>
-  );
-}
-
 // Generate weekly tasks from current data + statuses (called once per week if none exist)
 async function generateWeeklyTasks(snapshots: Snapshot[], statuses: CSTenantStatus[], weekStart: string) {
-  // Group
   const histByTenant = new Map<string, Snapshot[]>();
   snapshots.forEach((s) => {
     if (!histByTenant.has(s.tenant_name)) histByTenant.set(s.tenant_name, []);
@@ -562,7 +580,6 @@ async function generateWeeklyTasks(snapshots: Snapshot[], statuses: CSTenantStat
     statusByTenant.get(s.tenant_name)!.push(s);
   });
 
-  // Latest period
   const latest = snapshots.reduce<string>((acc, s) => (s.period > acc ? s.period : acc), "");
   if (!latest) return;
 
@@ -579,7 +596,7 @@ async function generateWeeklyTasks(snapshots: Snapshot[], statuses: CSTenantStat
         tenant_name: name,
         reason: meta.reason,
         cta: meta.cta,
-        priority: risk.score, // overall score determines ordering
+        priority: risk.score,
         flags: [f],
         week_start: weekStart,
       });
