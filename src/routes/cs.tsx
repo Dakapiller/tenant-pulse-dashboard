@@ -215,7 +215,7 @@ function CSPage() {
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" tickFormatter={(v) => `€${Math.round(Number(v) / 1000)}k`} />
               <Tooltip
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid oklch(0.93 0.01 250)" }}
-                formatter={(v: number | string, name: string) => {
+                formatter={(v, name) => {
                   if (name === "Games online") return formatNumber(Number(v));
                   return formatEuro(Number(v));
                 }}
