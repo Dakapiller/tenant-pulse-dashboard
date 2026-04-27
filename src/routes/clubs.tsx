@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, Download, Search, X,
+  AlertTriangle, Building2, Check, Download, X,
 } from "lucide-react";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
@@ -17,6 +17,7 @@ import {
   setClubStatus,
   currentClubStatus,
   currentChurnCompetitor,
+  scoreWithDelta,
   sumCSImpact,
   lastCompletedActivityAt,
   currentWeekStart,
@@ -31,6 +32,7 @@ import {
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
 import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/format";
+import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 
 export const Route = createFileRoute("/clubs")({
   component: ClubsPage,
@@ -45,6 +47,7 @@ interface ClubRow {
   status: ClubStatus;
   competitor: string | null;
   score: number;
+  scoreDelta: number | null;
   level: "high" | "medium" | "healthy";
   csImpact: number;
   lastActivity: string | null;
@@ -58,11 +61,6 @@ function ClubsPage() {
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | ClubStatus>("all");
-  const [pendingFilter, setPendingFilter] = useState<"all" | "has" | "none">("all");
-  const [riskFilter, setRiskFilter] = useState<"all" | "high" | "medium" | "healthy">("all");
 
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
@@ -107,14 +105,14 @@ function ClubsPage() {
       const latest = sorted[sorted.length - 1] ?? null;
       const sts = stsByTenant.get(name) ?? [];
       const tks = tasksByTenant.get(name) ?? [];
-      const risk = computeRiskWithCS(sorted, sts);
+      const sd = scoreWithDelta(sorted, sts);
       const status = currentClubStatus(sts);
       const competitor = currentChurnCompetitor(sts);
       const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
       const missing = !!latestPeriod && !sorted.some((s) => s.period === latestPeriod);
       result.push({
         name, latest, history: sorted, statuses: sts, tasks: tks,
-        status, competitor, score: risk.score, level: risk.level,
+        status, competitor, score: sd.score, scoreDelta: sd.delta, level: sd.level,
         csImpact: sumCSImpact(sts),
         lastActivity: lastCompletedActivityAt(tks),
         pending, missingFromLatest: missing,
@@ -122,21 +120,6 @@ function ClubsPage() {
     }
     return result;
   }, [snapshots, statuses, tasks, weekStart, latestPeriod]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (q && !r.name.toLowerCase().includes(q)) return false;
-      if (statusFilter !== "all" && r.status !== statusFilter) return false;
-      if (pendingFilter === "has" && r.pending === 0) return false;
-      if (pendingFilter === "none" && r.pending > 0) return false;
-      if (riskFilter !== "all" && r.level !== riskFilter) return false;
-      return true;
-    }).sort((a, b) => {
-      if (a.missingFromLatest !== b.missingFromLatest) return a.missingFromLatest ? -1 : 1;
-      return b.score - a.score;
-    });
-  }, [rows, search, statusFilter, pendingFilter, riskFilter]);
 
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
 
