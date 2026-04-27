@@ -21,9 +21,10 @@ export interface CSTenantStatus {
   note: string | null;
   recorded_at: string;
   club_status?: string | null;
+  churn_competitor?: string | null;
 }
 
-export type ClubStatus = "active" | "churn_candidate" | "churned";
+export type ClubStatus = "active" | "possible_churn" | "churned" | "closed" | "changed_owner";
 
 export interface ClubStatusLog {
   id: string;
@@ -37,9 +38,26 @@ export interface ClubStatusLog {
 
 export const CLUB_STATUS_LABEL: Record<ClubStatus, string> = {
   active: "Ativo",
-  churn_candidate: "Candidato a churn",
+  possible_churn: "Possível churn",
   churned: "Em churn",
+  closed: "Fechado",
+  changed_owner: "Mudança de dono",
 };
+
+export const CLUB_STATUS_OPTIONS: { value: ClubStatus; label: string }[] = [
+  { value: "active", label: "Ativo" },
+  { value: "possible_churn", label: "Possível churn" },
+  { value: "churned", label: "Em churn" },
+  { value: "closed", label: "Fechado" },
+  { value: "changed_owner", label: "Mudança de dono" },
+];
+
+export const COMPETITOR_OPTIONS: { value: string; label: string }[] = [
+  { value: "SmashPro", label: "SmashPro" },
+  { value: "TiePlayer", label: "TiePlayer" },
+  { value: "RacketID", label: "RacketID" },
+  { value: "Outro", label: "Outro" },
+];
 
 export const OUTCOME_OPTIONS: { value: string; label: string }[] = [
   { value: "bad_relationship", label: "Má relação" },
