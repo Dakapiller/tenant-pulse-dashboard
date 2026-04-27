@@ -345,6 +345,13 @@ function CSPage() {
                   defaultSort={{ key: "score", dir: "desc" }}
                   onRowClick={(r) => setExpanded(expanded === r.name ? null : r.name)}
                   rowClassName={(r) => expanded === r.name ? "bg-surface/40" : ""}
+                  expandedRow={(r) => expanded === r.name ? (
+                    <ExpandedClubPanel
+                      row={r}
+                      weekStart={weekStart}
+                      onComplete={handleComplete}
+                    />
+                  ) : null}
                   columns={[
                     {
                       key: "name", header: "Clube",
@@ -397,15 +404,6 @@ function CSPage() {
                     },
                   ]}
                 />
-                {expanded && rows.find((r) => r.name === expanded) && (
-                  <div className="border-t border-border bg-surface/40 px-4 py-4">
-                    <ExpandedClubPanel
-                      row={rows.find((r) => r.name === expanded)!}
-                      weekStart={weekStart}
-                      onComplete={handleComplete}
-                    />
-                  </div>
-                )}
               </div>
             )}
           </div>
