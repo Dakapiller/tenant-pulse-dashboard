@@ -355,6 +355,39 @@ function UploadPage() {
           </div>
         )}
       </section>
+
+      {history.length > 0 && (
+        <section className="rounded-xl border border-border bg-background overflow-hidden mt-6">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="text-sm font-semibold">Histórico de carregamentos</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Re-carregar este mês substitui os dados existentes.</p>
+          </div>
+          <div className="overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-surface text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2.5 text-left">Período</th>
+                  <th className="px-4 py-2.5 text-right">Nº de clubes</th>
+                  <th className="px-4 py-2.5 text-left">Data de carregamento</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h) => (
+                  <tr key={h.period} className="border-t border-border hover:bg-surface">
+                    <td className="px-4 py-2 font-medium capitalize">
+                      {new Date(`${h.period}T00:00:00Z`).toLocaleString("pt-PT", { month: "long", year: "numeric", timeZone: "UTC" })}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">{h.club_count}</td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground">
+                      {new Date(h.uploaded_at).toLocaleString("pt-PT")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
