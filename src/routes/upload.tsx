@@ -240,7 +240,7 @@ function UploadPage() {
   ];
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight">Carregar snapshot mensal</h1>
         <p className="text-sm text-muted-foreground mt-1">Arraste um ficheiro .xlsx exportado para registar os KPIs dos tenants para um mês. Voltar a carregar substitui esse mês em segurança.</p>

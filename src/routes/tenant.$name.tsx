@@ -99,7 +99,7 @@ function TenantDetail() {
   }
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
       <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3"><ArrowLeft className="h-4 w-4" />Visão geral</Link>
       <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
         <div>
