@@ -40,6 +40,8 @@ function CSPage() {
   const [chartMode, setChartMode] = useState<"aggregate" | "tenant">("aggregate");
   const [selectedTenant, setSelectedTenant] = useState<string>("");
 
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+
   const weekStart = useMemo(() => currentWeekStart(), []);
 
   async function loadAll() {
