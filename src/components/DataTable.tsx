@@ -30,6 +30,8 @@ export interface DataTableProps<T> {
   defaultSort?: { key: string; dir: SortDir };
   rowClassName?: (row: T) => string;
   onRowClick?: (row: T) => void;
+  /** When provided and returns non-null, an additional row is rendered directly below with this content. */
+  expandedRow?: (row: T) => ReactNode | null;
   emptyMessage?: string;
   stickyHeader?: boolean;
   containerClassName?: string;
@@ -42,6 +44,7 @@ export function DataTable<T>({
   defaultSort,
   rowClassName,
   onRowClick,
+  expandedRow,
   emptyMessage = "Sem dados.",
   stickyHeader = false,
   containerClassName = "",
@@ -181,25 +184,36 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {filtered.map((row) => (
-            <tr
-              key={rowKey(row)}
-              className={`border-t border-border hover:bg-surface ${onRowClick ? "cursor-pointer" : ""} ${rowClassName?.(row) ?? ""}`}
-              onClick={() => onRowClick?.(row)}
-            >
-              {columns.map((col) => {
-                const align = col.align ?? "left";
-                return (
-                  <td
-                    key={col.key}
-                    className={`px-4 py-2.5 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} ${col.className ?? ""}`}
-                  >
-                    {col.render(row)}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+          {filtered.map((row) => {
+            const expandedContent = expandedRow?.(row);
+            return (
+              <Fragment key={rowKey(row)}>
+                <tr
+                  className={`border-t border-border hover:bg-surface ${onRowClick ? "cursor-pointer" : ""} ${rowClassName?.(row) ?? ""}`}
+                  onClick={() => onRowClick?.(row)}
+                >
+                  {columns.map((col) => {
+                    const align = col.align ?? "left";
+                    return (
+                      <td
+                        key={col.key}
+                        className={`px-4 py-2.5 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} ${col.className ?? ""}`}
+                      >
+                        {col.render(row)}
+                      </td>
+                    );
+                  })}
+                </tr>
+                {expandedContent && (
+                  <tr className="bg-surface/40">
+                    <td colSpan={columns.length} className="px-4 py-4 border-t border-border">
+                      {expandedContent}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
           {filtered.length === 0 && (
             <tr>
               <td colSpan={columns.length} className="px-4 py-10 text-center text-muted-foreground text-sm">
