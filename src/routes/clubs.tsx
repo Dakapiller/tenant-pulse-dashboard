@@ -126,6 +126,12 @@ function ClubsPage() {
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
 
   async function handleStatusChange(tenant: string, current: ClubStatus, next: ClubStatus, competitor: string | null) {
+    if (next === "churned" && current !== "churned") {
+      const ok = window.confirm(
+        `Tens a certeza que queres marcar "${tenant}" como Em Churn?\n\nEsta ação remove o clube das métricas agregadas (KPIs, gráficos e cálculos de risco).`,
+      );
+      if (!ok) return;
+    }
     await setClubStatus(tenant, next, current, null, "cs", competitor);
     await loadAll();
     setEditingTenant(null);
