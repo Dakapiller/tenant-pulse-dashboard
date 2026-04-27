@@ -15,13 +15,35 @@ export interface Snapshot {
   transacted_rate: number;
 }
 
+const PAGE_SIZE = 1000;
+
+/**
+ * Paginate a Supabase query past the default 1000-row PostgREST limit.
+ * Calls `build(from, to)` repeatedly until a page returns fewer rows than the page size.
+ */
+export async function fetchAllPaged<T>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  build: (from: number, to: number) => any,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await build(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as T[];
+    out.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+  return out;
+}
+
 export async function fetchAllSnapshots(): Promise<Snapshot[]> {
-  const { data, error } = await supabase
-    .from("tenant_snapshots")
-    .select("*")
-    .order("period", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as Snapshot[];
+  return fetchAllPaged<Snapshot>((from, to) =>
+    supabase
+      .from("tenant_snapshots")
+      .select("*")
+      .order("period", { ascending: false })
+      .range(from, to),
+  );
 }
 
 export async function fetchSnapshotsForTenant(tenant: string): Promise<Snapshot[]> {
@@ -35,13 +57,15 @@ export async function fetchSnapshotsForTenant(tenant: string): Promise<Snapshot[
 }
 
 export async function fetchPeriods(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from("tenant_snapshots")
-    .select("period")
-    .order("period", { ascending: false });
-  if (error) throw error;
+  const rows = await fetchAllPaged<{ period: string }>((from, to) =>
+    supabase
+      .from("tenant_snapshots")
+      .select("period")
+      .order("period", { ascending: false })
+      .range(from, to),
+  );
   const set = new Set<string>();
-  (data ?? []).forEach((r: { period: string }) => set.add(r.period));
+  rows.forEach((r) => set.add(r.period));
   return Array.from(set);
 }
 

@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { computeRiskWithCS } from "@/lib/risk";
-import type { Snapshot } from "@/lib/data";
+import { fetchAllPaged, type Snapshot } from "@/lib/data";
 
 export interface CSTask {
   id: string;
@@ -82,12 +82,13 @@ export function currentWeekStart(date: Date = new Date()): string {
 }
 
 export async function fetchAllCSStatuses(): Promise<CSTenantStatus[]> {
-  const { data, error } = await supabase
-    .from("cs_tenant_status")
-    .select("*")
-    .order("recorded_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as CSTenantStatus[];
+  return fetchAllPaged<CSTenantStatus>((from, to) =>
+    supabase
+      .from("cs_tenant_status")
+      .select("*")
+      .order("recorded_at", { ascending: false })
+      .range(from, to),
+  );
 }
 
 export async function fetchCSStatusesForTenant(tenant: string): Promise<CSTenantStatus[]> {
@@ -111,12 +112,13 @@ export async function fetchCSTasksForWeek(weekStart: string): Promise<CSTask[]> 
 }
 
 export async function fetchAllCSTasks(): Promise<CSTask[]> {
-  const { data, error } = await supabase
-    .from("cs_tasks")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as CSTask[];
+  return fetchAllPaged<CSTask>((from, to) =>
+    supabase
+      .from("cs_tasks")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, to),
+  );
 }
 
 export async function fetchCSTasksForTenant(tenant: string): Promise<CSTask[]> {
