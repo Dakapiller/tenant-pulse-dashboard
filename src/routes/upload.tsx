@@ -299,6 +299,23 @@ function UploadPage() {
               <CheckCircle2 className="h-4 w-4" />
               {result.success} tenants registados para {periodLabel}
             </div>
+            {(result.newClubs || result.missingClubs) && (
+              <div className="rounded-md border border-border p-3 text-sm space-y-2">
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <span><span className="font-medium">{result.newClubs?.length ?? 0}</span> novos clubes adicionados</span>
+                  <span>·</span>
+                  <span><span className="font-medium">{result.missingClubs?.length ?? 0}</span> clubes em falta neste carregamento (sinalizados como candidatos a churn)</span>
+                </div>
+                {result.missingClubs && result.missingClubs.length > 0 && (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Ver clubes em falta</summary>
+                    <ul className="mt-2 grid grid-cols-2 gap-1 max-h-40 overflow-auto">
+                      {result.missingClubs.map((n) => <li key={n} className="text-muted-foreground">• {n}</li>)}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            )}
             {result.errors.length > 0 && (
               <div className="rounded-md border border-danger/30 bg-danger/5 p-3">
                 <div className="flex items-center gap-2 text-sm text-danger font-medium mb-2">
