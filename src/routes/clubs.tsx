@@ -341,7 +341,7 @@ function ClubStatusBadge({ status }: { status: ClubStatus }) {
 
 // ---------- Drawer ----------
 
-function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: ClubRow; onClose: () => void; onChanged: () => Promise<void> }) {
+function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; onClose: () => void; onChanged?: () => Promise<void> }) {
   const [statusLogs, setStatusLogs] = useState<ClubStatusLog[]>([]);
   const [tenantTasks, setTenantTasks] = useState<CSTask[]>([]);
   const [tenantStatuses, setTenantStatuses] = useState<CSTenantStatus[]>([]);
