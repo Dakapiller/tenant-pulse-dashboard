@@ -447,6 +447,25 @@ function CSPage() {
           </div>
         )}
       </section>
+
+      {tab === "contacts" && selectedKeys.size > 0 && (
+        <BulkCompleteBar
+          count={selectedKeys.size}
+          onApply={async (outcome, note) => {
+            const names = Array.from(selectedKeys);
+            for (const name of names) {
+              const r = rows.find((x) => x.name === name);
+              if (!r) continue;
+              for (const t of r.pending) {
+                await completeCSTask(t.id, t.tenant_name, outcome, note.trim() || null);
+              }
+            }
+            setSelectedKeys(new Set());
+            await loadAll();
+          }}
+          onCancel={() => setSelectedKeys(new Set())}
+        />
+      )}
     </div>
   );
 }
