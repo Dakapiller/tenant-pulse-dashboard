@@ -669,3 +669,55 @@ async function generateWeeklyTasks(snapshots: Snapshot[], statuses: CSTenantStat
 
   if (tasks.length > 0) await insertCSTasks(tasks);
 }
+
+// ---------- Bulk complete-tasks bar (floating) ----------
+
+function BulkCompleteBar({
+  count, onApply, onCancel,
+}: {
+  count: number;
+  onApply: (outcome: string, note: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <div
+      className="fixed left-0 right-0 bottom-0 z-40 lg:left-60 border-t border-border bg-background/95 backdrop-blur shadow-lg"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      <div className="mx-auto max-w-[1400px] px-4 py-3 flex items-center gap-3 flex-wrap">
+        <span className="text-sm font-medium">
+          {count} {count === 1 ? "clube selecionado" : "clubes selecionados"} — marcar todas as pendentes como feitas
+        </span>
+        <div className="flex items-center gap-2 flex-wrap ml-auto">
+          <select
+            value={outcome}
+            onChange={(e) => setOutcome(e.target.value)}
+            className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background"
+          >
+            {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Nota opcional…"
+            className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background min-w-[180px]"
+          />
+          <button
+            onClick={async () => {
+              setBusy(true);
+              try { await onApply(outcome, note); } finally { setBusy(false); }
+            }}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            <CheckCircle2 className="h-4 w-4" /> {busy ? "A guardar…" : "Marcar todas como feitas"}
+          </button>
+          <button onClick={onCancel} className="text-sm text-muted-foreground hover:text-foreground px-2 py-2">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
