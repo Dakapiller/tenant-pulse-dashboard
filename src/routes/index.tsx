@@ -210,11 +210,11 @@ function DashboardPage() {
 
   // Health distribution per month — count ALL clubs in that period
   const healthByMonth = useMemo(() => {
-    const periodsAsc = [...new Set(snapshots.map((s) => s.period))].sort();
+    const periodsAsc = [...new Set(includedSnapshots.map((s) => s.period))].sort();
     return periodsAsc.map((p) => {
-      // All tenants present in this exact month (the upload).
+      // All non-excluded tenants present in this exact month.
       const tenantsThatMonth = new Set(
-        snapshots.filter((s) => s.period === p).map((s) => s.tenant_name),
+        includedSnapshots.filter((s) => s.period === p).map((s) => s.tenant_name),
       );
       let healthy = 0, medium = 0, high = 0;
       for (const name of tenantsThatMonth) {
@@ -235,7 +235,7 @@ function DashboardPage() {
         total: healthy + medium + high,
       };
     });
-  }, [snapshots, tenantHistory, tenantStatuses]);
+  }, [includedSnapshots, tenantHistory, tenantStatuses]);
 
   // Positive metrics
   const positives = useMemo(() => {
