@@ -513,10 +513,6 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
                   </li>
                 ))}
               </ul>
-            )}
-          </section>
-
-          <div className="text-[10px] text-muted-foreground">{onChanged.name ? "" : ""}</div>
         </div>
       </div>
     </div>
