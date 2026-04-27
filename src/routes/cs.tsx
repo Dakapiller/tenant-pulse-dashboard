@@ -224,7 +224,7 @@ function CSPage() {
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Customer Success</h1>
         <p className="text-sm text-muted-foreground mt-1">Tendências YoY e plano de contactos.</p>
@@ -357,7 +357,16 @@ function CSPage() {
                       key: "name", header: "Clube",
                       sortValue: (r) => r.name,
                       filterValue: (r) => r.name, filter: { kind: "text" },
-                      render: (r) => <span className="font-semibold">{r.name}</span>,
+                      render: (r) => (
+                        <Link
+                          to="/tenant/$name"
+                          params={{ name: r.name }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-semibold hover:underline"
+                        >
+                          {r.name}
+                        </Link>
+                      ),
                     },
                     {
                       key: "score", header: "Saúde",
