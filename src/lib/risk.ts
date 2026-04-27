@@ -42,8 +42,8 @@ export function computeRisk(snapshots: Snapshot[]): RiskResult {
   if (last.revenue === 0 && last.gmv_all > 0) flags.push("no_revenue");
   // saas_only
   if (last.saas > 0 && last.b2c_commissions === 0 && last.revenue === 0) flags.push("saas_only");
-  // rate_declining: dropped >10pp vs 2 months ago
-  if (prev2 && prev2.transacted_rate - last.transacted_rate > 10) flags.push("rate_declining");
+  // rate_declining: dropped >10pp vs 2 months ago (stored as decimals, e.g. 0.149 = 14.9%)
+  if (prev2 && (prev2.transacted_rate - last.transacted_rate) * 100 > 10) flags.push("rate_declining");
   // gmv_stagnant: <5% change over last 2 months (compare last vs prev2)
   if (prev2 && prev2.gmv_all > 0) {
     const change = Math.abs((last.gmv_all - prev2.gmv_all) / prev2.gmv_all);
