@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
-import { computeRisk } from "@/lib/risk";
+import { fetchAllCSStatuses, type CSTenantStatus } from "@/lib/cs";
+import { computeRiskWithCS } from "@/lib/risk";
 import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/format";
 import { ArrowUpDown, Search, Upload } from "lucide-react";
 
