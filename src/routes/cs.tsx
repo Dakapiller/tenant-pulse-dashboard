@@ -21,7 +21,7 @@ import {
 import { computeRiskWithCS, FLAG_CTA, FLAG_META, type RiskFlag } from "@/lib/risk";
 import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
-import { CheckCircle2, ChevronDown, ChevronRight, ListChecks } from "lucide-react";
+import { ArrowRight, CheckCircle2, ChevronDown, ChevronRight, ListChecks } from "lucide-react";
 
 export const Route = createFileRoute("/cs")({
   component: CSPage,
