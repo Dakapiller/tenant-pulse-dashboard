@@ -222,6 +222,16 @@ function CSPage() {
     [allTasks],
   );
 
+  const visibleRows = useMemo(
+    () => showInactive ? rows : rows.filter((r) => !excluded.has(r.name)),
+    [rows, excluded, showInactive],
+  );
+  const visibleHistory = useMemo(
+    () => showInactive ? historyTasks : historyTasks.filter((t) => !excluded.has(t.tenant_name)),
+    [historyTasks, excluded, showInactive],
+  );
+  const inactiveRowsCount = rows.filter((r) => excluded.has(r.name)).length;
+
   const [expanded, setExpanded] = useState<string | null>(null);
 
   async function handleComplete(task: CSTask, outcome: string, note: string) {
