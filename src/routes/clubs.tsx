@@ -132,7 +132,7 @@ function ClubsPage() {
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
   return (
-    <div className="p-8 max-w-[1500px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1500px] mx-auto">
       <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
@@ -165,7 +165,6 @@ function ClubsPage() {
       <section className="rounded-xl border border-border bg-background overflow-hidden">
         <div className="px-4 py-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground">
           <span>{rows.length} clubes</span>
-          <span className="opacity-70">Use os ícones de filtro nas colunas para refinar</span>
         </div>
         <DataTable<ClubRow>
           rows={rows}
@@ -189,10 +188,10 @@ function ClubsPage() {
                 </>
               ),
             },
-            { key: "games", header: "Jogos", align: "right", sortValue: (r) => r.latest?.games_online ?? null, render: (r) => r.latest ? formatNumber(r.latest.games_online) : "—" },
+            { key: "games", header: "Jogos", align: "right", hideOnMobile: true, sortValue: (r) => r.latest?.games_online ?? null, render: (r) => r.latest ? formatNumber(r.latest.games_online) : "—" },
             { key: "gmv", header: "GMV", align: "right", sortValue: (r) => r.latest?.gmv_all ?? null, render: (r) => r.latest ? formatEuro(r.latest.gmv_all) : "—" },
-            { key: "revenue", header: "Receita", align: "right", sortValue: (r) => r.latest?.revenue ?? null, render: (r) => r.latest ? formatEuro(r.latest.revenue) : "—" },
-            { key: "rate", header: "Taxa", align: "right", sortValue: (r) => r.latest?.transacted_rate ?? null, render: (r) => r.latest ? formatPercent(r.latest.transacted_rate) : "—" },
+            { key: "revenue", header: "Receita", align: "right", hideOnMobile: true, sortValue: (r) => r.latest?.revenue ?? null, render: (r) => r.latest ? formatEuro(r.latest.revenue) : "—" },
+            { key: "rate", header: "Taxa", align: "right", hideOnMobile: true, sortValue: (r) => r.latest?.transacted_rate ?? null, render: (r) => r.latest ? formatPercent(r.latest.transacted_rate) : "—" },
             {
               key: "score",
               header: "Saúde",
@@ -216,6 +215,7 @@ function ClubsPage() {
               key: "csImpact",
               header: "CS Δ",
               align: "center",
+              hideOnMobile: true,
               sortValue: (r) => r.csImpact,
               render: (r) => {
                 const impactColor = r.csImpact > 0 ? "text-danger" : r.csImpact < 0 ? "text-success" : "text-muted-foreground";
@@ -229,6 +229,7 @@ function ClubsPage() {
             {
               key: "lastActivity",
               header: "Última atividade",
+              hideOnMobile: true,
               sortValue: (r) => r.lastActivity ?? "",
               render: (r) => <span className="text-xs text-muted-foreground">{r.lastActivity ? new Date(r.lastActivity).toLocaleDateString("pt-PT") : "Nunca"}</span>,
             },

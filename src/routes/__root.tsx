@@ -29,7 +29,7 @@ export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Tenant Pulse — Monitorização de Saúde de Tenants" },
       { name: "description", content: "Monitorize a saúde dos tenants, GMV, receita e sinais de risco em todo o portfólio." },
     ],
@@ -61,9 +61,12 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="md:flex min-h-screen bg-background text-foreground">
       <Sidebar />
-      <main className="flex-1 min-w-0 overflow-x-hidden">
+      <main
+        className="flex-1 min-w-0 overflow-x-hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
         <Outlet />
       </main>
     </div>
