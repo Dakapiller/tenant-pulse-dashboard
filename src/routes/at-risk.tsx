@@ -82,7 +82,7 @@ function AtRiskPage() {
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Tenants em risco</h1>
         <p className="text-sm text-muted-foreground mt-1">Clubes com pelo menos uma sinalização de risco no último mês, ordenados por gravidade.</p>
