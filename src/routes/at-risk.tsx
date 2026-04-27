@@ -64,20 +64,20 @@ function AtRiskPage() {
     return list.sort((a, b) => b.risk.score - a.risk.score);
   }, [tenantHistory, latest, statusByTenant]);
 
-  if (loading) return <div className="p-10 text-muted-foreground">Loading…</div>;
+  if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
   return (
     <div className="p-8 max-w-[1400px] mx-auto">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">At-risk tenants</h1>
-        <p className="text-sm text-muted-foreground mt-1">Tenants with at least one risk flag in the latest month, ranked by severity.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Tenants em risco</h1>
+        <p className="text-sm text-muted-foreground mt-1">Tenants com pelo menos uma sinalização de risco no último mês, ordenados por gravidade.</p>
       </header>
 
       {cards.length === 0 ? (
         <div className="rounded-xl border border-border p-12 text-center">
           <ShieldCheck className="mx-auto h-10 w-10 text-success mb-3" />
-          <div className="text-lg font-medium">All tenants healthy</div>
-          <div className="text-sm text-muted-foreground mt-1">No risk flags triggered in the latest snapshot.</div>
+          <div className="text-lg font-medium">Todos os tenants saudáveis</div>
+          <div className="text-sm text-muted-foreground mt-1">Nenhuma sinalização de risco no último snapshot.</div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -91,12 +91,12 @@ function AtRiskPage() {
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{c.name}</div>
                     <div className={`text-xs mt-0.5 ${tone.text} font-medium`}>
-                      {c.risk.level === "high" ? "High risk" : "Medium risk"}
+                      {c.risk.level === "high" ? "Risco alto" : "Risco médio"}
                     </div>
                   </div>
                   <div className="text-right">
                     <div className={`text-3xl font-bold tabular-nums ${tone.text}`}>{c.risk.score}</div>
-                    <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Risk score</div>
+                    <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Score de risco</div>
                   </div>
                 </div>
 
@@ -116,10 +116,10 @@ function AtRiskPage() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="text-[10px] text-muted-foreground -mt-1 mb-3">Games online · last 6 months</div>
+                <div className="text-[10px] text-muted-foreground -mt-1 mb-3">Jogos online · últimos 6 meses</div>
 
                 <Link to="/tenant/$name" params={{ name: c.name }} className="mt-auto inline-flex items-center justify-between rounded-md bg-foreground text-background px-3 py-2 text-sm font-medium hover:opacity-90">
-                  View detail <ArrowRight className="h-4 w-4" />
+                  Ver detalhe <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             );

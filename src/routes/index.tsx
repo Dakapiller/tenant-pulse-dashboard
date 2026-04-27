@@ -100,7 +100,7 @@ function OverviewPage() {
     else { setSortKey(k); setSortDir(k === "tenant_name" ? "asc" : "desc"); }
   }
 
-  if (loading) return <div className="p-10 text-muted-foreground">Loading…</div>;
+  if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
   if (error) return <div className="p-10 text-danger">{error}</div>;
 
   if (!latestPeriod) {
@@ -110,10 +110,10 @@ function OverviewPage() {
           <div className="mx-auto mb-4 h-14 w-14 rounded-full bg-surface flex items-center justify-center">
             <Upload className="h-6 w-6" />
           </div>
-          <h1 className="text-2xl font-semibold mb-2">No data yet</h1>
-          <p className="text-muted-foreground mb-6">Upload your first monthly XLSX to see tenant health metrics.</p>
+          <h1 className="text-2xl font-semibold mb-2">Ainda sem dados</h1>
+          <p className="text-muted-foreground mb-6">Carregue o seu primeiro ficheiro XLSX mensal para ver as métricas de saúde dos tenants.</p>
           <Link to="/upload" className="inline-flex items-center gap-2 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90">
-            <Upload className="h-4 w-4" /> Go to Upload
+            <Upload className="h-4 w-4" /> Ir para Carregar
           </Link>
         </div>
       </div>
@@ -124,16 +124,16 @@ function OverviewPage() {
     <div className="p-8 max-w-[1400px] mx-auto">
       <header className="mb-6 flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-          <p className="text-sm text-muted-foreground mt-1">Latest snapshot — {periodLabel(latestPeriod)}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Visão geral</h1>
+          <p className="text-sm text-muted-foreground mt-1">Último snapshot — {periodLabel(latestPeriod)}</p>
         </div>
       </header>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <MetricCard label="Total tenants" value={formatNumber(totals.tenants)} />
-        <MetricCard label="Total games online" value={formatNumber(totals.games)} />
-        <MetricCard label="Total GMV (all products)" value={formatEuro(totals.gmvAll)} />
-        <MetricCard label="Total revenue" value={formatEuro(totals.revenue)} />
+        <MetricCard label="Total de tenants" value={formatNumber(totals.tenants)} />
+        <MetricCard label="Total de jogos online" value={formatNumber(totals.games)} />
+        <MetricCard label="GMV total (todos os produtos)" value={formatEuro(totals.gmvAll)} />
+        <MetricCard label="Receita total" value={formatEuro(totals.revenue)} />
       </section>
 
       <section className="rounded-xl border border-border bg-background overflow-hidden">
@@ -143,7 +143,7 @@ function OverviewPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tenant…"
+              placeholder="Procurar tenant…"
               className="w-full pl-9 pr-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
@@ -155,12 +155,12 @@ function OverviewPage() {
             <thead className="sticky top-0 bg-surface z-10">
               <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <Th onClick={() => toggleSort("tenant_name")} active={sortKey === "tenant_name"}>Tenant</Th>
-                <Th onClick={() => toggleSort("games_online")} active={sortKey === "games_online"}>Games online</Th>
-                <Th onClick={() => toggleSort("gmv_games")} active={sortKey === "gmv_games"} align="right">GMV games</Th>
-                <Th onClick={() => toggleSort("gmv_all")} active={sortKey === "gmv_all"} align="right">GMV all</Th>
-                <Th onClick={() => toggleSort("revenue")} active={sortKey === "revenue"} align="right">Revenue</Th>
-                <Th onClick={() => toggleSort("transacted_rate")} active={sortKey === "transacted_rate"} align="right">Rate</Th>
-                <th className="px-4 py-3">Risk</th>
+                <Th onClick={() => toggleSort("games_online")} active={sortKey === "games_online"}>Jogos online</Th>
+                <Th onClick={() => toggleSort("gmv_games")} active={sortKey === "gmv_games"} align="right">GMV jogos</Th>
+                <Th onClick={() => toggleSort("gmv_all")} active={sortKey === "gmv_all"} align="right">GMV total</Th>
+                <Th onClick={() => toggleSort("revenue")} active={sortKey === "revenue"} align="right">Receita</Th>
+                <Th onClick={() => toggleSort("transacted_rate")} active={sortKey === "transacted_rate"} align="right">Taxa</Th>
+                <th className="px-4 py-3">Risco</th>
               </tr>
             </thead>
             <tbody>
@@ -226,9 +226,9 @@ function Th({ children, onClick, active, align }: { children: React.ReactNode; o
 
 export function RiskBadge({ level, score }: { level: "high" | "medium" | "healthy"; score: number }) {
   const map = {
-    high: { bg: "bg-danger/10", text: "text-danger", label: "High risk" },
-    medium: { bg: "bg-warning/15", text: "text-warning", label: "Medium" },
-    healthy: { bg: "bg-success/10", text: "text-success", label: "Healthy" },
+    high: { bg: "bg-danger/10", text: "text-danger", label: "Risco alto" },
+    medium: { bg: "bg-warning/15", text: "text-warning", label: "Médio" },
+    healthy: { bg: "bg-success/10", text: "text-success", label: "Saudável" },
   } as const;
   const m = map[level];
   return (

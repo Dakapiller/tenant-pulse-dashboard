@@ -9,38 +9,38 @@ export type RiskFlag =
   | "spike_then_crash";
 
 export const FLAG_META: Record<RiskFlag, { label: string; points: number; description: string }> = {
-  games_dropping: { label: "Games dropping", points: 30, description: "Games online down 2+ consecutive months" },
-  no_revenue: { label: "No revenue", points: 25, description: "Revenue = 0 but GMV > 0" },
-  saas_only: { label: "SaaS only", points: 20, description: "SaaS > 0 but no B2C commissions and no revenue" },
-  rate_declining: { label: "Rate declining", points: 20, description: "Transacted rate dropped >10pp vs 2 months ago" },
-  gmv_stagnant: { label: "GMV stagnant", points: 15, description: "GMV all changed <5% over last 2 months" },
-  spike_then_crash: { label: "Spike then crash", points: 25, description: "Games spiked 2x then dropped back" },
+  games_dropping: { label: "Jogos a cair", points: 30, description: "Jogos online em queda há 2+ meses consecutivos" },
+  no_revenue: { label: "Sem receita", points: 25, description: "Receita = 0 mas GMV > 0" },
+  saas_only: { label: "Só SaaS", points: 20, description: "SaaS > 0 mas sem comissões B2C nem receita" },
+  rate_declining: { label: "Taxa em queda", points: 20, description: "Taxa transacionada caiu mais de 10pp face a 2 meses atrás" },
+  gmv_stagnant: { label: "GMV estagnado", points: 15, description: "GMV total variou menos de 5% nos últimos 2 meses" },
+  spike_then_crash: { label: "Pico e queda", points: 25, description: "Jogos duplicaram e voltaram a cair" },
 };
 
 export const FLAG_CTA: Record<RiskFlag, { reason: string; cta: string }> = {
   games_dropping: {
-    reason: "Games online dropped for 2+ consecutive months",
-    cta: "Check if there's a technical issue or drop in demand. Offer a platform review call.",
+    reason: "Jogos online em queda há 2+ meses consecutivos",
+    cta: "Verificar se há um problema técnico ou quebra de procura. Propor uma reunião de revisão da plataforma.",
   },
   no_revenue: {
-    reason: "GMV is present but revenue is zero — bookings not converting",
-    cta: "Understand the payment flow. Offer activation support or commercial setup review.",
+    reason: "Existe GMV mas a receita é zero — as reservas não estão a converter",
+    cta: "Compreender o fluxo de pagamento. Oferecer apoio na ativação ou revisão da configuração comercial.",
   },
   saas_only: {
-    reason: "Paying for SaaS but no B2C activity — tool not being used commercially",
-    cta: "Book a B2C feature demo. Show value of online bookings vs manual.",
+    reason: "Paga SaaS mas sem atividade B2C — a ferramenta não está a ser usada comercialmente",
+    cta: "Marcar uma demonstração das funcionalidades B2C. Mostrar o valor das reservas online vs. manuais.",
   },
   rate_declining: {
-    reason: "Transacted rate dropped significantly — fewer bookings completing payment",
-    cta: "Investigate checkout drop-off. Offer UX review or pricing guidance.",
+    reason: "A taxa transacionada caiu significativamente — menos reservas a concluir o pagamento",
+    cta: "Investigar abandono no checkout. Propor revisão de UX ou orientação de pricing.",
   },
   gmv_stagnant: {
-    reason: "GMV has barely changed over 2 months — growth is flat",
-    cta: "Discuss growth levers. Share benchmarks vs similar clubs.",
+    reason: "O GMV quase não variou em 2 meses — crescimento estagnado",
+    cta: "Discutir alavancas de crescimento. Partilhar benchmarks com clubes semelhantes.",
   },
   spike_then_crash: {
-    reason: "Unusual spike in activity followed by a sharp drop",
-    cta: "Understand what caused the spike and the drop. Could be a one-off event or churn signal.",
+    reason: "Pico inesperado de atividade seguido de uma queda acentuada",
+    cta: "Compreender o que causou o pico e a queda. Pode ser um evento pontual ou um sinal de churn.",
   },
 };
 

@@ -2,9 +2,9 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { Upload, LayoutDashboard, AlertTriangle, Activity, Users } from "lucide-react";
 
 const items = [
-  { to: "/", label: "Overview", icon: LayoutDashboard },
-  { to: "/upload", label: "Upload", icon: Upload },
-  { to: "/at-risk", label: "At-risk", icon: AlertTriangle },
+  { to: "/", label: "Visão geral", icon: LayoutDashboard },
+  { to: "/upload", label: "Carregar", icon: Upload },
+  { to: "/at-risk", label: "Em risco", icon: AlertTriangle },
   { to: "/cs", label: "Customer Success", icon: Users },
 ];
 
@@ -18,7 +18,7 @@ export function Sidebar() {
         </div>
         <div>
           <div className="font-semibold text-sm leading-tight">Tenant Pulse</div>
-          <div className="text-xs text-muted-foreground">Health monitoring</div>
+          <div className="text-xs text-muted-foreground">Monitorização de tenants</div>
         </div>
       </div>
       <nav className="flex-1 p-3 space-y-1">
@@ -43,7 +43,7 @@ export function Sidebar() {
         })}
       </nav>
       <div className="p-4 text-[11px] text-muted-foreground border-t border-border">
-        v1.0 · Local-only parsing
+        v1.0 · Processamento local
       </div>
     </aside>
   );

@@ -86,31 +86,31 @@ function TenantDetail() {
     });
   }, [sorted]);
 
-  if (loading) return <div className="p-10 text-muted-foreground">Loading…</div>;
+  if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
   if (error) return <div className="p-10 text-danger">{error}</div>;
 
   if (sorted.length === 0) {
     return (
       <div className="p-10">
-        <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"><ArrowLeft className="h-4 w-4" />Back</Link>
-        <div className="text-muted-foreground">No data for {name}.</div>
+        <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"><ArrowLeft className="h-4 w-4" />Voltar</Link>
+        <div className="text-muted-foreground">Sem dados para {name}.</div>
       </div>
     );
   }
 
   return (
     <div className="p-8 max-w-[1400px] mx-auto">
-      <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3"><ArrowLeft className="h-4 w-4" />Overview</Link>
+      <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3"><ArrowLeft className="h-4 w-4" />Visão geral</Link>
       <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{name}</h1>
           <div className="mt-2 flex items-center gap-3">
             <RiskBadge level={risk.level} score={risk.score} />
-            <span className="text-sm text-muted-foreground">{sorted.length} months of data</span>
+            <span className="text-sm text-muted-foreground">{sorted.length} meses de dados</span>
           </div>
         </div>
         <div>
-          <label className="text-xs uppercase tracking-wide text-muted-foreground block mb-1">Period</label>
+          <label className="text-xs uppercase tracking-wide text-muted-foreground block mb-1">Período</label>
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
@@ -125,42 +125,42 @@ function TenantDetail() {
 
       {selected && (
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Stat label="Games online" value={formatNumber(selected.games_online)} />
-          <Stat label="GMV (all)" value={formatEuro(selected.gmv_all)} />
-          <Stat label="Revenue" value={formatEuro(selected.revenue)} />
-          <Stat label="Transacted rate" value={formatPercent(selected.transacted_rate)} />
+          <Stat label="Jogos online" value={formatNumber(selected.games_online)} />
+          <Stat label="GMV (total)" value={formatEuro(selected.gmv_all)} />
+          <Stat label="Receita" value={formatEuro(selected.revenue)} />
+          <Stat label="Taxa transacionada" value={formatPercent(selected.transacted_rate)} />
         </section>
       )}
 
       <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-        <ChartCard title="Games online">
+        <ChartCard title="Jogos online">
           <MiniLine data={chartData} dataKey="games" />
         </ChartCard>
-        <ChartCard title="GMV (games)">
+        <ChartCard title="GMV (jogos)">
           <MiniLine data={chartData} dataKey="gmv_games" euro />
         </ChartCard>
-        <ChartCard title="Revenue">
+        <ChartCard title="Receita">
           <MiniLine data={chartData} dataKey="revenue" euro />
         </ChartCard>
-        <ChartCard title="Transacted rate (%)">
+        <ChartCard title="Taxa transacionada (%)">
           <MiniLine data={chartData} dataKey="rate" pct />
         </ChartCard>
       </section>
 
       <section className="rounded-xl border border-border overflow-hidden mb-8">
-        <div className="px-4 py-3 border-b border-border bg-surface text-sm font-medium">Monthly comparison</div>
+        <div className="px-4 py-3 border-b border-border bg-surface text-sm font-medium">Comparação mensal</div>
         <div className="max-h-[460px] overflow-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-surface z-10 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-4 py-3 text-left">Period</th>
-                <th className="px-4 py-3 text-right">Games</th>
+                <th className="px-4 py-3 text-left">Período</th>
+                <th className="px-4 py-3 text-right">Jogos</th>
                 <th className="px-4 py-3 text-right">Δ</th>
-                <th className="px-4 py-3 text-right">GMV all</th>
+                <th className="px-4 py-3 text-right">GMV total</th>
                 <th className="px-4 py-3 text-right">Δ</th>
-                <th className="px-4 py-3 text-right">Revenue</th>
+                <th className="px-4 py-3 text-right">Receita</th>
                 <th className="px-4 py-3 text-right">Δ</th>
-                <th className="px-4 py-3 text-right">Rate</th>
+                <th className="px-4 py-3 text-right">Taxa</th>
                 <th className="px-4 py-3 text-right">Δ</th>
               </tr>
             </thead>
@@ -184,9 +184,9 @@ function TenantDetail() {
       </section>
 
       <section className="rounded-xl border border-border p-5">
-        <h3 className="text-sm font-medium mb-3">Risk history</h3>
+        <h3 className="text-sm font-medium mb-3">Histórico de risco</h3>
         {history.filter((h) => h.result.flags.length > 0).length === 0 ? (
-          <div className="text-sm text-muted-foreground">No risk flags triggered in any month.</div>
+          <div className="text-sm text-muted-foreground">Nenhuma sinalização de risco em qualquer mês.</div>
         ) : (
           <ul className="space-y-2">
             {[...history].reverse().filter((h) => h.result.flags.length > 0).map((h) => (
@@ -208,7 +208,7 @@ function TenantDetail() {
 
       <section className="rounded-xl border border-border p-5 mt-6">
         <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-          <MessageSquare className="h-4 w-4" /> CS History
+          <MessageSquare className="h-4 w-4" /> Histórico CS
         </h3>
         <CSHistory tasks={csTasks} statuses={csStatuses} />
       </section>
@@ -265,7 +265,7 @@ function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantSta
   entries.sort((a, b) => b.date.localeCompare(a.date));
 
   if (entries.length === 0) {
-    return <div className="text-sm text-muted-foreground">No CS interactions recorded yet.</div>;
+    return <div className="text-sm text-muted-foreground">Sem interações de CS registadas.</div>;
   }
 
   return (
@@ -274,7 +274,7 @@ function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantSta
         <li key={e.key} className="py-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="text-xs text-muted-foreground">
-              {new Date(e.date).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+              {new Date(e.date).toLocaleString("pt-PT", { dateStyle: "medium", timeStyle: "short" })}
             </div>
             <span className="text-xs px-2 py-0.5 rounded-full bg-surface font-medium">{outcomeLabel(e.outcome)}</span>
           </div>
