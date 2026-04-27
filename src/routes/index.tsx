@@ -363,7 +363,7 @@ function DashboardPage() {
       </header>
 
       {/* Row 1 — KPIs */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+      <section className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
         <KpiCard icon={<Building2 className="h-4 w-4" />} label="Clubes ativos" value={formatNumber(kpis.activeClubs)} />
         <KpiCard icon={<TrendingDown className="h-4 w-4" />} label="Churned este ano" value={formatNumber(kpis.churnedThisYear)} tone="danger" />
         <KpiCard icon={<AlertTriangle className="h-4 w-4" />} label="Em risco alto" value={formatNumber(kpis.highRisk)} tone="warning" />
