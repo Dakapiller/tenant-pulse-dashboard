@@ -114,12 +114,15 @@ function ClubsPage() {
       const competitor = currentChurnCompetitor(sts);
       const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
       const missing = !!latestPeriod && !sorted.some((s) => s.period === latestPeriod);
+      const firstSeen = sorted[0]?.period ?? null;
+      const isNew = !!latestPeriod && firstSeen === latestPeriod && sorted.length === 1;
       result.push({
         name, latest, history: sorted, statuses: sts, tasks: tks,
         status, competitor, score: sd.score, scoreDelta: sd.delta, level: sd.level,
         csImpact: sumCSImpact(sts),
         lastActivity: lastCompletedActivityAt(tks),
         pending, missingFromLatest: missing,
+        isNew, firstSeen,
       });
     }
     return result;
