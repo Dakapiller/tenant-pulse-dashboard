@@ -144,7 +144,60 @@ function UploadPage() {
         setProgress(Math.round(((i + slice.length) / Math.max(1, records.length)) * 100));
       }
 
-      setResult({ success, errors });
+      // After successful upload — churn detection
+      let newClubs: string[] = [];
+      let missingClubs: string[] = [];
+      try {
+        const uploadedNames = new Set(records.map((r) => String(r.tenant_name)));
+        const { data: priorRows, error: priorErr } = await supabase
+          .from("tenant_snapshots")
+          .select("tenant_name, period")
+          .neq("period", periodIso);
+        if (!priorErr && priorRows) {
+          const priorNames = new Set<string>();
+          (priorRows as { tenant_name: string }[]).forEach((r) => priorNames.add(r.tenant_name));
+          newClubs = [...uploadedNames].filter((n) => !priorNames.has(n));
+          missingClubs = [...priorNames].filter((n) => !uploadedNames.has(n));
+
+          if (missingClubs.length > 0) {
+            // Fetch latest status to skip already-churned/candidates
+            const { data: latestStatusRows } = await supabase
+              .from("cs_tenant_status")
+              .select("tenant_name, club_status, recorded_at")
+              .in("tenant_name", missingClubs)
+              .order("recorded_at", { ascending: false });
+            const currentByTenant = new Map<string, string>();
+            (latestStatusRows ?? []).forEach((r) => {
+              if (!currentByTenant.has(r.tenant_name)) currentByTenant.set(r.tenant_name, r.club_status ?? "active");
+            });
+
+            const toFlag = missingClubs.filter((n) => (currentByTenant.get(n) ?? "active") === "active");
+            if (toFlag.length > 0) {
+              await supabase.from("cs_tenant_status").insert(
+                toFlag.map((n) => ({
+                  tenant_name: n,
+                  relationship_status: "status_churn_candidate",
+                  club_status: "churn_candidate",
+                  note: `Em falta no carregamento de ${periodLabel}`,
+                })) as never,
+              );
+              await supabase.from("club_status_log" as never).insert(
+                toFlag.map((n) => ({
+                  tenant_name: n,
+                  previous_status: "active",
+                  new_status: "churn_candidate",
+                  note: `Em falta no carregamento de ${periodLabel}`,
+                  changed_by: "upload",
+                })) as never,
+              );
+            }
+          }
+        }
+      } catch {
+        // Best-effort; ignore churn detection errors
+      }
+
+      setResult({ success, errors, newClubs, missingClubs });
     } catch (e) {
       errors.push({ tenant: "—", message: e instanceof Error ? e.message : "Erro desconhecido" });
       setResult({ success, errors });
