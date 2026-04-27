@@ -17,16 +17,45 @@ export const FLAG_META: Record<RiskFlag, { label: string; points: number; descri
   spike_then_crash: { label: "Spike then crash", points: 25, description: "Games spiked 2x then dropped back" },
 };
 
+export const FLAG_CTA: Record<RiskFlag, { reason: string; cta: string }> = {
+  games_dropping: {
+    reason: "Games online dropped for 2+ consecutive months",
+    cta: "Check if there's a technical issue or drop in demand. Offer a platform review call.",
+  },
+  no_revenue: {
+    reason: "GMV is present but revenue is zero — bookings not converting",
+    cta: "Understand the payment flow. Offer activation support or commercial setup review.",
+  },
+  saas_only: {
+    reason: "Paying for SaaS but no B2C activity — tool not being used commercially",
+    cta: "Book a B2C feature demo. Show value of online bookings vs manual.",
+  },
+  rate_declining: {
+    reason: "Transacted rate dropped significantly — fewer bookings completing payment",
+    cta: "Investigate checkout drop-off. Offer UX review or pricing guidance.",
+  },
+  gmv_stagnant: {
+    reason: "GMV has barely changed over 2 months — growth is flat",
+    cta: "Discuss growth levers. Share benchmarks vs similar clubs.",
+  },
+  spike_then_crash: {
+    reason: "Unusual spike in activity followed by a sharp drop",
+    cta: "Understand what caused the spike and the drop. Could be a one-off event or churn signal.",
+  },
+};
+
 export interface RiskResult {
   flags: RiskFlag[];
   score: number;
   level: "high" | "medium" | "healthy";
+  dataScore?: number;
+  csModifier?: number;
 }
 
 // snapshots = ALL snapshots for one tenant, sorted asc by period.
 // We score the LAST snapshot using up to 3 most recent (last, prev, prev2).
 export function computeRisk(snapshots: Snapshot[]): RiskResult {
-  if (snapshots.length === 0) return { flags: [], score: 0, level: "healthy" };
+  if (snapshots.length === 0) return { flags: [], score: 0, level: "healthy", dataScore: 0, csModifier: 0 };
   const sorted = [...snapshots].sort((a, b) => a.period.localeCompare(b.period));
   const last = sorted[sorted.length - 1];
   const prev = sorted[sorted.length - 2];
@@ -34,29 +63,78 @@ export function computeRisk(snapshots: Snapshot[]): RiskResult {
 
   const flags: RiskFlag[] = [];
 
-  // games_dropping: down 2+ consecutive months → need last < prev < prev2
   if (prev && prev2 && last.games_online < prev.games_online && prev.games_online < prev2.games_online) {
     flags.push("games_dropping");
   }
-  // no_revenue
   if (last.revenue === 0 && last.gmv_all > 0) flags.push("no_revenue");
-  // saas_only
   if (last.saas > 0 && last.b2c_commissions === 0 && last.revenue === 0) flags.push("saas_only");
-  // rate_declining: dropped >10pp vs 2 months ago (stored as decimals, e.g. 0.149 = 14.9%)
   if (prev2 && (prev2.transacted_rate - last.transacted_rate) * 100 > 10) flags.push("rate_declining");
-  // gmv_stagnant: <5% change over last 2 months (compare last vs prev2)
   if (prev2 && prev2.gmv_all > 0) {
     const change = Math.abs((last.gmv_all - prev2.gmv_all) / prev2.gmv_all);
     if (change < 0.05) flags.push("gmv_stagnant");
   }
-  // spike_then_crash: prev > 2x prev2, last dropped back (last < prev)
   if (prev && prev2 && prev2.games_online > 0 && prev.games_online > 2 * prev2.games_online && last.games_online < prev.games_online) {
     flags.push("spike_then_crash");
   }
 
-  const score = Math.min(100, flags.reduce((s, f) => s + FLAG_META[f].points, 0));
+  const dataScore = Math.min(100, flags.reduce((s, f) => s + FLAG_META[f].points, 0));
+  const score = dataScore;
   const level: RiskResult["level"] = score >= 60 ? "high" : score >= 30 ? "medium" : "healthy";
-  return { flags, score, level };
+  return { flags, score, level, dataScore, csModifier: 0 };
+}
+
+// CS outcome modifiers. Negative = healthier.
+export const CS_MODIFIER: Record<string, number> = {
+  bad_relationship: 25,
+  good_receptivity: -15,
+  very_satisfied: -30,
+};
+
+export interface CSStatusEntry {
+  relationship_status: string;
+  recorded_at: string;
+}
+
+// Aggregate CS modifier from recent statuses. Most-recent status per category dominates;
+// "very_satisfied" within last 4 weeks → suppress new task generation.
+export function computeRiskWithCS(
+  snapshots: Snapshot[],
+  csStatuses: CSStatusEntry[],
+): RiskResult & { suppressed: boolean } {
+  const base = computeRisk(snapshots);
+
+  // Sort statuses oldest → newest, then walk to compute net modifier.
+  const sorted = [...csStatuses].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
+  let modifier = 0;
+  let suppressed = false;
+  const fourWeeksAgo = Date.now() - 28 * 24 * 60 * 60 * 1000;
+
+  // Use the latest status only — it represents the current relationship state.
+  const latest = sorted[sorted.length - 1];
+  if (latest && CS_MODIFIER[latest.relationship_status] !== undefined) {
+    modifier = CS_MODIFIER[latest.relationship_status];
+  }
+
+  // Suppression: any "very_satisfied" within last 4 weeks
+  for (const s of sorted) {
+    if (s.relationship_status === "very_satisfied" && new Date(s.recorded_at).getTime() >= fourWeeksAgo) {
+      suppressed = true;
+      break;
+    }
+  }
+
+  const dataScore = base.dataScore ?? base.score;
+  const finalScore = Math.max(0, Math.min(100, dataScore + modifier));
+  const level: RiskResult["level"] = finalScore >= 60 ? "high" : finalScore >= 30 ? "medium" : "healthy";
+
+  return {
+    flags: base.flags,
+    score: finalScore,
+    level,
+    dataScore,
+    csModifier: modifier,
+    suppressed,
+  };
 }
 
 // For "Risk history" — score every month using its rolling 3-month window.
