@@ -89,6 +89,29 @@ function AtRiskPage() {
         <p className="text-sm text-muted-foreground mt-1">Clubes com pelo menos uma sinalização de risco no último mês, ordenados por gravidade.</p>
       </header>
 
+      {cards.length > 0 && (
+        <div className="mb-4 relative max-w-md">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Pesquisar clube…"
+            className="w-full pl-8 pr-8 py-2 text-base sm:text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-foreground/20"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-surface text-muted-foreground"
+              aria-label="Limpar pesquisa"
+              type="button"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
       {cards.length === 0 ? (
         <div className="rounded-xl border border-border p-12 text-center">
           <ShieldCheck className="mx-auto h-10 w-10 text-success mb-3" />
@@ -97,7 +120,9 @@ function AtRiskPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {cards.map((c) => {
+          {cards
+            .filter((c) => !search || c.name.toLowerCase().includes(search.toLowerCase()))
+            .map((c) => {
             const tone = c.risk.level === "high"
               ? { bar: "bg-danger", text: "text-danger", bg: "bg-danger/5", border: "border-danger/30" }
               : { bar: "bg-warning", text: "text-warning", bg: "bg-warning/5", border: "border-warning/30" };
