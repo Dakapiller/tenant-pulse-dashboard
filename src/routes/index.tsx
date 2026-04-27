@@ -87,6 +87,13 @@ function DashboardPage() {
     return m;
   }, [tasks]);
 
+  // Tenants in churned/closed status — excluded from ALL aggregate metrics
+  const excluded = useMemo(() => excludedTenants(statuses), [statuses]);
+  const includedSnapshots = useMemo(
+    () => snapshots.filter((s) => !excluded.has(s.tenant_name)),
+    [snapshots, excluded],
+  );
+
   // Per-tenant aggregate with score + previous-month score
   const clubs: ClubAgg[] = useMemo(() => {
     const list: ClubAgg[] = [];
