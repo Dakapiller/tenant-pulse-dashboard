@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,12 +49,35 @@ function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [history, setHistory] = useState<{ period: string; club_count: number; uploaded_at: string }[]>([]);
   const [result, setResult] = useState<{
     success: number;
     errors: { tenant: string; message: string }[];
     newClubs?: string[];
     missingClubs?: string[];
   } | null>(null);
+
+  async function loadHistory() {
+    const { data } = await supabase
+      .from("tenant_snapshots")
+      .select("period, created_at")
+      .order("period", { ascending: false });
+    if (!data) return;
+    const map = new Map<string, { count: number; latest: string }>();
+    (data as { period: string; created_at: string }[]).forEach((r) => {
+      const cur = map.get(r.period) ?? { count: 0, latest: r.created_at };
+      cur.count += 1;
+      if (r.created_at > cur.latest) cur.latest = r.created_at;
+      map.set(r.period, cur);
+    });
+    setHistory(
+      Array.from(map.entries())
+        .map(([period, v]) => ({ period, club_count: v.count, uploaded_at: v.latest }))
+        .sort((a, b) => b.period.localeCompare(a.period)),
+    );
+  }
+
+  useEffect(() => { loadHistory(); }, []);
 
   const periodIso = useMemo(() => {
     const m = String(month).padStart(2, "0");
