@@ -161,3 +161,21 @@ export function riskHistory(snapshots: Snapshot[]): { period: string; result: Ri
     result: computeRisk(sorted.slice(0, i + 1)),
   }));
 }
+
+// Compute the previous-month risk score using snapshots up to (but excluding) the latest period.
+// Used to derive month-over-month score deltas. Negative delta = improvement.
+export function previousMonthRisk(
+  snapshots: Snapshot[],
+  csStatuses: CSStatusEntry[] = [],
+): RiskResult | null {
+  if (snapshots.length < 2) return null;
+  const sorted = [...snapshots].sort((a, b) => a.period.localeCompare(b.period));
+  const last = sorted[sorted.length - 1];
+  const previousSlice = sorted.filter((s) => s.period < last.period);
+  if (previousSlice.length === 0) return null;
+  const prevPeriod = previousSlice[previousSlice.length - 1].period;
+  // Filter CS statuses recorded on or before the previous month end.
+  const cutoff = `${prevPeriod.slice(0, 7)}-31T23:59:59Z`;
+  const filteredStatuses = csStatuses.filter((s) => !s.recorded_at || s.recorded_at <= cutoff);
+  return computeRiskWithCS(previousSlice, filteredStatuses);
+}
