@@ -2,8 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
-import { fetchAllCSStatuses, fetchAllCSTasks, currentWeekStart, type CSTenantStatus, type CSTask } from "@/lib/cs";
+import { fetchAllCSStatuses, fetchAllCSTasks, currentWeekStart, scoreWithDelta, type CSTenantStatus, type CSTask } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META, FLAG_CTA, type RiskFlag } from "@/lib/risk";
+import { ScoreDelta } from "@/components/DataTable";
 import { ArrowRight, ListChecks, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/at-risk")({
@@ -63,15 +64,17 @@ function AtRiskPage() {
 
   const cards = useMemo(() => {
     if (!latest) return [];
-    const list: { name: string; risk: ReturnType<typeof computeRiskWithCS>; spark: { period: string; games: number }[]; pending: number }[] = [];
+    const list: { name: string; risk: ReturnType<typeof computeRiskWithCS>; scoreDelta: number | null; spark: { period: string; games: number }[]; pending: number }[] = [];
     for (const [name, hist] of tenantHistory) {
       const sorted = [...hist].sort((a, b) => a.period.localeCompare(b.period));
       const hasLatest = sorted.some((s) => s.period === latest);
       if (!hasLatest) continue;
-      const risk = computeRiskWithCS(sorted, statusByTenant.get(name) ?? []);
+      const sts = statusByTenant.get(name) ?? [];
+      const risk = computeRiskWithCS(sorted, sts);
       if (risk.flags.length === 0) continue;
+      const sd = scoreWithDelta(sorted, sts);
       const spark = sorted.slice(-6).map((s) => ({ period: s.period, games: s.games_online }));
-      list.push({ name, risk, spark, pending: pendingByTenant.get(name) ?? 0 });
+      list.push({ name, risk, scoreDelta: sd.delta, spark, pending: pendingByTenant.get(name) ?? 0 });
     }
     return list.sort((a, b) => b.risk.score - a.risk.score);
   }, [tenantHistory, latest, statusByTenant, pendingByTenant]);
@@ -109,6 +112,7 @@ function AtRiskPage() {
                   <div className="text-right">
                     <div className={`text-3xl font-bold tabular-nums ${tone.text}`}>{c.risk.score}</div>
                     <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Score</div>
+                    <div className="mt-1"><ScoreDelta delta={c.scoreDelta} /></div>
                   </div>
                 </div>
 
