@@ -328,7 +328,17 @@ function CSPage() {
             <ListChecks className="h-4 w-4" />
             <h2 className="text-base font-semibold">Contactos</h2>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {inactiveRowsCount > 0 && (
+              <button
+                onClick={() => setShowInactive((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-surface"
+                title={showInactive ? "Ocultar clubes em churn e fechados" : "Mostrar clubes em churn e fechados"}
+              >
+                {showInactive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {showInactive ? "Ocultar inativos" : `Mostrar inativos (${inactiveRowsCount})`}
+              </button>
+            )}
             <div className="inline-flex rounded-md border border-border p-0.5 bg-background">
               <button onClick={() => setTab("contacts")} className={`px-3 py-1.5 text-xs rounded ${tab === "contacts" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>Contactos</button>
               <button onClick={() => setTab("history")} className={`px-3 py-1.5 text-xs rounded ${tab === "history" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>Histórico</button>
@@ -351,14 +361,14 @@ function CSPage() {
 
         {tab === "contacts" ? (
           <div className="p-5">
-            {rows.length === 0 ? (
+            {visibleRows.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-8">
                 Sem clubes com tarefas neste período.
               </div>
             ) : (
               <div className="rounded-lg border border-border overflow-hidden">
                 <DataTable<typeof rows[number]>
-                  rows={rows}
+                  rows={visibleRows}
                   rowKey={(r) => r.name}
                   defaultSort={{ key: "score", dir: "desc" }}
                   onRowClick={(r) => setExpanded(expanded === r.name ? null : r.name)}
