@@ -151,17 +151,21 @@ function ClubsPage() {
       </header>
 
       {missingCount > 0 && (
-        <div className="mb-5 rounded-lg border border-warning/40 bg-warning/10 p-4 flex items-start gap-3">
+        <button
+          onClick={() => setMissingOpen(true)}
+          className="w-full mb-5 rounded-lg border border-warning/40 bg-warning/10 hover:bg-warning/15 hover:border-warning/60 transition-colors p-4 flex items-start gap-3 text-left cursor-pointer"
+        >
           <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
-          <div className="text-sm">
-            <div className="font-medium text-warning">
-              {missingCount} {missingCount === 1 ? "clube em falta" : "clubes em falta"} no último carregamento — reveja abaixo.
+          <div className="text-sm flex-1">
+            <div className="font-medium text-warning flex items-center gap-1.5">
+              {missingCount} {missingCount === 1 ? "clube em falta" : "clubes em falta"} no último carregamento — clique para rever
+              <ChevronRight className="h-4 w-4" />
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              Estes clubes existiam em períodos anteriores mas estão ausentes em {latestPeriod ? periodLabel(latestPeriod) : "—"}. Foram sinalizados como possível churn.
+              Estes clubes existiam em períodos anteriores mas estão ausentes em {latestPeriod ? periodLabel(latestPeriod) : "—"}. Confirme o estado de cada um.
             </div>
           </div>
-        </div>
+        </button>
       )}
 
       <section className="rounded-xl border border-border bg-background overflow-hidden">
