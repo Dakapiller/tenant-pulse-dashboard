@@ -145,7 +145,7 @@ export function DataTable<T>({
     () => (selectable ? filtered.filter((r) => (isRowSelectable ? isRowSelectable(r) : true)) : []),
     [selectable, filtered, isRowSelectable],
   );
-  const selSize = selectedKeys?.size ?? 0;
+  
   const visibleSelectedCount = useMemo(() => {
     if (!selectable || !selectedKeys) return 0;
     let n = 0;
