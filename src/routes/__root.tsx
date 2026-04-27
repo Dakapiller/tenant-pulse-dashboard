@@ -29,9 +29,17 @@ export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "Tenant Pulse — Monitorização de Saúde de Tenants" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { title: "Tenant Pulse - Monitorização de Saúde de Tenants" },
       { name: "description", content: "Monitorize a saúde dos tenants, GMV, receita e sinais de risco em todo o portfólio." },
+      { property: "og:title", content: "Tenant Pulse - Monitorização de Saúde de Tenants" },
+      { name: "twitter:title", content: "Tenant Pulse - Monitorização de Saúde de Tenants" },
+      { property: "og:description", content: "Monitorize a saúde dos tenants, GMV, receita e sinais de risco em todo o portfólio." },
+      { name: "twitter:description", content: "Monitorize a saúde dos tenants, GMV, receita e sinais de risco em todo o portfólio." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/38949921-1381-496f-bcc9-4493fa360ad7/id-preview-bac0bebc--6d17d3a3-b220-43bd-b6ea-663ad4a72476.lovable.app-1777304117145.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/38949921-1381-496f-bcc9-4493fa360ad7/id-preview-bac0bebc--6d17d3a3-b220-43bd-b6ea-663ad4a72476.lovable.app-1777304117145.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:type", content: "website" },
     ],
     links: [
       {
@@ -61,12 +69,9 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   return (
-    <div className="md:flex min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen bg-background text-foreground">
       <Sidebar />
-      <main
-        className="flex-1 min-w-0 overflow-x-hidden"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      >
+      <main className="flex-1 min-w-0 overflow-x-hidden">
         <Outlet />
       </main>
     </div>
