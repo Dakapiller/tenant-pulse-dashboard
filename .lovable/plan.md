@@ -1,67 +1,127 @@
-## Goals
+## Goal
 
-Make the daily CS workflow faster, link CS rows to club detail, fix the filter UX, and ship a usable mobile experience for iOS/Android.
+Three surgical changes:
+1. Bulk actions in `/clubs` and `/cs`.
+2. Exclude churned + closed clubs from all metric calculations.
+3. Make the "missing clubs" warning banner clickable and editable.
 
-## 1. DataTable — global search, outside-click filter close, mobile-friendly
+## 1. Helper layer (`src/lib/cs.ts`)
 
-Upgrade `src/components/DataTable.tsx` (single source of truth — the change benefits Clubes, CS, At-risk and Dashboard automatically):
+Add three small helpers that all pages can reuse:
 
-- Add an integrated **search bar above the table**: input with magnifying-glass icon, clear (✕) button, real-time filtering across all columns whose `filterValue` is defined (opt-out via new `searchable: false` per column). Debounced naturally via React state.
-- Show a **result counter** ("12 de 286 resultados") whenever search or filters are active, and a one-click "Limpar X filtros" pill.
-- Close the per-column filter dropdown when the user clicks/taps **outside** it. Implemented via `mousedown` + `touchstart` listeners on `document` + ref map per column.
-- Add `hideOnMobile` per-column flag so heavy tables can collapse non-essential columns (`<sm` breakpoint) — applied to secondary columns in Clubes (Taxa, CS Δ, Última atividade) so the table fits on a phone.
-- Tighter horizontal padding on small screens (`px-3 sm:px-4`).
-- Optional `toolbar` slot for page-specific actions (e.g. period selector) to sit beside the search box.
+```ts
+buildCurrentStatusMap(statuses) -> Map<tenant, ClubStatus>
+excludedTenants(statuses) -> Set<tenant>      // churned + closed
+isExcludedStatus(status) -> boolean
+```
 
-## 2. Mobile navigation + responsive shell
+These centralise the exclusion rule so every aggregate uses the same source of truth.
 
-`src/components/Sidebar.tsx` + `src/routes/__root.tsx`:
+## 2. DataTable bulk-selection support (`src/components/DataTable.tsx`)
 
-- On `< md`, hide the fixed sidebar and show a sticky **top bar** with hamburger + brand. Tapping the hamburger opens an off-canvas drawer (slide-in from left, dim overlay). Closing on link click, overlay click, or Escape.
-- On `≥ md`, keep the existing fixed left sidebar (no visual change).
-- Use a small `useState` + `useLocation` (auto-close drawer on route change) — no extra deps.
-- Add safe-area padding (`env(safe-area-inset-*)`) so iOS notch/home-bar don't clip content.
+Extend `DataTable` with optional, fully opt-in bulk-selection:
 
-Per-page tweaks for mobile:
+```ts
+selectable?: boolean
+selectedKeys?: Set<string>
+onSelectionChange?: (next: Set<string>) => void
+isRowSelectable?: (row: T) => boolean   // optional gate
+```
 
-- Reduce page outer padding from `p-8` → `p-4 sm:p-6 lg:p-8`, applied in `index.tsx`, `clubs.tsx`, `cs.tsx`, `at-risk.tsx`, `upload.tsx`, `tenant.$name.tsx`.
-- Dashboard KPI grid: `grid-cols-2 sm:grid-cols-2 lg:grid-cols-5` (was `1/2/5`) so mobile shows 2 KPIs per row instead of stacked single column.
-- CS chart toolbar wraps cleanly on small screens (already `flex-wrap`, just verify gap).
-- At-risk cards already responsive (`md:grid-cols-2 xl:grid-cols-3`) — confirmed OK.
+Behaviour:
+- When `selectable` is true, render a checkbox cell as the first column (header + per-row).
+- The header checkbox toggles ALL currently visible (filtered + searched) rows. Indeterminate state when partially selected.
+- Selection state is controlled by the parent so the page can render its own floating action bar.
+- Clicking a row checkbox calls `e.stopPropagation()` so it does not trigger `onRowClick` / row expansion.
+- "Visible/filtered rows can be selected" requirement is satisfied because the header toggle uses the already-filtered list.
 
-## 3. CS → Clubes link (open full club history from CS)
+No other DataTable behaviour changes.
 
-In `src/routes/cs.tsx`:
+## 3. `/clubs` — bulk status change + missing-clubs modal
 
-- The club name in the contacts table currently renders as plain text. Convert it to a `<Link to="/tenant/$name" params={{ name: r.name }}>` styled as a hover-underline link, keeping `e.stopPropagation()` so the row's expand toggle still works only for the rest of the row.
-- Inside the **expanded panel** (`ExpandedClubPanel`), add a header strip with two quick actions:
-  - "Ver clube" → `/tenant/$name` (full history, snapshots, charts).
-  - "Abrir no Clubes" → `/clubs` (so user can edit status/competitor inline).
-- In the **History tab**, the tenant link is already wired — keep as is.
+### 3a. Bulk-action floating bar
 
-## 4. Apply the new DataTable features in pages
+- Add `selectedKeys` state in `ClubsPage`. Pass `selectable` + state to `DataTable`.
+- When `selectedKeys.size > 0`, render a fixed bottom bar (`fixed bottom-0 left-0 right-0`, glass-morphism background, safe-area aware) containing:
+  - "X clubes selecionados"
+  - Status `<select>` (5 options from `CLUB_STATUS_OPTIONS`)
+  - Competitor `<select>` (only visible when status === churned)
+  - "Aplicar" button → loops the selection, calls `setClubStatus(name, newStatus, currentStatus, null, "cs", competitor)` for each. After completion, clears selection and reloads.
+  - "Cancelar" link → clears selection.
+- The bar uses `desktop:left-60` so it sits beside the sidebar on desktop, and full-width on mobile.
 
-- **Clubes** (`src/routes/clubs.tsx`): drop the local "Use os ícones de filtro nas colunas para refinar" hint (now redundant with the search box). Mark `rate`, `csImpact`, `lastActivity` columns `hideOnMobile`. Move the "Exportar" button into the DataTable `toolbar` so it lives next to the search.
-- **CS** (`src/routes/cs.tsx`): pass `searchPlaceholder="Pesquisar clube…"`. Move the "Esta semana / Este mês / Este ano" range tabs into the DataTable `toolbar`.
-- **Dashboard radar** (`src/routes/index.tsx`): inherits search automatically. Mark `flags` column `hideOnMobile`.
-- **At-risk** (`src/routes/at-risk.tsx`): currently a card grid (no table). Add a small search input above the grid that filters cards by name (local `useState`, simple substring match).
+### 3b. Missing-clubs modal
 
-## 5. Misc polish
+- Replace the current static `<div>` warning with a `<button>` (same styling, cursor-pointer, hover ring). Click opens `MissingClubsModal`.
+- Modal shows only the rows where `r.missingFromLatest && !isExcludedStatus(r.status)`.
+- Modal columns: Clube · Última vez visto (latest period in `r.history`) · Último GMV · Última saúde (badge with score) · Estado (inline `InlineStatusEditor` reused).
+- Bulk select supported using the same `DataTable` `selectable` API; same floating bar logic but rendered inside the modal footer instead of the page.
+- Tracking "actioned" clubs: each tenant whose status was changed during this modal session gets added to a local `Set<string>` (`actionedNames`). When the modal closes:
+  - If every missing tenant is in `actionedNames` OR has an updated current status that is no longer "active"/"possible_churn" with `missingFromLatest`, the banner disappears (we re-derive `missingCount` from refreshed data after each action).
+  - Else, the banner stays.
+- Modal scroll: `max-h-[80vh]` with internal `overflow-auto`.
 
-- Buttons sized ≥ 36 px on mobile (touch target). Tailwind `min-h-9` applied to interactive controls in toolbars.
-- `select` elements get `text-base sm:text-xs` so iOS does not zoom on focus (Safari auto-zooms when input font is < 16 px).
-- Search input uses `type="search"` (gives iOS the magnifying-glass keyboard + clear button).
-- Add the `viewport-fit=cover` meta tag in `__root.tsx` head for proper iOS notch handling.
+### 3c. Banner copy
 
-## Files to change
+Banner stays Portuguese: "X clubes em falta — clique para rever". Add chevron + clickable affordance.
 
-- `src/components/DataTable.tsx` — search, outside-click, mobile columns, toolbar slot.
-- `src/components/Sidebar.tsx` — drawer + hamburger for mobile.
-- `src/routes/__root.tsx` — viewport meta, top bar slot, safe-area padding.
-- `src/routes/cs.tsx` — link to tenant detail, toolbar usage, "Ver clube" in expanded panel.
-- `src/routes/clubs.tsx` — toolbar export button, `hideOnMobile` columns, drop redundant hint.
-- `src/routes/index.tsx` — KPI grid breakpoints, hideOnMobile.
-- `src/routes/at-risk.tsx` — local search above card grid.
-- `src/routes/upload.tsx`, `src/routes/tenant.$name.tsx` — page padding only.
+## 4. `/cs` — bulk complete tasks
 
-No new npm packages, no new database tables.
+- Add `selectedKeys` state in `CSPage`. Pass `selectable` + state to the contacts `DataTable`.
+- A row is selectable only if it has at least one pending task (`isRowSelectable: r => r.pending.length > 0`).
+- Floating bar appears when `selectedKeys.size > 0` with one action: "Marcar todas como feitas". Clicking opens an inline form (outcome dropdown + optional note), then on confirm:
+  - For each selected club, loop its `pending` tasks and call `completeCSTask(t.id, t.tenant_name, outcome, note)`.
+  - Clear selection and reload.
+
+No tab change needed for History view — selection only exists on the Contacts tab.
+
+## 5. Exclude churned/closed from metrics (everywhere)
+
+Build the exclusion set once per page using `excludedTenants(statuses)` and apply it:
+
+### Dashboard (`src/routes/index.tsx`)
+
+- Filter `clubs` array used for KPIs (`activeClubs`, `highRisk`), `positives`, `statusDistribution`, `topRisk`. Already excludes `churned`/`closed` from `highRisk` and `topRisk`; extend to all aggregates.
+- KPIs `monthGmv`, `monthRevenue`: filter snapshots by `!excluded.has(s.tenant_name)`.
+- `monthlySeries` (current + prior-year): filter snapshots before grouping.
+- `healthByMonth`: filter `tenantsThatMonth` to drop excluded tenants.
+- `recentActivity`: do NOT filter (it's individual task records, not aggregate).
+- Add a small grey caption under the KPI section: `"Clubes em churn e fechados excluídos dos cálculos."`
+- Keep `kpis.churnedThisYear` exactly as it is — the count of churned clubs is the metric itself.
+- Keep `KpiCard "Clubes ativos"` definition: same as before (active + possible_churn), unaffected.
+
+### CS page (`src/routes/cs.tsx`)
+
+- `series` (timeline aggregate): filter snapshots by `!excluded.has(s.tenant_name)` before period grouping.
+- Per-tenant chart mode: when the user explicitly picks a churned/closed tenant, still show their data (single-tenant exception — they're choosing it).
+- Tasks list: keep all (CS workflow can still log on excluded clubs if they have pending tasks).
+
+### At-risk (`src/routes/at-risk.tsx`)
+
+- Already filters out churned/closed implicitly because `risk.flags.length === 0` for many. Add explicit `if (excluded.has(name)) continue;` early.
+
+### Clubes (`src/routes/clubs.tsx`)
+
+- Show all clubs (filterable). No metric exclusion needed — this is the catalogue view itself.
+
+### Tenant detail
+
+- Out of scope (single-tenant view, no aggregates).
+
+## 6. Files touched
+
+- `src/lib/cs.ts` — add 3 helpers.
+- `src/components/DataTable.tsx` — add `selectable` + selection callbacks.
+- `src/routes/clubs.tsx` — bulk bar, clickable banner, missing-clubs modal.
+- `src/routes/cs.tsx` — bulk complete tasks.
+- `src/routes/index.tsx` — apply exclusion to aggregates + caption.
+- `src/routes/at-risk.tsx` — apply exclusion.
+
+No DB migration. No new packages. All actions reuse existing `setClubStatus` / `completeCSTask` server functions.
+
+## 7. UX notes
+
+- Floating bar uses tokens (`bg-background`, `border-border`) so it works in dark mode if added later, and respects safe-area inset on iOS.
+- Header checkbox is `indeterminate` when 0 < selected < visible.
+- Closing the missing-clubs modal performs `await loadAll()` once so the banner state is fresh.
+- Bulk apply is sequential (not parallel) to keep ordering deterministic in `club_status_log`.
