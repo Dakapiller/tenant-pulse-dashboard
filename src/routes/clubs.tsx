@@ -828,3 +828,244 @@ function downloadText(name: string, content: string) {
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
 }
+
+// ---------- Bulk status bar (floating) ----------
+
+function BulkStatusBar({
+  count, onApply, onCancel,
+}: {
+  count: number;
+  onApply: (next: ClubStatus, competitor: string | null) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [next, setNext] = useState<ClubStatus>("active");
+  const [comp, setComp] = useState<string>(COMPETITOR_OPTIONS[0].value);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div
+      className="fixed left-0 right-0 bottom-0 z-40 lg:left-60 border-t border-border bg-background/95 backdrop-blur shadow-lg"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      <div className="mx-auto max-w-[1500px] px-4 py-3 flex items-center gap-3 flex-wrap">
+        <span className="text-sm font-medium">{count} {count === 1 ? "clube selecionado" : "clubes selecionados"}</span>
+        <div className="flex items-center gap-2 flex-wrap ml-auto">
+          <select
+            value={next}
+            onChange={(e) => setNext(e.target.value as ClubStatus)}
+            className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background"
+          >
+            {CLUB_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          {next === "churned" && (
+            <select
+              value={comp}
+              onChange={(e) => setComp(e.target.value)}
+              className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background"
+            >
+              {COMPETITOR_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={async () => {
+              setBusy(true);
+              try { await onApply(next, next === "churned" ? comp : null); }
+              finally { setBusy(false); }
+            }}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            <Check className="h-4 w-4" /> {busy ? "A aplicar…" : "Aplicar"}
+          </button>
+          <button
+            onClick={onCancel}
+            className="text-sm text-muted-foreground hover:text-foreground px-2 py-2"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Missing clubs modal ----------
+
+function MissingClubsModal({
+  rows, onApply, onClose,
+}: {
+  rows: ClubRow[];
+  onApply: (names: string[], next: ClubStatus, competitor: string | null) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [editingTenant, setEditingTenant] = useState<string | null>(null);
+  const [actioned, setActioned] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [next, setNext] = useState<ClubStatus>("possible_churn");
+  const [comp, setComp] = useState<string>(COMPETITOR_OPTIONS[0].value);
+
+  // remaining = rows still missing & not yet actioned in this session
+  const visible = rows.filter((r) => !actioned.has(r.name));
+
+  async function applyBulk() {
+    if (selected.size === 0) return;
+    setBusy(true);
+    try {
+      const names = Array.from(selected);
+      await onApply(names, next, next === "churned" ? comp : null);
+      const newActioned = new Set(actioned);
+      names.forEach((n) => newActioned.add(n));
+      setActioned(newActioned);
+      setSelected(new Set());
+    } finally { setBusy(false); }
+  }
+
+  async function applySingle(name: string, current: ClubStatus, nextStatus: ClubStatus, competitor: string | null) {
+    await onApply([name], nextStatus, competitor);
+    const newActioned = new Set(actioned);
+    newActioned.add(name);
+    setActioned(newActioned);
+    setEditingTenant(null);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onMouseDown={onClose}>
+      <div className="absolute inset-0 bg-black/40" />
+      <div
+        className="relative w-full max-w-4xl max-h-[85vh] flex flex-col rounded-xl bg-background border border-border shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              Clubes não encontrados no último carregamento
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">Confirma o estado de cada clube antes de fechar.</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-surface" aria-label="Fechar">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-auto">
+          {visible.length === 0 ? (
+            <div className="p-10 text-center text-sm text-muted-foreground">
+              Todos os clubes em falta foram revistos. Pode fechar.
+            </div>
+          ) : (
+            <DataTable<ClubRow>
+              rows={visible}
+              rowKey={(r) => r.name}
+              defaultSort={{ key: "lastSeen", dir: "desc" }}
+              selectable
+              selectedKeys={selected}
+              onSelectionChange={setSelected}
+              searchable
+              searchPlaceholder="Pesquisar clube em falta…"
+              emptyMessage="Sem clubes em falta."
+              columns={[
+                {
+                  key: "name", header: "Clube",
+                  sortValue: (r) => r.name,
+                  filterValue: (r) => r.name,
+                  render: (r) => <span className="font-medium">{r.name}</span>,
+                },
+                {
+                  key: "lastSeen", header: "Última vez visto",
+                  sortValue: (r) => r.history[r.history.length - 1]?.period ?? "",
+                  render: (r) => {
+                    const last = r.history[r.history.length - 1];
+                    return <span className="text-xs text-muted-foreground">{last ? periodLabel(last.period) : "—"}</span>;
+                  },
+                },
+                {
+                  key: "lastGmv", header: "Último GMV",
+                  align: "right",
+                  sortValue: (r) => r.history[r.history.length - 1]?.gmv_all ?? null,
+                  render: (r) => {
+                    const last = r.history[r.history.length - 1];
+                    return last ? formatEuro(last.gmv_all) : "—";
+                  },
+                },
+                {
+                  key: "score", header: "Saúde",
+                  align: "center",
+                  sortValue: (r) => r.score,
+                  render: (r) => {
+                    const healthColor = r.score >= 60 ? "text-danger bg-danger/10" : r.score >= 30 ? "text-warning bg-warning/15" : "text-success bg-success/10";
+                    return <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${healthColor}`}>{r.score}</span>;
+                  },
+                },
+                {
+                  key: "status", header: "Estado",
+                  render: (r) => editingTenant === r.name ? (
+                    <InlineStatusEditor
+                      current={r.status}
+                      competitor={r.competitor}
+                      onCancel={() => setEditingTenant(null)}
+                      onSave={(ns, c) => applySingle(r.name, r.status, ns, c)}
+                    />
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditingTenant(r.name); }}
+                      className="text-left"
+                    >
+                      <ClubStatusBadge status={r.status} competitor={r.competitor} />
+                    </button>
+                  ),
+                },
+              ]}
+            />
+          )}
+        </div>
+
+        <div className="border-t border-border px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+          {selected.size > 0 ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium">{selected.size} {selected.size === 1 ? "selecionado" : "selecionados"}</span>
+              <select
+                value={next}
+                onChange={(e) => setNext(e.target.value as ClubStatus)}
+                className="px-2 py-1.5 text-sm rounded-md border border-border bg-background"
+              >
+                {CLUB_STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              {next === "churned" && (
+                <select
+                  value={comp}
+                  onChange={(e) => setComp(e.target.value)}
+                  className="px-2 py-1.5 text-sm rounded-md border border-border bg-background"
+                >
+                  {COMPETITOR_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
+              <button
+                onClick={applyBulk}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-3 py-1.5 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+              >
+                <Check className="h-4 w-4" /> {busy ? "A aplicar…" : "Aplicar"}
+              </button>
+              <button onClick={() => setSelected(new Set())} className="text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+            </div>
+          ) : <span className="text-xs text-muted-foreground">Selecione clubes para ações em massa, ou edite o estado linha-a-linha.</span>}
+          <button
+            onClick={onClose}
+            className="ml-auto px-4 py-1.5 text-sm rounded-md border border-border hover:bg-surface"
+          >
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
