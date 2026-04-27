@@ -1,0 +1,1 @@
+alter table public.cs_tenant_status add column if not exists churn_competitor text default null;

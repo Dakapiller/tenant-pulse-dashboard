@@ -88,6 +88,7 @@ export type Database = {
       }
       cs_tenant_status: {
         Row: {
+          churn_competitor: string | null
           club_status: string | null
           id: string
           note: string | null
@@ -96,6 +97,7 @@ export type Database = {
           tenant_name: string
         }
         Insert: {
+          churn_competitor?: string | null
           club_status?: string | null
           id?: string
           note?: string | null
@@ -104,6 +106,7 @@ export type Database = {
           tenant_name: string
         }
         Update: {
+          churn_competitor?: string | null
           club_status?: string | null
           id?: string
           note?: string | null

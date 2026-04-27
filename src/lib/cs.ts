@@ -21,9 +21,10 @@ export interface CSTenantStatus {
   note: string | null;
   recorded_at: string;
   club_status?: string | null;
+  churn_competitor?: string | null;
 }
 
-export type ClubStatus = "active" | "churn_candidate" | "churned";
+export type ClubStatus = "active" | "possible_churn" | "churned" | "closed" | "changed_owner";
 
 export interface ClubStatusLog {
   id: string;
@@ -37,9 +38,26 @@ export interface ClubStatusLog {
 
 export const CLUB_STATUS_LABEL: Record<ClubStatus, string> = {
   active: "Ativo",
-  churn_candidate: "Candidato a churn",
+  possible_churn: "Possível churn",
   churned: "Em churn",
+  closed: "Fechado",
+  changed_owner: "Mudança de dono",
 };
+
+export const CLUB_STATUS_OPTIONS: { value: ClubStatus; label: string }[] = [
+  { value: "active", label: "Ativo" },
+  { value: "possible_churn", label: "Possível churn" },
+  { value: "churned", label: "Em churn" },
+  { value: "closed", label: "Fechado" },
+  { value: "changed_owner", label: "Mudança de dono" },
+];
+
+export const COMPETITOR_OPTIONS: { value: string; label: string }[] = [
+  { value: "SmashPro", label: "SmashPro" },
+  { value: "TiePlayer", label: "TiePlayer" },
+  { value: "RacketID", label: "RacketID" },
+  { value: "Outro", label: "Outro" },
+];
 
 export const OUTCOME_OPTIONS: { value: string; label: string }[] = [
   { value: "bad_relationship", label: "Má relação" },
@@ -161,10 +179,23 @@ export async function fetchClubStatusLogsForTenant(tenant: string): Promise<Club
 export function currentClubStatus(statuses: CSTenantStatus[]): ClubStatus {
   const sorted = [...statuses].sort((a, b) => (b.recorded_at ?? "").localeCompare(a.recorded_at ?? ""));
   for (const s of sorted) {
-    if (s.club_status && s.club_status !== "active") return s.club_status as ClubStatus;
-    if (s.club_status === "active") return "active";
+    if (s.club_status) {
+      const cs = s.club_status as ClubStatus;
+      // accept legacy value "churn_candidate" → map to possible_churn for safety
+      if ((cs as string) === "churn_candidate") return "possible_churn";
+      return cs;
+    }
   }
   return "active";
+}
+
+// Latest competitor recorded for a churned tenant.
+export function currentChurnCompetitor(statuses: CSTenantStatus[]): string | null {
+  const sorted = [...statuses].sort((a, b) => (b.recorded_at ?? "").localeCompare(a.recorded_at ?? ""));
+  for (const s of sorted) {
+    if (s.churn_competitor) return s.churn_competitor;
+  }
+  return null;
 }
 
 export async function setClubStatus(
@@ -173,6 +204,7 @@ export async function setClubStatus(
   previousStatus: ClubStatus,
   note: string | null,
   changedBy: string = "cs",
+  competitor: string | null = null,
 ): Promise<void> {
   const { error: e1 } = await supabase
     .from("cs_tenant_status")
@@ -181,6 +213,7 @@ export async function setClubStatus(
       relationship_status: `status_${newStatus}`,
       club_status: newStatus,
       note,
+      churn_competitor: newStatus === "churned" ? competitor : null,
     } as never);
   if (e1) throw e1;
   const { error: e2 } = await supabase
@@ -189,7 +222,7 @@ export async function setClubStatus(
       tenant_name: tenant,
       previous_status: previousStatus,
       new_status: newStatus,
-      note,
+      note: competitor && newStatus === "churned" ? `${note ?? ""}${note ? " · " : ""}Competidor: ${competitor}` : note,
       changed_by: changedBy,
     } as never);
   if (e2) throw e2;

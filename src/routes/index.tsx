@@ -1,42 +1,37 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
-import { fetchAllCSStatuses, type CSTenantStatus } from "@/lib/cs";
-import { computeRiskWithCS } from "@/lib/risk";
-import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/format";
-import { ArrowUpDown, Search, Upload } from "lucide-react";
+import {
+  fetchAllCSStatuses, fetchAllCSTasks, currentClubStatus, currentWeekStart, lastCompletedActivityAt,
+  outcomeLabel, type CSTenantStatus, type CSTask,
+} from "@/lib/cs";
+import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
+import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
+import { Activity, AlertTriangle, Building2, Euro, TrendingDown, Upload } from "lucide-react";
 
 export const Route = createFileRoute("/")({
-  component: OverviewPage,
+  component: DashboardPage,
 });
 
-type SortKey = "tenant_name" | "games_online" | "gmv_games" | "gmv_all" | "revenue" | "transacted_rate";
-
-function OverviewPage() {
-  const [allSnapshots, setAllSnapshots] = useState<Snapshot[]>([]);
+function DashboardPage() {
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [periods, setPeriods] = useState<string[]>([]);
-  const [csStatuses, setCsStatuses] = useState<CSTenantStatus[]>([]);
+  const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
+  const [tasks, setTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("revenue");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [snaps, ps, sts] = await Promise.all([
-          fetchAllSnapshots(),
-          fetchPeriods(),
-          fetchAllCSStatuses(),
+        const [s, p, st, tk] = await Promise.all([
+          fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(),
         ]);
         if (cancelled) return;
-        setAllSnapshots(snaps);
-        setPeriods(ps);
-        setCsStatuses(sts);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to load");
+        setSnapshots(s); setPeriods(p); setStatuses(st); setTasks(tk);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -45,63 +40,142 @@ function OverviewPage() {
   }, []);
 
   const latestPeriod = periods[0];
+  const weekStart = useMemo(() => currentWeekStart(), []);
 
-  const latestRows = useMemo(() => {
-    if (!latestPeriod) return [];
-    return allSnapshots.filter((s) => s.period === latestPeriod);
-  }, [allSnapshots, latestPeriod]);
-
-  // Risk per tenant (uses last 3 history)
   const tenantHistory = useMemo(() => {
-    const map = new Map<string, Snapshot[]>();
-    allSnapshots.forEach((s) => {
-      if (!map.has(s.tenant_name)) map.set(s.tenant_name, []);
-      map.get(s.tenant_name)!.push(s);
-    });
-    return map;
-  }, [allSnapshots]);
-
-  const tenantStatusMap = useMemo(() => {
-    const m = new Map<string, CSTenantStatus[]>();
-    csStatuses.forEach((s) => {
+    const m = new Map<string, Snapshot[]>();
+    snapshots.forEach((s) => {
       if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
       m.get(s.tenant_name)!.push(s);
     });
     return m;
-  }, [csStatuses]);
+  }, [snapshots]);
 
-  const totals = useMemo(() => {
-    const t = { tenants: latestRows.length, games: 0, gmvAll: 0, revenue: 0 };
-    latestRows.forEach((r) => {
-      t.games += Number(r.games_online ?? 0);
-      t.gmvAll += Number(r.gmv_all ?? 0);
-      t.revenue += Number(r.revenue ?? 0);
+  const tenantStatuses = useMemo(() => {
+    const m = new Map<string, CSTenantStatus[]>();
+    statuses.forEach((s) => {
+      if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
+      m.get(s.tenant_name)!.push(s);
     });
-    return t;
-  }, [latestRows]);
+    return m;
+  }, [statuses]);
 
-  const maxGames = useMemo(() => Math.max(1, ...latestRows.map((r) => r.games_online ?? 0)), [latestRows]);
-
-  const filteredSorted = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let rows = latestRows;
-    if (q) rows = rows.filter((r) => r.tenant_name.toLowerCase().includes(q));
-    const dir = sortDir === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dir;
-      return (Number(av) - Number(bv)) * dir;
+  const tasksByTenant = useMemo(() => {
+    const m = new Map<string, CSTask[]>();
+    tasks.forEach((t) => {
+      if (!m.has(t.tenant_name)) m.set(t.tenant_name, []);
+      m.get(t.tenant_name)!.push(t);
     });
-  }, [latestRows, search, sortKey, sortDir]);
+    return m;
+  }, [tasks]);
 
-  function toggleSort(k: SortKey) {
-    if (k === sortKey) setSortDir(sortDir === "asc" ? "desc" : "asc");
-    else { setSortKey(k); setSortDir(k === "tenant_name" ? "asc" : "desc"); }
-  }
+  // Per-tenant computed risk + status
+  const clubs = useMemo(() => {
+    const list: { name: string; score: number; level: "high" | "medium" | "healthy"; flags: string[]; status: string; lastContact: string | null; pending: number; latest: Snapshot | null }[] = [];
+    for (const [name, hist] of tenantHistory) {
+      const sorted = [...hist].sort((a, b) => a.period.localeCompare(b.period));
+      const sts = tenantStatuses.get(name) ?? [];
+      const tks = tasksByTenant.get(name) ?? [];
+      const risk = computeRiskWithCS(sorted, sts);
+      const status = currentClubStatus(sts);
+      const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
+      list.push({
+        name,
+        score: risk.score,
+        level: risk.level,
+        flags: risk.flags,
+        status,
+        lastContact: lastCompletedActivityAt(tks),
+        pending,
+        latest: sorted[sorted.length - 1] ?? null,
+      });
+    }
+    return list;
+  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart]);
+
+  // KPIs
+  const kpis = useMemo(() => {
+    const activeClubs = clubs.filter((c) => c.status === "active" || c.status === "possible_churn").length;
+    const churnedThisYear = (() => {
+      const year = new Date().getUTCFullYear();
+      const set = new Set<string>();
+      statuses.forEach((s) => {
+        if (s.club_status === "churned" && s.recorded_at && new Date(s.recorded_at).getUTCFullYear() === year) {
+          set.add(s.tenant_name);
+        }
+      });
+      return set.size;
+    })();
+    const highRisk = clubs.filter((c) => c.score >= 60 && c.status !== "churned" && c.status !== "closed").length;
+    const monthGmv = (() => {
+      if (!latestPeriod) return 0;
+      return snapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.gmv_all ?? 0), 0);
+    })();
+    const monthRevenue = (() => {
+      if (!latestPeriod) return 0;
+      return snapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.revenue ?? 0), 0);
+    })();
+    return { activeClubs, churnedThisYear, highRisk, monthGmv, monthRevenue };
+  }, [clubs, statuses, snapshots, latestPeriod]);
+
+  // Monthly trend series
+  const monthlySeries = useMemo(() => {
+    const byPeriod = new Map<string, { games: number; gmv: number; revenue: number }>();
+    snapshots.forEach((s) => {
+      const cur = byPeriod.get(s.period) ?? { games: 0, gmv: 0, revenue: 0 };
+      cur.games += Number(s.games_online ?? 0);
+      cur.gmv += Number(s.gmv_all ?? 0);
+      cur.revenue += Number(s.revenue ?? 0);
+      byPeriod.set(s.period, cur);
+    });
+    return Array.from(byPeriod.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([p, v]) => ({
+        period: p,
+        label: periodShort(p),
+        games: v.games,
+        gmv: Math.round(v.gmv),
+        revenue: Math.round(v.revenue),
+      }));
+  }, [snapshots]);
+
+  // Health distribution per month
+  const healthByMonth = useMemo(() => {
+    const periodsAsc = [...new Set(snapshots.map((s) => s.period))].sort();
+    return periodsAsc.map((p) => {
+      // Tenants present that month
+      const tenantsThatMonth = new Set(snapshots.filter((s) => s.period === p).map((s) => s.tenant_name));
+      let healthy = 0, medium = 0, high = 0;
+      for (const name of tenantsThatMonth) {
+        const hist = tenantHistory.get(name) ?? [];
+        const cut = hist.filter((s) => s.period <= p);
+        const sts = (tenantStatuses.get(name) ?? []).filter((s) => !s.recorded_at || s.recorded_at.slice(0, 10) <= p);
+        const r = computeRiskWithCS(cut, sts);
+        if (r.level === "high") high++;
+        else if (r.level === "medium") medium++;
+        else healthy++;
+      }
+      return { period: p, label: periodShort(p), Saudável: healthy, Médio: medium, Alto: high };
+    });
+  }, [snapshots, tenantHistory, tenantStatuses]);
+
+  // Top 10 at-risk
+  const topRisk = useMemo(() => {
+    return clubs
+      .filter((c) => c.status !== "churned" && c.status !== "closed")
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+  }, [clubs]);
+
+  // Recent CS activity (last 10)
+  const recentActivity = useMemo(() => {
+    return tasks
+      .filter((t) => t.status === "completed" && t.completed_at)
+      .sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""))
+      .slice(0, 10);
+  }, [tasks]);
 
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
-  if (error) return <div className="p-10 text-danger">{error}</div>;
 
   if (!latestPeriod) {
     return (
@@ -111,7 +185,7 @@ function OverviewPage() {
             <Upload className="h-6 w-6" />
           </div>
           <h1 className="text-2xl font-semibold mb-2">Ainda sem dados</h1>
-          <p className="text-muted-foreground mb-6">Carregue o seu primeiro ficheiro XLSX mensal para ver as métricas de saúde dos tenants.</p>
+          <p className="text-muted-foreground mb-6">Carregue o seu primeiro ficheiro XLSX mensal para começar.</p>
           <Link to="/upload" className="inline-flex items-center gap-2 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90">
             <Upload className="h-4 w-4" /> Ir para Carregar
           </Link>
@@ -121,81 +195,147 @@ function OverviewPage() {
   }
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto">
-      <header className="mb-6 flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Visão geral</h1>
-          <p className="text-sm text-muted-foreground mt-1">Último snapshot — {periodLabel(latestPeriod)}</p>
-        </div>
+    <div className="p-8 max-w-[1500px] mx-auto">
+      <header className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-1">Centro de comando para prevenção de churn — {periodLabel(latestPeriod)}</p>
       </header>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <MetricCard label="Total de tenants" value={formatNumber(totals.tenants)} />
-        <MetricCard label="Total de jogos online" value={formatNumber(totals.games)} />
-        <MetricCard label="GMV total (todos os produtos)" value={formatEuro(totals.gmvAll)} />
-        <MetricCard label="Receita total" value={formatEuro(totals.revenue)} />
+      {/* Row 1 — KPIs */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <KpiCard icon={<Building2 className="h-4 w-4" />} label="Clubes ativos" value={formatNumber(kpis.activeClubs)} />
+        <KpiCard icon={<TrendingDown className="h-4 w-4" />} label="Churned este ano" value={formatNumber(kpis.churnedThisYear)} tone="danger" />
+        <KpiCard icon={<AlertTriangle className="h-4 w-4" />} label="Em risco alto" value={formatNumber(kpis.highRisk)} tone="warning" />
+        <KpiCard icon={<Euro className="h-4 w-4" />} label="GMV mês" value={formatEuro(kpis.monthGmv)} />
+        <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita mês" value={formatEuro(kpis.monthRevenue)} />
       </section>
 
-      <section className="rounded-xl border border-border bg-background overflow-hidden">
-        <div className="p-4 border-b border-border flex items-center gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Procurar tenant…"
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+      {/* Row 2 — Charts */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <div className="rounded-xl border border-border bg-background p-5">
+          <h2 className="text-sm font-semibold mb-1">Tendência mensal</h2>
+          <p className="text-xs text-muted-foreground mb-3">Jogos online · GMV · Receita</p>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={monthlySeries} margin={{ top: 6, right: 12, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.01 250)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" />
+                <YAxis yAxisId="left" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" tickFormatter={(v) => formatNumber(Number(v))} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" tickFormatter={(v) => `€${Math.round(Number(v) / 1000)}k`} />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid oklch(0.93 0.01 250)" }}
+                  formatter={(v, name) => name === "Jogos online" ? formatNumber(Number(v)) : formatEuro(Number(v))}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line yAxisId="left" type="monotone" dataKey="games" name="Jogos online" stroke="oklch(0.18 0.02 250)" strokeWidth={2} dot={{ r: 2 }} />
+                <Line yAxisId="right" type="monotone" dataKey="gmv" name="GMV total" stroke="oklch(0.55 0.18 260)" strokeWidth={2} dot={{ r: 2 }} />
+                <Line yAxisId="right" type="monotone" dataKey="revenue" name="Receita" stroke="oklch(0.65 0.18 145)" strokeWidth={2} dot={{ r: 2 }} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
-          <div className="text-xs text-muted-foreground">{filteredSorted.length} tenants</div>
         </div>
 
-        <div className="max-h-[640px] overflow-auto">
+        <div className="rounded-xl border border-border bg-background p-5">
+          <h2 className="text-sm font-semibold mb-1">Distribuição de saúde dos clubes</h2>
+          <p className="text-xs text-muted-foreground mb-3">Contagem por mês</p>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={healthByMonth} margin={{ top: 6, right: 12, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.01 250)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" />
+                <YAxis tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" />
+                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid oklch(0.93 0.01 250)" }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="Saudável" stackId="a" fill="oklch(0.7 0.15 145)" />
+                <Bar dataKey="Médio" stackId="a" fill="oklch(0.78 0.15 75)" />
+                <Bar dataKey="Alto" stackId="a" fill="oklch(0.65 0.2 25)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </section>
+
+      {/* Row 3 — Risk radar */}
+      <section className="rounded-xl border border-border bg-background overflow-hidden mb-6">
+        <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-danger" />
+          <h2 className="text-sm font-semibold">Radar de risco — Top 10</h2>
+        </div>
+        <div className="overflow-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-surface z-10">
-              <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <Th onClick={() => toggleSort("tenant_name")} active={sortKey === "tenant_name"}>Tenant</Th>
-                <Th onClick={() => toggleSort("games_online")} active={sortKey === "games_online"}>Jogos online</Th>
-                <Th onClick={() => toggleSort("gmv_games")} active={sortKey === "gmv_games"} align="right">GMV jogos</Th>
-                <Th onClick={() => toggleSort("gmv_all")} active={sortKey === "gmv_all"} align="right">GMV total</Th>
-                <Th onClick={() => toggleSort("revenue")} active={sortKey === "revenue"} align="right">Receita</Th>
-                <Th onClick={() => toggleSort("transacted_rate")} active={sortKey === "transacted_rate"} align="right">Taxa</Th>
-                <th className="px-4 py-3">Risco</th>
+            <thead className="bg-surface text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 text-left">Clube</th>
+                <th className="px-4 py-3 text-center">Saúde</th>
+                <th className="px-4 py-3 text-left">Sinalizações</th>
+                <th className="px-4 py-3 text-left">Último contacto CS</th>
+                <th className="px-4 py-3 text-center">Tarefas pendentes</th>
               </tr>
             </thead>
             <tbody>
-              {filteredSorted.map((r) => {
-                const risk = computeRiskWithCS(
-                  tenantHistory.get(r.tenant_name) ?? [],
-                  tenantStatusMap.get(r.tenant_name) ?? [],
-                );
-                const ratePct = r.transacted_rate ?? 0;
-                const rateColor = ratePct >= 40 ? "text-success" : ratePct >= 15 ? "text-warning" : "text-danger";
-                const games = r.games_online ?? 0;
-                const w = Math.max(2, Math.round((games / maxGames) * 100));
-                return (
-                  <tr key={r.id} className="border-t border-border hover:bg-surface">
-                    <td className="px-4 py-2.5">
-                      <Link to="/tenant/$name" params={{ name: r.tenant_name }} className="font-medium hover:underline">
-                        {r.tenant_name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <span className="tabular-nums w-12">{formatNumber(games)}</span>
-                        <div className="flex-1 max-w-[120px] h-1.5 rounded-full bg-surface overflow-hidden">
-                          <div className="h-full bg-foreground/80" style={{ width: `${w}%` }} />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{formatEuro(r.gmv_games)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{formatEuro(r.gmv_all)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{formatEuro(r.revenue)}</td>
-                    <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${rateColor}`}>{formatPercent(ratePct)}</td>
-                    <td className="px-4 py-2.5"><RiskBadge level={risk.level} score={risk.score} /></td>
-                  </tr>
-                );
-              })}
+              {topRisk.map((c) => (
+                <tr key={c.name} className="border-t border-border hover:bg-surface">
+                  <td className="px-4 py-2.5">
+                    <Link to="/clubs" className="font-medium hover:underline">{c.name}</Link>
+                  </td>
+                  <td className="px-4 py-2.5 text-center">
+                    <ScoreBadge score={c.score} level={c.level} />
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex flex-wrap gap-1">
+                      {c.flags.map((f) => (
+                        <span key={f} className="text-[10px] rounded-full bg-surface border border-border px-1.5 py-0.5">
+                          {FLAG_META[f as keyof typeof FLAG_META]?.label ?? f}
+                        </span>
+                      ))}
+                      {c.flags.length === 0 && <span className="text-xs text-muted-foreground">—</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                    {c.lastContact ? new Date(c.lastContact).toLocaleDateString("pt-PT") : "Nunca"}
+                  </td>
+                  <td className="px-4 py-2.5 text-center">
+                    {c.pending > 0 ? (
+                      <span className="inline-flex items-center justify-center rounded-full bg-warning/15 text-warning px-2 py-0.5 text-xs font-medium">{c.pending}</span>
+                    ) : <span className="text-success">✓</span>}
+                  </td>
+                </tr>
+              ))}
+              {topRisk.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground text-sm">Nenhum clube em risco no momento.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Row 4 — Recent CS activity */}
+      <section className="rounded-xl border border-border bg-background overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold">Atividade CS recente</h2>
+        </div>
+        <div className="overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 text-left">Data</th>
+                <th className="px-4 py-3 text-left">Clube</th>
+                <th className="px-4 py-3 text-left">Resultado</th>
+                <th className="px-4 py-3 text-left">Razão</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentActivity.map((t) => (
+                <tr key={t.id} className="border-t border-border hover:bg-surface">
+                  <td className="px-4 py-2 text-xs text-muted-foreground">{t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : "—"}</td>
+                  <td className="px-4 py-2 font-medium">{t.tenant_name}</td>
+                  <td className="px-4 py-2"><OutcomeBadge outcome={t.outcome} /></td>
+                  <td className="px-4 py-2 text-xs text-muted-foreground truncate max-w-md">{t.reason}</td>
+                </tr>
+              ))}
+              {recentActivity.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">Sem atividade recente.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -204,26 +344,42 @@ function OverviewPage() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function KpiCard({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone?: "danger" | "warning" }) {
+  const toneClass = tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-foreground";
   return (
-    <div className="rounded-xl border border-border bg-background p-5">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tabular-nums">{value}</div>
+    <div className="rounded-xl border border-border bg-background p-4">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span className="uppercase tracking-wide">{label}</span>
+        <span className={toneClass}>{icon}</span>
+      </div>
+      <div className={`mt-2 text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</div>
     </div>
   );
 }
 
-function Th({ children, onClick, active, align }: { children: React.ReactNode; onClick: () => void; active: boolean; align?: "right" }) {
+function ScoreBadge({ score, level }: { score: number; level: "high" | "medium" | "healthy" }) {
+  const map = {
+    high: "bg-danger/10 text-danger",
+    medium: "bg-warning/15 text-warning",
+    healthy: "bg-success/10 text-success",
+  } as const;
   return (
-    <th className={`px-4 py-3 ${align === "right" ? "text-right" : ""}`}>
-      <button onClick={onClick} className={`inline-flex items-center gap-1 hover:text-foreground ${active ? "text-foreground" : ""}`}>
-        {children}
-        <ArrowUpDown className="h-3 w-3 opacity-60" />
-      </button>
-    </th>
+    <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${map[level]}`}>{score}</span>
   );
 }
 
+function OutcomeBadge({ outcome }: { outcome: string | null }) {
+  if (!outcome) return <span className="text-xs text-muted-foreground">—</span>;
+  const map: Record<string, { bg: string; label: string }> = {
+    very_satisfied: { bg: "bg-success/10 text-success", label: "Muito satisfeito" },
+    good_receptivity: { bg: "bg-success/10 text-success", label: "Boa recetividade" },
+    bad_relationship: { bg: "bg-danger/10 text-danger", label: "Má relação" },
+  };
+  const m = map[outcome] ?? { bg: "bg-surface text-foreground", label: outcomeLabel(outcome) };
+  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${m.bg}`}>{m.label}</span>;
+}
+
+// Re-export RiskBadge for backward-compat (used by /cs and /tenant routes).
 export function RiskBadge({ level, score }: { level: "high" | "medium" | "healthy"; score: number }) {
   const map = {
     high: { bg: "bg-danger/10", text: "text-danger", label: "Risco alto" },

@@ -83,11 +83,18 @@ export function computeRisk(snapshots: Snapshot[]): RiskResult {
   return { flags, score, level, dataScore, csModifier: 0 };
 }
 
-// CS outcome modifiers. Negative = healthier.
+// CS outcome / club-status modifiers. Negative = healthier.
 export const CS_MODIFIER: Record<string, number> = {
+  // relationship outcomes
   bad_relationship: 25,
   good_receptivity: -15,
   very_satisfied: -30,
+  // club lifecycle status modifiers
+  status_possible_churn: 10,
+  status_changed_owner: 0,
+  status_closed: 0,
+  status_active: 0,
+  status_churned: 0,
 };
 
 export interface CSStatusEntry {
@@ -95,24 +102,33 @@ export interface CSStatusEntry {
   recorded_at: string;
 }
 
-// Aggregate CS modifier from recent statuses. Most-recent status per category dominates;
+// Aggregate CS modifier from recent statuses. Most-recent relationship outcome dominates;
 // "very_satisfied" within last 4 weeks → suppress new task generation.
+// Latest lifecycle status (status_*) adds its own modifier on top.
 export function computeRiskWithCS(
   snapshots: Snapshot[],
   csStatuses: CSStatusEntry[],
 ): RiskResult & { suppressed: boolean } {
   const base = computeRisk(snapshots);
 
-  // Sort statuses oldest → newest, then walk to compute net modifier.
+  // Sort statuses oldest → newest.
   const sorted = [...csStatuses].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
   let modifier = 0;
   let suppressed = false;
   const fourWeeksAgo = Date.now() - 28 * 24 * 60 * 60 * 1000;
 
-  // Use the latest status only — it represents the current relationship state.
-  const latest = sorted[sorted.length - 1];
-  if (latest && CS_MODIFIER[latest.relationship_status] !== undefined) {
-    modifier = CS_MODIFIER[latest.relationship_status];
+  // Latest relationship outcome (non-status_*) — represents current relationship.
+  let latestOutcome: CSStatusEntry | undefined;
+  let latestStatus: CSStatusEntry | undefined;
+  for (const s of sorted) {
+    if (s.relationship_status.startsWith("status_")) latestStatus = s;
+    else latestOutcome = s;
+  }
+  if (latestOutcome && CS_MODIFIER[latestOutcome.relationship_status] !== undefined) {
+    modifier += CS_MODIFIER[latestOutcome.relationship_status];
+  }
+  if (latestStatus && CS_MODIFIER[latestStatus.relationship_status] !== undefined) {
+    modifier += CS_MODIFIER[latestStatus.relationship_status];
   }
 
   // Suppression: any "very_satisfied" within last 4 weeks
