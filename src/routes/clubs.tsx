@@ -513,6 +513,8 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
                   </li>
                 ))}
               </ul>
+            )}
+          </section>
         </div>
       </div>
     </div>
