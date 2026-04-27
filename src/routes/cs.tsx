@@ -137,7 +137,7 @@ function CSPage() {
 
   // Tasks split
   const pendingTasks = useMemo(
-    () => weekTasks.filter((t) => t.status === "pending").sort((a, b) => b.priority - a.priority),
+    () => weekTasks.filter((t) => t.status === "pending"),
     [weekTasks],
   );
   const completedThisWeek = useMemo(
@@ -150,15 +150,40 @@ function CSPage() {
     [allTasks, weekStart],
   );
 
-  const grouped = useMemo(() => {
-    const high: typeof pendingTasks = [];
-    const medium: typeof pendingTasks = [];
+  // Group tasks by club + compute per-club info
+  const clubGroups = useMemo(() => {
+    const byTenant = new Map<string, CSTask[]>();
     pendingTasks.forEach((t) => {
-      if (t.priority >= 60) high.push(t);
-      else medium.push(t);
+      if (!byTenant.has(t.tenant_name)) byTenant.set(t.tenant_name, []);
+      byTenant.get(t.tenant_name)!.push(t);
     });
-    return { high, medium };
-  }, [pendingTasks]);
+    const out = Array.from(byTenant.entries()).map(([name, tasks]) => {
+      const hist = tenantHistory.get(name) ?? [];
+      const sts = tenantStatuses.get(name) ?? [];
+      const live = computeRiskWithCS(hist, sts);
+      // last completed task across all weeks for this tenant
+      const allForTenant = allTasks.filter((t) => t.tenant_name === name && t.status === "completed");
+      let lastActivity: string | null = null;
+      allForTenant.forEach((t) => {
+        if (t.completed_at && (!lastActivity || t.completed_at > lastActivity)) lastActivity = t.completed_at;
+      });
+      return { name, tasks, score: live.score, level: live.level, lastActivity };
+    });
+    // sort by score desc
+    return out.sort((a, b) => b.score - a.score);
+  }, [pendingTasks, tenantHistory, tenantStatuses, allTasks]);
+
+  const completedGroups = useMemo(() => {
+    const byTenant = new Map<string, CSTask[]>();
+    completedThisWeek.forEach((t) => {
+      if (!byTenant.has(t.tenant_name)) byTenant.set(t.tenant_name, []);
+      byTenant.get(t.tenant_name)!.push(t);
+    });
+    return Array.from(byTenant.entries()).map(([name, tasks]) => ({ name, tasks }));
+  }, [completedThisWeek]);
+
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedCompleted, setExpandedCompleted] = useState<string | null>(null);
 
   async function handleComplete(task: CSTask, outcome: string, note: string) {
     await completeCSTask(task.id, task.tenant_name, outcome, note.trim() || null);
@@ -248,7 +273,7 @@ function CSPage() {
         )}
       </section>
 
-      {/* SECTION B — WEEKLY TODOS */}
+      {/* SECTION B — WEEKLY TODOS GROUPED BY CLUB */}
       <section className="rounded-xl border border-border overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
@@ -264,33 +289,104 @@ function CSPage() {
 
         {tab === "week" ? (
           <div className="p-5 space-y-6">
-            {pendingTasks.length === 0 && completedThisWeek.length === 0 ? (
+            {clubGroups.length === 0 && completedGroups.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-8">
                 Sem tarefas geradas para esta semana. Todos os tenants saudáveis ou suprimidos.
               </div>
             ) : null}
 
-            {grouped.high.length > 0 && (
-              <TaskGroup level="high" tasks={grouped.high} statuses={tenantStatuses} histories={tenantHistory} onComplete={handleComplete} />
-            )}
-            {grouped.medium.length > 0 && (
-              <TaskGroup level="medium" tasks={grouped.medium} statuses={tenantStatuses} histories={tenantHistory} onComplete={handleComplete} />
+            {clubGroups.length > 0 && (
+              <div className="rounded-lg border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface text-xs uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Clube</th>
+                      <th className="px-4 py-3 text-left">Risco</th>
+                      <th className="px-4 py-3 text-left">Sinalizações</th>
+                      <th className="px-4 py-3 text-left">Última atividade CS</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clubGroups.map((c) => {
+                      const isOpen = expanded === c.name;
+                      return (
+                        <Fragment key={c.name}>
+                          <tr
+                            className="border-t border-border hover:bg-surface cursor-pointer"
+                            onClick={() => setExpanded(isOpen ? null : c.name)}
+                          >
+                            <td className="px-4 py-3 font-semibold">{c.name}</td>
+                            <td className="px-4 py-3"><RiskBadge level={c.level} score={c.score} /></td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground">{c.tasks.length} sinalizações</td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground">
+                              {c.lastActivity ? new Date(c.lastActivity).toLocaleDateString("pt-PT") : "Nunca"}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button className="p-1 rounded hover:bg-background" aria-label="Expandir">
+                                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </button>
+                            </td>
+                          </tr>
+                          {isOpen && (
+                            <tr className="bg-surface/40">
+                              <td colSpan={5} className="px-4 py-4">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                  {c.tasks.map((t) => (
+                                    <TaskCard key={t.id} task={t} score={c.score} onComplete={handleComplete} />
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
 
-            {completedThisWeek.length > 0 && (
+            {completedGroups.length > 0 && (
               <Collapsible title={`Concluídas esta semana (${completedThisWeek.length})`}>
-                <ul className="divide-y divide-border">
-                  {completedThisWeek.map((t) => (
-                    <li key={t.id} className="py-2 flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
-                        <Link to="/tenant/$name" params={{ name: t.tenant_name }} className="font-medium hover:underline truncate">{t.tenant_name}</Link>
-                        <span className="text-muted-foreground truncate">— {t.reason}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground shrink-0 ml-3">{outcomeLabel(t.outcome)}</span>
-                    </li>
-                  ))}
-                </ul>
+                <div className="rounded-md border border-border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {completedGroups.map((c) => {
+                        const isOpen = expandedCompleted === c.name;
+                        return (
+                          <Fragment key={c.name}>
+                            <tr
+                              className="border-b border-border hover:bg-surface cursor-pointer"
+                              onClick={() => setExpandedCompleted(isOpen ? null : c.name)}
+                            >
+                              <td className="px-4 py-2.5 font-medium flex items-center gap-2">
+                                <CheckCircle2 className="h-4 w-4 text-success" />
+                                <Link to="/tenant/$name" params={{ name: c.name }} onClick={(e) => e.stopPropagation()} className="hover:underline">{c.name}</Link>
+                              </td>
+                              <td className="px-4 py-2.5 text-xs text-muted-foreground">{c.tasks.length} concluídas</td>
+                              <td className="px-4 py-2.5 text-right">{isOpen ? <ChevronDown className="h-4 w-4 inline" /> : <ChevronRight className="h-4 w-4 inline" />}</td>
+                            </tr>
+                            {isOpen && (
+                              <tr>
+                                <td colSpan={3} className="px-4 py-3 bg-surface/40">
+                                  <ul className="space-y-1.5 text-xs">
+                                    {c.tasks.map((t) => (
+                                      <li key={t.id} className="flex items-center justify-between gap-2">
+                                        <span className="text-muted-foreground">{t.reason}</span>
+                                        <span className="px-2 py-0.5 rounded-full bg-background border border-border">{outcomeLabel(t.outcome)}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </Collapsible>
             )}
           </div>
