@@ -427,7 +427,7 @@ function DashboardPage() {
                 <YAxis tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" />
                 <Tooltip
                   contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid oklch(0.93 0.01 250)" }}
-                  formatter={(v: number) => formatNumber(v)}
+                  formatter={(v) => formatNumber(Number(v))}
                   labelFormatter={(label, payload) => {
                     const total = payload?.[0]?.payload?.total ?? 0;
                     return `${label} · ${formatNumber(total)} clubes`;
@@ -478,7 +478,7 @@ function DashboardPage() {
                     <Cell key={d.key} fill={STATUS_COLOR[d.key]} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v: number, n: string) => [formatNumber(v), n]} />
+                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v, n) => [formatNumber(Number(v)), String(n)]} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
               </PieChart>
             </ResponsiveContainer>
