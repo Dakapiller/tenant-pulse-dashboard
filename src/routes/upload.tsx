@@ -221,6 +221,7 @@ function UploadPage() {
       }
 
       setResult({ success, errors, newClubs, missingClubs });
+      await loadHistory();
     } catch (e) {
       errors.push({ tenant: "—", message: e instanceof Error ? e.message : "Erro desconhecido" });
       setResult({ success, errors });
