@@ -165,22 +165,22 @@ function CSPage() {
     await loadAll();
   }
 
-  if (loading) return <div className="p-10 text-muted-foreground">Loading…</div>;
+  if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
   return (
     <div className="p-8 max-w-[1400px] mx-auto">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Customer Success</h1>
-        <p className="text-sm text-muted-foreground mt-1">YoY trends and weekly outreach plan.</p>
+        <p className="text-sm text-muted-foreground mt-1">Tendências YoY e plano semanal de contactos.</p>
       </header>
 
-      {/* SECTION A — TIMELINE */}
+      {/* SECÇÃO A — TIMELINE */}
       <section className="rounded-xl border border-border p-5 mb-8">
         <div className="flex items-end justify-between gap-4 flex-wrap mb-4">
           <div>
-            <h2 className="text-base font-semibold">Timeline</h2>
+            <h2 className="text-base font-semibold">Cronologia</h2>
             <p className="text-xs text-muted-foreground mt-1">
-              {chartMode === "aggregate" ? "All tenants combined" : `Tenant: ${selectedTenant || "—"}`}
+              {chartMode === "aggregate" ? "Todos os tenants combinados" : `Tenant: ${selectedTenant || "—"}`}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -188,11 +188,11 @@ function CSPage() {
               <button
                 onClick={() => setChartMode("aggregate")}
                 className={`px-3 py-1.5 text-xs rounded ${chartMode === "aggregate" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
-              >Aggregate</button>
+              >Agregado</button>
               <button
                 onClick={() => setChartMode("tenant")}
                 className={`px-3 py-1.5 text-xs rounded ${chartMode === "tenant" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
-              >Per-tenant</button>
+              >Por tenant</button>
             </div>
             {chartMode === "tenant" && (
               <select
@@ -216,14 +216,14 @@ function CSPage() {
               <Tooltip
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid oklch(0.93 0.01 250)" }}
                 formatter={(v, name) => {
-                  if (name === "Games online") return formatNumber(Number(v));
+                  if (name === "Jogos online") return formatNumber(Number(v));
                   return formatEuro(Number(v));
                 }}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line yAxisId="left" type="monotone" dataKey="games" name="Games online" stroke="oklch(0.18 0.02 250)" strokeWidth={2} dot={{ r: 2 }} />
-              <Line yAxisId="right" type="monotone" dataKey="gmv_all" name="GMV all" stroke="oklch(0.55 0.18 260)" strokeWidth={2} dot={{ r: 2 }} />
-              <Line yAxisId="right" type="monotone" dataKey="revenue" name="Revenue" stroke="oklch(0.65 0.18 145)" strokeWidth={2} dot={{ r: 2 }} />
+              <Line yAxisId="left" type="monotone" dataKey="games" name="Jogos online" stroke="oklch(0.18 0.02 250)" strokeWidth={2} dot={{ r: 2 }} />
+              <Line yAxisId="right" type="monotone" dataKey="gmv_all" name="GMV total" stroke="oklch(0.55 0.18 260)" strokeWidth={2} dot={{ r: 2 }} />
+              <Line yAxisId="right" type="monotone" dataKey="revenue" name="Receita" stroke="oklch(0.65 0.18 145)" strokeWidth={2} dot={{ r: 2 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -231,15 +231,15 @@ function CSPage() {
         {/* YoY badges */}
         {yoyPairs.length > 0 && (
           <div className="mt-5">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Year-over-year</div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Comparação ano a ano</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {yoyPairs.map(({ current, prior }) => (
                 <div key={current.period} className="rounded-md border border-border p-3 text-xs">
                   <div className="font-medium mb-1.5">{periodShort(current.period)} vs {periodShort(prior.period)}</div>
                   <div className="flex flex-wrap gap-1.5">
-                    <YoyBadge label="Games" cur={current.games} prev={prior.games} />
+                    <YoyBadge label="Jogos" cur={current.games} prev={prior.games} />
                     <YoyBadge label="GMV" cur={current.gmv_all} prev={prior.gmv_all} />
-                    <YoyBadge label="Rev" cur={current.revenue} prev={prior.revenue} />
+                    <YoyBadge label="Rec." cur={current.revenue} prev={prior.revenue} />
                   </div>
                 </div>
               ))}
@@ -253,12 +253,12 @@ function CSPage() {
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <ListChecks className="h-4 w-4" />
-            <h2 className="text-base font-semibold">Weekly outreach</h2>
-            <span className="text-xs text-muted-foreground">Week of {periodLabel(weekStart)}</span>
+            <h2 className="text-base font-semibold">Contactos da semana</h2>
+            <span className="text-xs text-muted-foreground">Semana de {periodLabel(weekStart)}</span>
           </div>
           <div className="inline-flex rounded-md border border-border p-0.5 bg-background">
-            <button onClick={() => setTab("week")} className={`px-3 py-1.5 text-xs rounded ${tab === "week" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>This week</button>
-            <button onClick={() => setTab("history")} className={`px-3 py-1.5 text-xs rounded ${tab === "history" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>History</button>
+            <button onClick={() => setTab("week")} className={`px-3 py-1.5 text-xs rounded ${tab === "week" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>Esta semana</button>
+            <button onClick={() => setTab("history")} className={`px-3 py-1.5 text-xs rounded ${tab === "history" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>Histórico</button>
           </div>
         </div>
 
@@ -266,7 +266,7 @@ function CSPage() {
           <div className="p-5 space-y-6">
             {pendingTasks.length === 0 && completedThisWeek.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-8">
-                No tasks generated for this week. All tenants healthy or suppressed.
+                Sem tarefas geradas para esta semana. Todos os tenants saudáveis ou suprimidos.
               </div>
             ) : null}
 
@@ -278,7 +278,7 @@ function CSPage() {
             )}
 
             {completedThisWeek.length > 0 && (
-              <Collapsible title={`Completed this week (${completedThisWeek.length})`}>
+              <Collapsible title={`Concluídas esta semana (${completedThisWeek.length})`}>
                 <ul className="divide-y divide-border">
                   {completedThisWeek.map((t) => (
                     <li key={t.id} className="py-2 flex items-center justify-between text-sm">
@@ -297,7 +297,7 @@ function CSPage() {
         ) : (
           <div className="p-5">
             {historyTasks.length === 0 ? (
-              <div className="text-sm text-muted-foreground text-center py-8">No completed tasks from prior weeks.</div>
+              <div className="text-sm text-muted-foreground text-center py-8">Sem tarefas concluídas em semanas anteriores.</div>
             ) : (
               <ul className="divide-y divide-border">
                 {historyTasks.map((t) => (
@@ -305,7 +305,7 @@ function CSPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <Link to="/tenant/$name" params={{ name: t.tenant_name }} className="font-medium hover:underline">{t.tenant_name}</Link>
-                        <span className="text-xs text-muted-foreground">Week of {periodLabel(t.week_start)}</span>
+                        <span className="text-xs text-muted-foreground">Semana de {periodLabel(t.week_start)}</span>
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">{t.reason}</div>
                     </div>
@@ -342,8 +342,8 @@ function TaskGroup({
   onComplete: (t: CSTask, outcome: string, note: string) => Promise<void>;
 }) {
   const tone = level === "high"
-    ? { header: "bg-danger/10 text-danger border-danger/30", label: "High risk" }
-    : { header: "bg-warning/15 text-warning border-warning/30", label: "Medium risk" };
+    ? { header: "bg-danger/10 text-danger border-danger/30", label: "Risco alto" }
+    : { header: "bg-warning/15 text-warning border-warning/30", label: "Risco médio" };
   return (
     <div>
       <div className={`inline-flex items-center gap-2 rounded-md border px-3 py-1 text-xs font-medium mb-3 ${tone.header}`}>
@@ -391,7 +391,7 @@ function TaskCard({ task, score, onComplete }: { task: CSTask; score: number; on
 
       <p className="text-sm mt-3">{task.reason}</p>
       <div className="mt-3 rounded-md bg-surface border border-border p-3 text-xs leading-relaxed">
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Suggested action</div>
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Ação sugerida</div>
         {task.cta}
       </div>
 
@@ -400,11 +400,11 @@ function TaskCard({ task, score, onComplete }: { task: CSTask; score: number; on
           onClick={() => setOpen(true)}
           className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-md bg-foreground text-background px-3 py-2 text-sm font-medium hover:opacity-90"
         >
-          <CheckCircle2 className="h-4 w-4" /> Mark as done
+          <CheckCircle2 className="h-4 w-4" /> Marcar como feita
         </button>
       ) : (
         <div className="mt-4 rounded-md border border-border p-3 space-y-2">
-          <label className="block text-xs font-medium">Outcome</label>
+          <label className="block text-xs font-medium">Resultado</label>
           <select
             value={outcome}
             onChange={(e) => setOutcome(e.target.value)}
@@ -415,12 +415,12 @@ function TaskCard({ task, score, onComplete }: { task: CSTask; score: number; on
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Optional note…"
+            placeholder="Nota opcional…"
             rows={2}
             className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-sm"
           />
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setOpen(false)} className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-surface" disabled={busy}>Cancel</button>
+            <button onClick={() => setOpen(false)} className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-surface" disabled={busy}>Cancelar</button>
             <button
               onClick={async () => {
                 setBusy(true);
@@ -429,7 +429,7 @@ function TaskCard({ task, score, onComplete }: { task: CSTask; score: number; on
               disabled={busy}
               className="px-3 py-1.5 text-xs rounded-md bg-foreground text-background font-medium hover:opacity-90 disabled:opacity-50"
             >
-              {busy ? "Saving…" : "Confirm"}
+              {busy ? "A guardar…" : "Confirmar"}
             </button>
           </div>
         </div>
