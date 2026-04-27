@@ -754,6 +754,3 @@ function downloadText(filename: string, content: string) {
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
-
-// suppress unused ChevronDown import warning if not used elsewhere
-void ChevronDown;
