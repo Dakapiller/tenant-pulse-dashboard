@@ -14,6 +14,7 @@ import {
   outcomeLabel,
   lastCompletedActivityAt,
   scoreWithDelta,
+  excludedTenants,
   OUTCOME_OPTIONS,
   type CSTenantStatus,
   type CSTask,
