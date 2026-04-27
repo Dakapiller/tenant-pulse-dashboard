@@ -132,7 +132,7 @@ function CSPage() {
         revenue: Math.round(v.revenue),
         activeClubs: v.activeClubs.size,
       }));
-  }, [snapshots, chartMode, selectedTenant]);
+  }, [snapshots, chartMode, selectedTenant, excluded]);
 
   const yoyPairs = useMemo(() => {
     const map = new Map(series.map((p) => [p.period, p]));
