@@ -22,7 +22,7 @@ import {
 import { computeRiskWithCS, FLAG_CTA, FLAG_META, type RiskFlag } from "@/lib/risk";
 import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
-import { ArrowRight, CheckCircle2, ChevronDown, ChevronRight, ListChecks } from "lucide-react";
+import { ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Eye, EyeOff, ListChecks } from "lucide-react";
 
 export const Route = createFileRoute("/cs")({
   component: CSPage,
@@ -42,6 +42,7 @@ function CSPage() {
   const [selectedTenant, setSelectedTenant] = useState<string>("");
 
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [showInactive, setShowInactive] = useState(false);
 
   const weekStart = useMemo(() => currentWeekStart(), []);
 
