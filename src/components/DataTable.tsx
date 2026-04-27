@@ -220,6 +220,19 @@ export function DataTable<T>({
         <table className="w-full text-sm">
           <thead className={`bg-surface text-xs uppercase tracking-wide text-muted-foreground ${stickyHeader ? "sticky top-0 z-10" : ""}`}>
             <tr>
+              {selectable && (
+                <th className="px-3 py-3 w-10 text-center">
+                  <input
+                    ref={headerCheckRef}
+                    type="checkbox"
+                    aria-label="Selecionar todos"
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisible}
+                    className="h-4 w-4 align-middle accent-foreground cursor-pointer"
+                    disabled={visibleSelectableRows.length === 0}
+                  />
+                </th>
+              )}
               {columns.map((col) => {
                 const align = col.align ?? "left";
                 const sortable = col.sortable !== false && !!col.sortValue;
