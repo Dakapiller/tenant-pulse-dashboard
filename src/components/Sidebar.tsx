@@ -1,8 +1,9 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Upload, LayoutDashboard, AlertTriangle, Activity, Users } from "lucide-react";
+import { Upload, LayoutDashboard, AlertTriangle, Activity, Users, Building2 } from "lucide-react";
 
 const items = [
   { to: "/", label: "Visão geral", icon: LayoutDashboard },
+  { to: "/clubs", label: "Clubes", icon: Building2 },
   { to: "/upload", label: "Carregar", icon: Upload },
   { to: "/at-risk", label: "Em risco", icon: AlertTriangle },
   { to: "/cs", label: "Customer Success", icon: Users },

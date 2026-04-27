@@ -49,7 +49,12 @@ function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState<{ success: number; errors: { tenant: string; message: string }[] } | null>(null);
+  const [result, setResult] = useState<{
+    success: number;
+    errors: { tenant: string; message: string }[];
+    newClubs?: string[];
+    missingClubs?: string[];
+  } | null>(null);
 
   const periodIso = useMemo(() => {
     const m = String(month).padStart(2, "0");
@@ -139,7 +144,60 @@ function UploadPage() {
         setProgress(Math.round(((i + slice.length) / Math.max(1, records.length)) * 100));
       }
 
-      setResult({ success, errors });
+      // After successful upload — churn detection
+      let newClubs: string[] = [];
+      let missingClubs: string[] = [];
+      try {
+        const uploadedNames = new Set(records.map((r) => String(r.tenant_name)));
+        const { data: priorRows, error: priorErr } = await supabase
+          .from("tenant_snapshots")
+          .select("tenant_name, period")
+          .neq("period", periodIso);
+        if (!priorErr && priorRows) {
+          const priorNames = new Set<string>();
+          (priorRows as { tenant_name: string }[]).forEach((r) => priorNames.add(r.tenant_name));
+          newClubs = [...uploadedNames].filter((n) => !priorNames.has(n));
+          missingClubs = [...priorNames].filter((n) => !uploadedNames.has(n));
+
+          if (missingClubs.length > 0) {
+            // Fetch latest status to skip already-churned/candidates
+            const { data: latestStatusRows } = await supabase
+              .from("cs_tenant_status")
+              .select("tenant_name, club_status, recorded_at")
+              .in("tenant_name", missingClubs)
+              .order("recorded_at", { ascending: false });
+            const currentByTenant = new Map<string, string>();
+            (latestStatusRows ?? []).forEach((r) => {
+              if (!currentByTenant.has(r.tenant_name)) currentByTenant.set(r.tenant_name, r.club_status ?? "active");
+            });
+
+            const toFlag = missingClubs.filter((n) => (currentByTenant.get(n) ?? "active") === "active");
+            if (toFlag.length > 0) {
+              await supabase.from("cs_tenant_status").insert(
+                toFlag.map((n) => ({
+                  tenant_name: n,
+                  relationship_status: "status_churn_candidate",
+                  club_status: "churn_candidate",
+                  note: `Em falta no carregamento de ${periodLabel}`,
+                })) as never,
+              );
+              await supabase.from("club_status_log" as never).insert(
+                toFlag.map((n) => ({
+                  tenant_name: n,
+                  previous_status: "active",
+                  new_status: "churn_candidate",
+                  note: `Em falta no carregamento de ${periodLabel}`,
+                  changed_by: "upload",
+                })) as never,
+              );
+            }
+          }
+        }
+      } catch {
+        // Best-effort; ignore churn detection errors
+      }
+
+      setResult({ success, errors, newClubs, missingClubs });
     } catch (e) {
       errors.push({ tenant: "—", message: e instanceof Error ? e.message : "Erro desconhecido" });
       setResult({ success, errors });
@@ -241,6 +299,23 @@ function UploadPage() {
               <CheckCircle2 className="h-4 w-4" />
               {result.success} tenants registados para {periodLabel}
             </div>
+            {(result.newClubs || result.missingClubs) && (
+              <div className="rounded-md border border-border p-3 text-sm space-y-2">
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <span><span className="font-medium">{result.newClubs?.length ?? 0}</span> novos clubes adicionados</span>
+                  <span>·</span>
+                  <span><span className="font-medium">{result.missingClubs?.length ?? 0}</span> clubes em falta neste carregamento (sinalizados como candidatos a churn)</span>
+                </div>
+                {result.missingClubs && result.missingClubs.length > 0 && (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Ver clubes em falta</summary>
+                    <ul className="mt-2 grid grid-cols-2 gap-1 max-h-40 overflow-auto">
+                      {result.missingClubs.map((n) => <li key={n} className="text-muted-foreground">• {n}</li>)}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            )}
             {result.errors.length > 0 && (
               <div className="rounded-md border border-danger/30 bg-danger/5 p-3">
                 <div className="flex items-center gap-2 text-sm text-danger font-medium mb-2">

@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      club_status_log: {
+        Row: {
+          changed_at: string | null
+          changed_by: string | null
+          id: string
+          new_status: string
+          note: string | null
+          previous_status: string
+          tenant_name: string
+        }
+        Insert: {
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          new_status: string
+          note?: string | null
+          previous_status: string
+          tenant_name: string
+        }
+        Update: {
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          new_status?: string
+          note?: string | null
+          previous_status?: string
+          tenant_name?: string
+        }
+        Relationships: []
+      }
       cs_tasks: {
         Row: {
           completed_at: string | null
@@ -58,6 +88,7 @@ export type Database = {
       }
       cs_tenant_status: {
         Row: {
+          club_status: string | null
           id: string
           note: string | null
           recorded_at: string | null
@@ -65,6 +96,7 @@ export type Database = {
           tenant_name: string
         }
         Insert: {
+          club_status?: string | null
           id?: string
           note?: string | null
           recorded_at?: string | null
@@ -72,6 +104,7 @@ export type Database = {
           tenant_name: string
         }
         Update: {
+          club_status?: string | null
           id?: string
           note?: string | null
           recorded_at?: string | null

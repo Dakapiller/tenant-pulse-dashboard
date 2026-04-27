@@ -20,7 +20,26 @@ export interface CSTenantStatus {
   relationship_status: string;
   note: string | null;
   recorded_at: string;
+  club_status?: string | null;
 }
+
+export type ClubStatus = "active" | "churn_candidate" | "churned";
+
+export interface ClubStatusLog {
+  id: string;
+  tenant_name: string;
+  previous_status: string;
+  new_status: string;
+  note: string | null;
+  changed_by: string | null;
+  changed_at: string;
+}
+
+export const CLUB_STATUS_LABEL: Record<ClubStatus, string> = {
+  active: "Ativo",
+  churn_candidate: "Candidato a churn",
+  churned: "Em churn",
+};
 
 export const OUTCOME_OPTIONS: { value: string; label: string }[] = [
   { value: "bad_relationship", label: "Má relação" },
@@ -116,3 +135,84 @@ export async function completeCSTask(taskId: string, tenant: string, outcome: st
     .insert({ tenant_name: tenant, relationship_status: outcome, note });
   if (e2) throw e2;
 }
+
+// --------- Club status helpers ---------
+
+export async function fetchClubStatusLogs(): Promise<ClubStatusLog[]> {
+  const { data, error } = await supabase
+    .from("club_status_log" as never)
+    .select("*")
+    .order("changed_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as ClubStatusLog[];
+}
+
+export async function fetchClubStatusLogsForTenant(tenant: string): Promise<ClubStatusLog[]> {
+  const { data, error } = await supabase
+    .from("club_status_log" as never)
+    .select("*")
+    .eq("tenant_name", tenant)
+    .order("changed_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as ClubStatusLog[];
+}
+
+// Latest non-null club_status entry per tenant.
+export function currentClubStatus(statuses: CSTenantStatus[]): ClubStatus {
+  const sorted = [...statuses].sort((a, b) => (b.recorded_at ?? "").localeCompare(a.recorded_at ?? ""));
+  for (const s of sorted) {
+    if (s.club_status && s.club_status !== "active") return s.club_status as ClubStatus;
+    if (s.club_status === "active") return "active";
+  }
+  return "active";
+}
+
+export async function setClubStatus(
+  tenant: string,
+  newStatus: ClubStatus,
+  previousStatus: ClubStatus,
+  note: string | null,
+  changedBy: string = "cs",
+): Promise<void> {
+  const { error: e1 } = await supabase
+    .from("cs_tenant_status")
+    .insert({
+      tenant_name: tenant,
+      relationship_status: `status_${newStatus}`,
+      club_status: newStatus,
+      note,
+    } as never);
+  if (e1) throw e1;
+  const { error: e2 } = await supabase
+    .from("club_status_log" as never)
+    .insert({
+      tenant_name: tenant,
+      previous_status: previousStatus,
+      new_status: newStatus,
+      note,
+      changed_by: changedBy,
+    } as never);
+  if (e2) throw e2;
+}
+
+// Sum of CS modifiers across all relationship statuses ever recorded for a tenant.
+export function sumCSImpact(statuses: CSTenantStatus[]): number {
+  // mirror CS_MODIFIER from risk.ts (kept inline to avoid import cycle)
+  const MODS: Record<string, number> = {
+    bad_relationship: 25,
+    good_receptivity: -15,
+    very_satisfied: -30,
+  };
+  return statuses.reduce((acc, s) => acc + (MODS[s.relationship_status] ?? 0), 0);
+}
+
+export function lastCompletedActivityAt(tasks: CSTask[]): string | null {
+  let best: string | null = null;
+  for (const t of tasks) {
+    if (t.status === "completed" && t.completed_at) {
+      if (!best || t.completed_at > best) best = t.completed_at;
+    }
+  }
+  return best;
+}
+
