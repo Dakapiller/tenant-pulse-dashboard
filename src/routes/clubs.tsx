@@ -180,6 +180,9 @@ function ClubsPage() {
           containerClassName="max-h-[700px]"
           rowClassName={(r) => r.missingFromLatest ? "bg-warning/5" : ""}
           emptyMessage="Sem clubes."
+          selectable
+          selectedKeys={selectedKeys}
+          onSelectionChange={setSelectedKeys}
           columns={[
             {
               key: "name",
