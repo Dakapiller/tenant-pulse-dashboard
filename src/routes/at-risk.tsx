@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
-import { fetchAllCSStatuses, fetchAllCSTasks, currentWeekStart, scoreWithDelta, type CSTenantStatus, type CSTask } from "@/lib/cs";
+import { fetchAllCSStatuses, fetchAllCSTasks, currentWeekStart, scoreWithDelta, excludedTenants, type CSTenantStatus, type CSTask } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META, FLAG_CTA, type RiskFlag } from "@/lib/risk";
 import { ScoreDelta } from "@/components/DataTable";
 import { ArrowRight, ListChecks, Search, ShieldCheck, X } from "lucide-react";
