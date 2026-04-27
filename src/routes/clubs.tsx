@@ -53,6 +53,8 @@ interface ClubRow {
   lastActivity: string | null;
   pending: number;
   missingFromLatest: boolean;
+  isNew: boolean;
+  firstSeen: string | null;
 }
 
 function ClubsPage() {
