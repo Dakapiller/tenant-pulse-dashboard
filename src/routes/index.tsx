@@ -15,6 +15,7 @@ type SortKey = "tenant_name" | "games_online" | "gmv_games" | "gmv_all" | "reven
 function OverviewPage() {
   const [allSnapshots, setAllSnapshots] = useState<Snapshot[]>([]);
   const [periods, setPeriods] = useState<string[]>([]);
+  const [csStatuses, setCsStatuses] = useState<CSTenantStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -25,10 +26,15 @@ function OverviewPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [snaps, ps] = await Promise.all([fetchAllSnapshots(), fetchPeriods()]);
+        const [snaps, ps, sts] = await Promise.all([
+          fetchAllSnapshots(),
+          fetchPeriods(),
+          fetchAllCSStatuses(),
+        ]);
         if (cancelled) return;
         setAllSnapshots(snaps);
         setPeriods(ps);
+        setCsStatuses(sts);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load");
       } finally {
