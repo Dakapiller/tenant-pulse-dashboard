@@ -1,5 +1,5 @@
-import { Fragment, useMemo, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Filter as FilterIcon, X } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Filter as FilterIcon, Search, X } from "lucide-react";
 
 export type SortDir = "asc" | "desc" | null;
 
@@ -12,15 +12,16 @@ export interface ColumnDef<T> {
   header: string;
   align?: "left" | "right" | "center";
   render: (row: T) => ReactNode;
-  /** Value used for sorting (return null to sort last) */
   sortValue?: (row: T) => string | number | null;
-  /** Value used for filtering (string match) */
   filterValue?: (row: T) => string;
   filter?: FilterType;
-  /** Whether sorting is enabled (default true if sortValue provided) */
   sortable?: boolean;
+  /** Include in global search (defaults to true when filterValue exists) */
+  searchable?: boolean;
   className?: string;
   thClassName?: string;
+  /** Hide on small screens */
+  hideOnMobile?: boolean;
 }
 
 export interface DataTableProps<T> {
@@ -30,11 +31,13 @@ export interface DataTableProps<T> {
   defaultSort?: { key: string; dir: SortDir };
   rowClassName?: (row: T) => string;
   onRowClick?: (row: T) => void;
-  /** When provided and returns non-null, an additional row is rendered directly below with this content. */
   expandedRow?: (row: T) => ReactNode | null;
   emptyMessage?: string;
   stickyHeader?: boolean;
   containerClassName?: string;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  toolbar?: ReactNode;
 }
 
 export function DataTable<T>({
@@ -48,12 +51,34 @@ export function DataTable<T>({
   emptyMessage = "Sem dados.",
   stickyHeader = false,
   containerClassName = "",
+  searchable = true,
+  searchPlaceholder = "Pesquisar…",
+  toolbar,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>(
     defaultSort ?? { key: "", dir: null },
   );
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const filterRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Close any open filter dropdown when clicking outside
+  useEffect(() => {
+    if (!openFilter) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const node = filterRefs.current.get(openFilter);
+      if (node && !node.contains(e.target as Node)) {
+        setOpenFilter(null);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [openFilter]);
 
   const filtered = useMemo(() => {
     let r = rows;
@@ -66,6 +91,16 @@ export function DataTable<T>({
         if (col.filter?.kind === "select") return v === f;
         return v.toLowerCase().includes(norm);
       });
+    }
+    const s = search.trim().toLowerCase();
+    if (s) {
+      r = r.filter((row) =>
+        columns.some((col) => {
+          if (col.searchable === false) return false;
+          if (!col.filterValue) return false;
+          return col.filterValue(row).toLowerCase().includes(s);
+        }),
+      );
     }
     if (sort.key && sort.dir) {
       const col = columns.find((c) => c.key === sort.key);
@@ -83,7 +118,7 @@ export function DataTable<T>({
       }
     }
     return r;
-  }, [rows, columns, filters, sort]);
+  }, [rows, columns, filters, sort, search]);
 
   function toggleSort(key: string) {
     setSort((cur) => {
@@ -94,135 +129,186 @@ export function DataTable<T>({
     });
   }
 
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
   return (
-    <div className={`overflow-auto ${containerClassName}`}>
-      <table className="w-full text-sm">
-        <thead className={`bg-surface text-xs uppercase tracking-wide text-muted-foreground ${stickyHeader ? "sticky top-0 z-10" : ""}`}>
-          <tr>
-            {columns.map((col) => {
-              const align = col.align ?? "left";
-              const sortable = col.sortable !== false && !!col.sortValue;
-              const isSorted = sort.key === col.key && sort.dir;
-              const filterActive = !!filters[col.key];
-              return (
-                <th
-                  key={col.key}
-                  className={`px-4 py-3 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} ${col.thClassName ?? ""}`}
+    <div className="flex flex-col">
+      {(searchable || toolbar) && (
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-border bg-background flex-wrap">
+          {searchable && (
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="w-full pl-8 pr-8 py-2 text-base sm:text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-foreground/20"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-surface text-muted-foreground"
+                  aria-label="Limpar pesquisa"
+                  type="button"
                 >
-                  <div className={`inline-flex items-center gap-1 ${align === "right" ? "flex-row-reverse" : ""}`}>
-                    {sortable ? (
-                      <button
-                        onClick={() => toggleSort(col.key)}
-                        className="inline-flex items-center gap-1 hover:text-foreground"
-                        type="button"
-                      >
-                        <span>{col.header}</span>
-                        {isSorted ? (
-                          sort.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 opacity-40" />
-                        )}
-                      </button>
-                    ) : (
-                      <span>{col.header}</span>
-                    )}
-                    {col.filter && (
-                      <div className="relative">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => setFilters({})}
+              className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded border border-border min-h-9"
+              type="button"
+            >
+              <X className="h-3 w-3" /> {activeFilterCount} filtro{activeFilterCount === 1 ? "" : "s"}
+            </button>
+          )}
+          {toolbar}
+        </div>
+      )}
+      <div className={`overflow-auto ${containerClassName}`}>
+        <table className="w-full text-sm">
+          <thead className={`bg-surface text-xs uppercase tracking-wide text-muted-foreground ${stickyHeader ? "sticky top-0 z-10" : ""}`}>
+            <tr>
+              {columns.map((col) => {
+                const align = col.align ?? "left";
+                const sortable = col.sortable !== false && !!col.sortValue;
+                const isSorted = sort.key === col.key && sort.dir;
+                const filterActive = !!filters[col.key];
+                return (
+                  <th
+                    key={col.key}
+                    className={`px-3 sm:px-4 py-3 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} ${col.hideOnMobile ? "hidden sm:table-cell" : ""} ${col.thClassName ?? ""}`}
+                  >
+                    <div className={`inline-flex items-center gap-1 ${align === "right" ? "flex-row-reverse" : ""}`}>
+                      {sortable ? (
                         <button
-                          onClick={() => setOpenFilter(openFilter === col.key ? null : col.key)}
-                          className={`p-0.5 rounded hover:bg-background ${filterActive ? "text-foreground" : "opacity-40 hover:opacity-100"}`}
+                          onClick={() => toggleSort(col.key)}
+                          className="inline-flex items-center gap-1 hover:text-foreground"
                           type="button"
-                          aria-label="Filtrar"
                         >
-                          <FilterIcon className="h-3 w-3" />
+                          <span>{col.header}</span>
+                          {isSorted ? (
+                            sort.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-40" />
+                          )}
                         </button>
-                        {openFilter === col.key && (
-                          <div className="absolute z-20 top-full mt-1 right-0 bg-background border border-border rounded-md shadow-lg p-2 min-w-44 normal-case tracking-normal">
-                            {col.filter.kind === "text" ? (
-                              <input
-                                autoFocus
-                                value={filters[col.key] ?? ""}
-                                onChange={(e) => setFilters({ ...filters, [col.key]: e.target.value })}
-                                placeholder="Filtrar…"
-                                className="w-full px-2 py-1 rounded border border-border bg-background text-xs"
-                              />
-                            ) : (
-                              <select
-                                autoFocus
-                                value={filters[col.key] ?? ""}
-                                onChange={(e) => setFilters({ ...filters, [col.key]: e.target.value })}
-                                className="w-full px-2 py-1 rounded border border-border bg-background text-xs"
-                              >
-                                <option value="">Todos</option>
-                                {col.filter.options.map((o) => (
-                                  <option key={o.value} value={o.value}>{o.label}</option>
-                                ))}
-                              </select>
-                            )}
-                            {filters[col.key] && (
-                              <button
-                                onClick={() => {
-                                  const next = { ...filters };
-                                  delete next[col.key];
-                                  setFilters(next);
-                                  setOpenFilter(null);
-                                }}
-                                className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
-                                type="button"
-                              >
-                                <X className="h-2.5 w-2.5" /> Limpar
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </th>
+                      ) : (
+                        <span>{col.header}</span>
+                      )}
+                      {col.filter && (
+                        <div
+                          className="relative"
+                          ref={(el) => {
+                            if (el) filterRefs.current.set(col.key, el);
+                            else filterRefs.current.delete(col.key);
+                          }}
+                        >
+                          <button
+                            onClick={() => setOpenFilter(openFilter === col.key ? null : col.key)}
+                            className={`p-0.5 rounded hover:bg-background ${filterActive ? "text-foreground" : "opacity-40 hover:opacity-100"}`}
+                            type="button"
+                            aria-label="Filtrar"
+                          >
+                            <FilterIcon className="h-3 w-3" />
+                          </button>
+                          {openFilter === col.key && (
+                            <div className="absolute z-20 top-full mt-1 right-0 bg-background border border-border rounded-md shadow-lg p-2 min-w-44 normal-case tracking-normal">
+                              {col.filter.kind === "text" ? (
+                                <input
+                                  autoFocus
+                                  value={filters[col.key] ?? ""}
+                                  onChange={(e) => setFilters({ ...filters, [col.key]: e.target.value })}
+                                  placeholder="Filtrar…"
+                                  className="w-full px-2 py-1 rounded border border-border bg-background text-base sm:text-xs"
+                                />
+                              ) : (
+                                <select
+                                  autoFocus
+                                  value={filters[col.key] ?? ""}
+                                  onChange={(e) => setFilters({ ...filters, [col.key]: e.target.value })}
+                                  className="w-full px-2 py-1 rounded border border-border bg-background text-base sm:text-xs"
+                                >
+                                  <option value="">Todos</option>
+                                  {col.filter.options.map((o) => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                  ))}
+                                </select>
+                              )}
+                              {filters[col.key] && (
+                                <button
+                                  onClick={() => {
+                                    const next = { ...filters };
+                                    delete next[col.key];
+                                    setFilters(next);
+                                    setOpenFilter(null);
+                                  }}
+                                  className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+                                  type="button"
+                                >
+                                  <X className="h-2.5 w-2.5" /> Limpar
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((row) => {
+              const expandedContent = expandedRow?.(row);
+              return (
+                <Fragment key={rowKey(row)}>
+                  <tr
+                    className={`border-t border-border hover:bg-surface ${onRowClick ? "cursor-pointer" : ""} ${rowClassName?.(row) ?? ""}`}
+                    onClick={() => onRowClick?.(row)}
+                  >
+                    {columns.map((col) => {
+                      const align = col.align ?? "left";
+                      return (
+                        <td
+                          key={col.key}
+                          className={`px-3 sm:px-4 py-2.5 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} ${col.hideOnMobile ? "hidden sm:table-cell" : ""} ${col.className ?? ""}`}
+                        >
+                          {col.render(row)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                  {expandedContent && (
+                    <tr className="bg-surface/40">
+                      <td colSpan={columns.length} className="px-3 sm:px-4 py-4 border-t border-border">
+                        {expandedContent}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((row) => {
-            const expandedContent = expandedRow?.(row);
-            return (
-              <Fragment key={rowKey(row)}>
-                <tr
-                  className={`border-t border-border hover:bg-surface ${onRowClick ? "cursor-pointer" : ""} ${rowClassName?.(row) ?? ""}`}
-                  onClick={() => onRowClick?.(row)}
-                >
-                  {columns.map((col) => {
-                    const align = col.align ?? "left";
-                    return (
-                      <td
-                        key={col.key}
-                        className={`px-4 py-2.5 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} ${col.className ?? ""}`}
-                      >
-                        {col.render(row)}
-                      </td>
-                    );
-                  })}
-                </tr>
-                {expandedContent && (
-                  <tr className="bg-surface/40">
-                    <td colSpan={columns.length} className="px-4 py-4 border-t border-border">
-                      {expandedContent}
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            );
-          })}
-          {filtered.length === 0 && (
-            <tr>
-              <td colSpan={columns.length} className="px-4 py-10 text-center text-muted-foreground text-sm">
-                {emptyMessage}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={columns.length} className="px-4 py-10 text-center text-muted-foreground text-sm">
+                  {search || activeFilterCount > 0 ? "Sem resultados para a pesquisa atual." : emptyMessage}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {(search || activeFilterCount > 0) && filtered.length > 0 && (
+        <div className="px-3 sm:px-4 py-2 text-[11px] text-muted-foreground border-t border-border bg-background">
+          {filtered.length} de {rows.length} resultado{rows.length === 1 ? "" : "s"}
+        </div>
+      )}
     </div>
   );
 }
