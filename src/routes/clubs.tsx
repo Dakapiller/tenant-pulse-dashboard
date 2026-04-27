@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, ChevronRight, Download, X,
+  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Sparkles, X,
 } from "lucide-react";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
@@ -53,6 +53,8 @@ interface ClubRow {
   lastActivity: string | null;
   pending: number;
   missingFromLatest: boolean;
+  isNew: boolean;
+  firstSeen: string | null;
 }
 
 function ClubsPage() {
@@ -67,6 +69,7 @@ function ClubsPage() {
   const [editingTenant, setEditingTenant] = useState<string | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [missingOpen, setMissingOpen] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
 
   async function loadAll() {
     const [s, p, sts, tks] = await Promise.all([
@@ -112,20 +115,35 @@ function ClubsPage() {
       const competitor = currentChurnCompetitor(sts);
       const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
       const missing = !!latestPeriod && !sorted.some((s) => s.period === latestPeriod);
+      const firstSeen = sorted[0]?.period ?? null;
+      const isNew = !!latestPeriod && firstSeen === latestPeriod && sorted.length === 1;
       result.push({
         name, latest, history: sorted, statuses: sts, tasks: tks,
         status, competitor, score: sd.score, scoreDelta: sd.delta, level: sd.level,
         csImpact: sumCSImpact(sts),
         lastActivity: lastCompletedActivityAt(tks),
         pending, missingFromLatest: missing,
+        isNew, firstSeen,
       });
     }
     return result;
   }, [snapshots, statuses, tasks, weekStart, latestPeriod]);
 
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
+  const newCount = rows.filter((r) => r.isNew).length;
+  const inactiveCount = rows.filter((r) => r.status === "churned" || r.status === "closed").length;
+  const visibleRows = useMemo(
+    () => showInactive ? rows : rows.filter((r) => r.status !== "churned" && r.status !== "closed"),
+    [rows, showInactive],
+  );
 
   async function handleStatusChange(tenant: string, current: ClubStatus, next: ClubStatus, competitor: string | null) {
+    if (next === "churned" && current !== "churned") {
+      const ok = window.confirm(
+        `Tens a certeza que queres marcar "${tenant}" como Em Churn?\n\nEsta ação remove o clube das métricas agregadas (KPIs, gráficos e cálculos de risco).`,
+      );
+      if (!ok) return;
+    }
     await setClubStatus(tenant, next, current, null, "cs", competitor);
     await loadAll();
     setEditingTenant(null);
@@ -168,17 +186,48 @@ function ClubsPage() {
         </button>
       )}
 
+      {newCount > 0 && (
+        <div className="w-full mb-5 rounded-lg border border-success/40 bg-success/10 p-4 flex items-start gap-3">
+          <Sparkles className="h-5 w-5 text-success shrink-0 mt-0.5" />
+          <div className="text-sm flex-1">
+            <div className="font-medium text-success">
+              {newCount} {newCount === 1 ? "novo clube" : "novos clubes"} em {latestPeriod ? periodLabel(latestPeriod) : "—"}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Apareceram pela primeira vez no último carregamento. Estão marcados com a etiqueta "Novo" na lista abaixo.
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="rounded-xl border border-border bg-background overflow-hidden">
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground">
-          <span>{rows.length} clubes</span>
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground gap-3 flex-wrap">
+          <span>
+            {visibleRows.length} {visibleRows.length === 1 ? "clube" : "clubes"}
+            {!showInactive && inactiveCount > 0 && (
+              <span className="ml-1 text-muted-foreground/70">
+                · {inactiveCount} ocultos (em churn / fechados)
+              </span>
+            )}
+          </span>
+          {inactiveCount > 0 && (
+            <button
+              onClick={() => setShowInactive((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-surface"
+              title={showInactive ? "Ocultar clubes em churn e fechados" : "Mostrar clubes em churn e fechados"}
+            >
+              {showInactive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              {showInactive ? "Ocultar inativos" : "Mostrar inativos"}
+            </button>
+          )}
         </div>
         <DataTable<ClubRow>
-          rows={rows}
+          rows={visibleRows}
           rowKey={(r) => r.name}
           defaultSort={{ key: "name", dir: "asc" }}
           stickyHeader
           containerClassName="max-h-[700px]"
-          rowClassName={(r) => r.missingFromLatest ? "bg-warning/5" : ""}
+          rowClassName={(r) => r.isNew ? "bg-success/5" : r.missingFromLatest ? "bg-warning/5" : ""}
           emptyMessage="Sem clubes."
           selectable
           selectedKeys={selectedKeys}
@@ -193,6 +242,11 @@ function ClubsPage() {
               render: (r) => (
                 <>
                   <button onClick={() => setDrawerTenant(r.name)} className="font-medium hover:underline text-left">{r.name}</button>
+                  {r.isNew && (
+                    <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase font-semibold text-success bg-success/10 px-1.5 py-0.5 rounded-full">
+                      <Sparkles className="h-2.5 w-2.5" /> Novo
+                    </span>
+                  )}
                   {r.missingFromLatest && <span className="ml-2 text-[10px] uppercase text-warning font-semibold">Em falta</span>}
                 </>
               ),
@@ -294,6 +348,18 @@ function ClubsPage() {
         <MissingClubsModal
           rows={rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed")}
           onApply={async (names, next, competitor) => {
+            if (next === "churned") {
+              const toChurn = names.filter((n) => {
+                const r = rows.find((x) => x.name === n);
+                return r && r.status !== "churned";
+              });
+              if (toChurn.length > 0) {
+                const ok = window.confirm(
+                  `Tens a certeza que queres marcar ${toChurn.length} ${toChurn.length === 1 ? "clube" : "clubes"} como Em Churn?\n\nEsta ação remove-os das métricas agregadas.`,
+                );
+                if (!ok) return;
+              }
+            }
             for (const name of names) {
               const r = rows.find((x) => x.name === name);
               if (!r) continue;
@@ -310,6 +376,18 @@ function ClubsPage() {
           count={selectedKeys.size}
           onApply={async (next, competitor) => {
             const names = Array.from(selectedKeys);
+            if (next === "churned") {
+              const toChurn = names.filter((n) => {
+                const r = rows.find((x) => x.name === n);
+                return r && r.status !== "churned";
+              });
+              if (toChurn.length > 0) {
+                const ok = window.confirm(
+                  `Tens a certeza que queres marcar ${toChurn.length} ${toChurn.length === 1 ? "clube" : "clubes"} como Em Churn?\n\nEsta ação remove-os das métricas agregadas.`,
+                );
+                if (!ok) return;
+              }
+            }
             for (const name of names) {
               const r = rows.find((x) => x.name === name);
               if (!r) continue;
