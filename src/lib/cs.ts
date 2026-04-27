@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { computeRiskWithCS } from "@/lib/risk";
+import type { Snapshot } from "@/lib/data";
 
 export interface CSTask {
   id: string;
@@ -247,5 +249,25 @@ export function lastCompletedActivityAt(tasks: CSTask[]): string | null {
     }
   }
   return best;
+}
+
+/**
+ * Compute current vs previous-month risk score for a tenant.
+ * Returns { score, prevScore, delta } where delta = score - prevScore (negative = improvement).
+ */
+export function scoreWithDelta(
+  history: Snapshot[],
+  statuses: CSTenantStatus[],
+): { score: number; prevScore: number | null; delta: number | null; level: "high" | "medium" | "healthy"; prevLevel: "high" | "medium" | "healthy" | null } {
+  const sorted = [...history].sort((a, b) => a.period.localeCompare(b.period));
+  if (sorted.length === 0) return { score: 0, prevScore: null, delta: null, level: "healthy", prevLevel: null };
+  const cur = computeRiskWithCS(sorted, statuses);
+  if (sorted.length < 2) return { score: cur.score, prevScore: null, delta: null, level: cur.level, prevLevel: null };
+  const prevSlice = sorted.slice(0, -1);
+  const prevPeriod = prevSlice[prevSlice.length - 1].period;
+  const cutoff = `${prevPeriod.slice(0, 7)}-31T23:59:59Z`;
+  const filtered = statuses.filter((s) => !s.recorded_at || s.recorded_at <= cutoff);
+  const prev = computeRiskWithCS(prevSlice, filtered);
+  return { score: cur.score, prevScore: prev.score, delta: cur.score - prev.score, level: cur.level, prevLevel: prev.level };
 }
 
