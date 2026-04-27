@@ -164,7 +164,7 @@ function DashboardPage() {
   // Monthly trend series — current and prior-year overlay
   const monthlySeries = useMemo(() => {
     const byPeriod = new Map<string, { games: number; gmv: number; revenue: number }>();
-    snapshots.forEach((s) => {
+    includedSnapshots.forEach((s) => {
       const cur = byPeriod.get(s.period) ?? { games: 0, gmv: 0, revenue: 0 };
       cur.games += Number(s.games_online ?? 0);
       cur.gmv += Number(s.gmv_all ?? 0);
@@ -193,7 +193,7 @@ function DashboardPage() {
         revenuePrev: prior?.revenue ?? null,
       };
     });
-  }, [snapshots]);
+  }, [includedSnapshots]);
 
   // YoY comparison row
   const yoyRow = useMemo(() => {
