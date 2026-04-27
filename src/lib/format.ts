@@ -12,7 +12,7 @@ export function formatNumber(n: number | null | undefined): string {
 }
 
 export function formatPercent(n: number | null | undefined): string {
-  return `${Number(n ?? 0).toFixed(1)}%`;
+  return `${(Number(n ?? 0) * 100).toFixed(1)}%`;
 }
 
 export function periodLabel(iso: string): string {
