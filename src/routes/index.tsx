@@ -152,14 +152,14 @@ function DashboardPage() {
     const highRisk = clubs.filter((c) => c.score >= 60 && c.status !== "churned" && c.status !== "closed").length;
     const monthGmv = (() => {
       if (!latestPeriod) return 0;
-      return snapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.gmv_all ?? 0), 0);
+      return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.gmv_all ?? 0), 0);
     })();
     const monthRevenue = (() => {
       if (!latestPeriod) return 0;
-      return snapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.revenue ?? 0), 0);
+      return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.revenue ?? 0), 0);
     })();
     return { activeClubs, churnedThisYear, highRisk, monthGmv, monthRevenue };
-  }, [clubs, statuses, snapshots, latestPeriod]);
+  }, [clubs, statuses, includedSnapshots, latestPeriod]);
 
   // Monthly trend series — current and prior-year overlay
   const monthlySeries = useMemo(() => {
