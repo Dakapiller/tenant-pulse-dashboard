@@ -61,6 +61,15 @@ function OverviewPage() {
     return map;
   }, [allSnapshots]);
 
+  const tenantStatusMap = useMemo(() => {
+    const m = new Map<string, CSTenantStatus[]>();
+    csStatuses.forEach((s) => {
+      if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
+      m.get(s.tenant_name)!.push(s);
+    });
+    return m;
+  }, [csStatuses]);
+
   const totals = useMemo(() => {
     const t = { tenants: latestRows.length, games: 0, gmvAll: 0, revenue: 0 };
     latestRows.forEach((r) => {
@@ -156,7 +165,10 @@ function OverviewPage() {
             </thead>
             <tbody>
               {filteredSorted.map((r) => {
-                const risk = computeRisk(tenantHistory.get(r.tenant_name) ?? []);
+                const risk = computeRiskWithCS(
+                  tenantHistory.get(r.tenant_name) ?? [],
+                  tenantStatusMap.get(r.tenant_name) ?? [],
+                );
                 const ratePct = r.transacted_rate ?? 0;
                 const rateColor = ratePct >= 40 ? "text-success" : ratePct >= 15 ? "text-warning" : "text-danger";
                 const games = r.games_online ?? 0;
