@@ -49,6 +49,7 @@ interface ClubRow {
   status: ClubStatus;
   competitor: string | null;
   score: number;
+  prevScore: number | null;
   scoreDelta: number | null;
   level: "high" | "medium" | "healthy";
   csImpact: number;
@@ -128,7 +129,7 @@ function ClubsPage() {
       const csOut = latestCSOutcome(sts);
       result.push({
         name, latest, history: sorted, statuses: sts, tasks: tks,
-        status, competitor, score: sd.score, scoreDelta: sd.delta, level: sd.level,
+        status, competitor, score: sd.score, prevScore: sd.prevScore, scoreDelta: sd.delta, level: sd.level,
         csImpact: sumCSImpact(sts),
         lastActivity: lastCompletedActivityAt(tks),
         pending, missingFromLatest: missing,
