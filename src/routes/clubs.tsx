@@ -18,6 +18,8 @@ import {
   currentClubStatus,
   currentChurnCompetitor,
   scoreWithDelta,
+  flagsWithDelta,
+  latestCSOutcome,
   sumCSImpact,
   lastCompletedActivityAt,
   currentWeekStart,
@@ -30,7 +32,7 @@ import {
   type ClubStatus,
   type ClubStatusLog,
 } from "@/lib/cs";
-import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
+import { computeRiskWithCS, FLAG_META, type RiskFlag } from "@/lib/risk";
 import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/format";
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 
