@@ -10,6 +10,7 @@ import {
   fetchAllCSTasks,
   insertCSTasks,
   completeCSTask,
+  completeCSTasksBatch,
   currentWeekStart,
   outcomeLabel,
   lastCompletedActivityAt,
