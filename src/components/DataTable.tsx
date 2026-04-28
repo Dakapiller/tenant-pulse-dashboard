@@ -391,13 +391,16 @@ export function DataTable<T>({
 }
 
 /** Small ▲/▼ delta indicator for health-score MoM comparison. Negative = improvement. */
-export function ScoreDelta({ delta }: { delta: number | null }) {
+export function ScoreDelta({ delta, previous, current }: { delta: number | null; previous?: number | null; current?: number | null }) {
   if (delta === null) return <span className="text-muted-foreground text-xs">—</span>;
   if (delta === 0) return <span className="text-muted-foreground text-xs">—</span>;
   const improving = delta < 0;
+  const scores = previous !== undefined && previous !== null && current !== undefined && current !== null
+    ? ` · ${previous}→${current}`
+    : "";
   return (
     <span className={`inline-flex items-center text-[11px] font-semibold tabular-nums ${improving ? "text-success" : "text-danger"}`}>
-      {improving ? "▼" : "▲"} {Math.abs(delta)}
+      {improving ? "▼" : "▲"} {Math.abs(delta)}{scores}
     </span>
   );
 }

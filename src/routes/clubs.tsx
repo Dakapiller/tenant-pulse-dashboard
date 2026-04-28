@@ -46,9 +46,11 @@ interface ClubRow {
   history: Snapshot[];
   statuses: CSTenantStatus[];
   tasks: CSTask[];
+  statusLogs: ClubStatusLog[];
   status: ClubStatus;
   competitor: string | null;
   score: number;
+  prevScore: number | null;
   scoreDelta: number | null;
   level: "high" | "medium" | "healthy";
   csImpact: number;
@@ -68,21 +70,23 @@ function ClubsPage() {
   const [periods, setPeriods] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
+  const [statusLogs, setStatusLogs] = useState<ClubStatusLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<string | null>(null);
+  const [expandedTenant, setExpandedTenant] = useState<string | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [missingOpen, setMissingOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [filterNewOnly, setFilterNewOnly] = useState(false);
 
   async function loadAll() {
-    const [s, p, sts, tks] = await Promise.all([
-      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(),
+    const [s, p, sts, tks, logs] = await Promise.all([
+      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchClubStatusLogs(),
     ]);
-    setSnapshots(s); setPeriods(p); setStatuses(sts); setTasks(tks);
+    setSnapshots(s); setPeriods(p); setStatuses(sts); setTasks(tks); setStatusLogs(logs);
   }
 
   useEffect(() => {
@@ -110,6 +114,11 @@ function ClubsPage() {
       if (!tasksByTenant.has(t.tenant_name)) tasksByTenant.set(t.tenant_name, []);
       tasksByTenant.get(t.tenant_name)!.push(t);
     });
+    const logsByTenant = new Map<string, ClubStatusLog[]>();
+    statusLogs.forEach((l) => {
+      if (!logsByTenant.has(l.tenant_name)) logsByTenant.set(l.tenant_name, []);
+      logsByTenant.get(l.tenant_name)!.push(l);
+    });
 
     const result: ClubRow[] = [];
     for (const [name, hist] of histByTenant) {
@@ -127,8 +136,8 @@ function ClubsPage() {
       const fd = flagsWithDelta(sorted, sts);
       const csOut = latestCSOutcome(sts);
       result.push({
-        name, latest, history: sorted, statuses: sts, tasks: tks,
-        status, competitor, score: sd.score, scoreDelta: sd.delta, level: sd.level,
+        name, latest, history: sorted, statuses: sts, tasks: tks, statusLogs: logsByTenant.get(name) ?? [],
+        status, competitor, score: sd.score, prevScore: sd.prevScore, scoreDelta: sd.delta, level: sd.level,
         csImpact: sumCSImpact(sts),
         lastActivity: lastCompletedActivityAt(tks),
         pending, missingFromLatest: missing,
@@ -138,7 +147,7 @@ function ClubsPage() {
       });
     }
     return result;
-  }, [snapshots, statuses, tasks, weekStart, latestPeriod]);
+  }, [snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod]);
 
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
   const newCount = rows.filter((r) => r.isNew).length;
@@ -243,7 +252,9 @@ function ClubsPage() {
           defaultSort={{ key: "name", dir: "asc" }}
           stickyHeader
           containerClassName="max-h-[700px]"
-          rowClassName={(r) => r.isNew ? "bg-success/5" : r.missingFromLatest ? "bg-warning/5" : ""}
+          rowClassName={(r) => expandedTenant === r.name ? "bg-surface/40" : r.isNew ? "bg-success/5" : r.missingFromLatest ? "bg-warning/5" : ""}
+          onRowClick={(r) => setExpandedTenant(expandedTenant === r.name ? null : r.name)}
+          expandedRow={(r) => expandedTenant === r.name ? <ClubHistoryPanel row={r} /> : null}
           emptyMessage="Sem clubes."
           selectable
           selectedKeys={selectedKeys}
@@ -257,7 +268,7 @@ function ClubsPage() {
               filter: { kind: "text" },
               render: (r) => (
                 <>
-                  <button onClick={() => setDrawerTenant(r.name)} className="font-medium hover:underline text-left">{r.name}</button>
+                  <button onClick={(e) => { e.stopPropagation(); setDrawerTenant(r.name); }} className="font-medium hover:underline text-left">{r.name}</button>
                   {r.isNew && (
                     <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase font-semibold text-success bg-success/10 px-1.5 py-0.5 rounded-full">
                       <Sparkles className="h-2.5 w-2.5" /> Novo
@@ -286,7 +297,7 @@ function ClubsPage() {
                   <ScoreTooltip row={r}>
                     <span className="inline-flex items-center gap-1.5 cursor-help">
                       <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${healthColor}`}>{r.score}</span>
-                      <ScoreDelta delta={r.scoreDelta} />
+                      <ScoreDelta delta={r.scoreDelta} previous={r.prevScore} current={r.score} />
                     </span>
                   </ScoreTooltip>
                 );
@@ -341,6 +352,13 @@ function ClubsPage() {
                   <ClubStatusBadge status={r.status} competitor={r.competitor} />
                 </button>
               ),
+            },
+            {
+              key: "expand",
+              header: "",
+              align: "right",
+              sortable: false,
+              render: (r) => <ChevronRight className={`h-4 w-4 inline transition-transform ${expandedTenant === r.name ? "rotate-90" : ""}`} />,
             },
           ]}
         />
@@ -507,6 +525,92 @@ function ClubStatusBadge({ status, competitor }: { status: ClubStatus; competito
   );
 }
 
+function periodEndIso(period: string): string {
+  const d = new Date(period);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 23, 59, 59)).toISOString();
+}
+
+function scoreChangeEvents(row: ClubRow) {
+  const sorted = [...row.history].sort((a, b) => a.period.localeCompare(b.period));
+  let previous: number | null = null;
+  const events = sorted.flatMap((snapshot, index) => {
+    const statusesUntilPeriod = row.statuses.filter((s) => !s.recorded_at || s.recorded_at <= periodEndIso(snapshot.period));
+    const current = computeRiskWithCS(sorted.slice(0, index + 1), statusesUntilPeriod).score;
+    const old = previous;
+    previous = current;
+    if (old === null || old === current) return [];
+    return [{ period: snapshot.period, oldScore: old, newScore: current, delta: current - old }];
+  });
+  const latestMonthlyScore = previous;
+  if (row.prevScore !== null && row.scoreDelta !== null && row.scoreDelta !== 0 && latestMonthlyScore !== row.score) {
+    events.push({ period: "Atual", oldScore: row.prevScore, newScore: row.score, delta: row.scoreDelta });
+  }
+  return events;
+}
+
+function ScoreChangeLine({ oldScore, newScore, delta }: { oldScore: number; newScore: number; delta: number }) {
+  const improving = delta < 0;
+  return (
+    <span className={`font-semibold tabular-nums ${improving ? "text-success" : "text-danger"}`}>
+      {improving ? "▼" : "▲"} {Math.abs(delta)} pts · {oldScore} → {newScore}
+    </span>
+  );
+}
+
+function ClubHistoryPanel({ row }: { row: ClubRow }) {
+  const taskEvents = row.tasks
+    .filter((t) => t.status === "completed" && t.completed_at)
+    .map((t) => ({
+      at: t.completed_at!,
+      type: "Tarefa CS",
+      title: t.reason,
+      meta: `${outcomeLabel(t.outcome)}${t.note ? ` · “${t.note}”` : ""}`,
+      score: null as { oldScore: number; newScore: number; delta: number } | null,
+    }));
+  const statusEvents = row.statusLogs.map((l) => ({
+    at: l.changed_at,
+    type: "Estado",
+    title: `${CLUB_STATUS_LABEL[l.previous_status as ClubStatus] ?? l.previous_status} → ${CLUB_STATUS_LABEL[l.new_status as ClubStatus] ?? l.new_status}`,
+    meta: l.note ? `“${l.note}”` : "",
+    score: null as { oldScore: number; newScore: number; delta: number } | null,
+  }));
+  const scoreEvents = scoreChangeEvents(row).map((s) => ({
+    at: s.period === "Atual" ? new Date().toISOString() : periodEndIso(s.period),
+    type: "Score",
+    title: s.period === "Atual" ? "Variação atual do score" : `Variação em ${periodLabel(s.period)}`,
+    meta: "",
+    score: { oldScore: s.oldScore, newScore: s.newScore, delta: s.delta },
+  }));
+  const events = [...taskEvents, ...statusEvents, ...scoreEvents].sort((a, b) => b.at.localeCompare(a.at));
+
+  return (
+    <div className="rounded-md border border-border bg-background p-3">
+      {events.length === 0 ? (
+        <div className="text-xs text-muted-foreground">Sem histórico registado.</div>
+      ) : (
+        <ul className="divide-y divide-border">
+          {events.map((event, index) => (
+            <li key={`${event.at}-${event.type}-${index}`} className="py-2.5 text-xs flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] uppercase text-muted-foreground">{event.type}</span>
+                  <span className="font-medium">{event.title}</span>
+                </div>
+                {event.score ? (
+                  <div className="mt-1"><ScoreChangeLine {...event.score} /></div>
+                ) : event.meta ? (
+                  <div className="mt-1 text-muted-foreground">{event.meta}</div>
+                ) : null}
+              </div>
+              <span className="shrink-0 text-muted-foreground tabular-nums">{new Date(event.at).toLocaleString("pt-PT")}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ---------- Drawer ----------
 
 function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; onClose: () => void; onChanged?: () => Promise<void> }) {
@@ -590,7 +694,7 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
             )}
           </section>
 
-          {/* ScoreVariationSection placeholder — stub returns null */}
+          <ScoreVariationSection row={row} />
 
           <section className="rounded-lg border border-border overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de performance</div>
@@ -644,6 +748,7 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
                       </div>
                       <div className="mt-1 font-medium">{t.reason}</div>
                       <div className="text-muted-foreground mt-0.5">CTA: {t.cta}</div>
+                      {t.note && <div className="text-muted-foreground mt-1 italic">Comentário: “{t.note}”</div>}
                       <div className="mt-1 flex flex-wrap gap-1">
                         {(t.flags ?? []).map((f) => (
                           <span key={f} className="rounded-full bg-surface px-1.5 py-0.5 text-[10px]">
@@ -1169,9 +1274,39 @@ function MissingClubsModal({
 }
 
 // Temporary stubs (prior-turn WIP) — render children/nothing until full impl lands
-function ScoreTooltip({ children }: { row: any; children: import("react").ReactNode }) {
+function ScoreTooltip({ children }: { row: ClubRow; children: import("react").ReactNode }) {
   return <>{children}</>;
 }
-function ScoreVariationSection(_props: { row: any }) {
-  return null;
+function ScoreVariationSection({ row }: { row: ClubRow }) {
+  const changes = scoreChangeEvents(row).sort((a, b) => {
+    const ad = a.period === "Atual" ? new Date().toISOString() : periodEndIso(a.period);
+    const bd = b.period === "Atual" ? new Date().toISOString() : periodEndIso(b.period);
+    return bd.localeCompare(ad);
+  });
+  const latest = changes[0];
+  return (
+    <section className="rounded-lg border border-border overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Variação do score</div>
+      <div className="p-4 text-xs space-y-3">
+        {latest ? (
+          <div className="rounded-md border border-border bg-background p-3 flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">Última alteração</span>
+            <ScoreChangeLine oldScore={latest.oldScore} newScore={latest.newScore} delta={latest.delta} />
+          </div>
+        ) : (
+          <div className="text-muted-foreground">Sem alterações de score registadas.</div>
+        )}
+        {changes.length > 0 && (
+          <ul className="divide-y divide-border rounded-md border border-border">
+            {changes.map((c) => (
+              <li key={`${c.period}-${c.oldScore}-${c.newScore}`} className="px-3 py-2 flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">{c.period === "Atual" ? "Atual" : periodLabel(c.period)}</span>
+                <ScoreChangeLine oldScore={c.oldScore} newScore={c.newScore} delta={c.delta} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
 }
