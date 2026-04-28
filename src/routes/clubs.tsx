@@ -1167,3 +1167,11 @@ function MissingClubsModal({
     </div>
   );
 }
+
+// Temporary stubs (prior-turn WIP) — render children/nothing until full impl lands
+function ScoreTooltip({ children }: { row: any; children: import("react").ReactNode }) {
+  return <>{children}</>;
+}
+function ScoreVariationSection(_props: { row: any }) {
+  return null;
+}
