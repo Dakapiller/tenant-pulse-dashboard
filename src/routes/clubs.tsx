@@ -575,9 +575,9 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
     score: null as { oldScore: number; newScore: number; delta: number } | null,
   }));
   const scoreEvents = scoreChangeEvents(row).map((s) => ({
-    at: periodEndIso(s.period),
+    at: s.period === "Atual" ? new Date().toISOString() : periodEndIso(s.period),
     type: "Score",
-    title: `Variação em ${periodLabel(s.period)}`,
+    title: s.period === "Atual" ? "Variação atual do score" : `Variação em ${periodLabel(s.period)}`,
     meta: "",
     score: { oldScore: s.oldScore, newScore: s.newScore, delta: s.delta },
   }));
