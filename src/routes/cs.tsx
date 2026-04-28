@@ -178,6 +178,7 @@ function CSPage() {
   type Row = {
     name: string;
     score: number;
+    prevScore: number | null;
     scoreDelta: number | null;
     level: "high" | "medium" | "healthy";
     pending: CSTask[];
@@ -196,6 +197,7 @@ function CSPage() {
         r = {
           name,
           score: sd.score,
+          prevScore: sd.prevScore,
           scoreDelta: sd.delta,
           level: sd.level,
           pending: [],
@@ -429,7 +431,7 @@ function CSPage() {
                       render: (r) => (
                         <span className="inline-flex items-center gap-1.5">
                           <RiskBadge level={r.level} score={r.score} />
-                          <ScoreDelta delta={r.scoreDelta} />
+                          <ScoreDelta delta={r.scoreDelta} previous={r.prevScore} current={r.score} />
                         </span>
                       ),
                     },
