@@ -235,8 +235,8 @@ function CSPage() {
 
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  async function handleComplete(task: CSTask, outcome: string, note: string) {
-    await completeCSTask(task.id, task.tenant_name, outcome, note.trim() || null);
+  async function handleBatchComplete(tenant: string, taskIds: string[], outcome: string, note: string) {
+    await completeCSTasksBatch(tenant, taskIds, outcome, note.trim() || null);
     await loadAll();
   }
 
