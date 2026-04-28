@@ -535,11 +535,18 @@ function ExpandedClubPanel({
 
   // Per-task outcome (defaults to first option)
   const [perTaskOutcome, setPerTaskOutcome] = useState<Record<string, string>>({});
+  const [perTaskNote, setPerTaskNote] = useState<Record<string, string>>({});
   function getOutcome(id: string) {
     return perTaskOutcome[id] ?? OUTCOME_OPTIONS[0].value;
   }
   function setTaskOutcome(id: string, value: string) {
     setPerTaskOutcome((m) => ({ ...m, [id]: value }));
+  }
+  function getNote(id: string) {
+    return perTaskNote[id] ?? "";
+  }
+  function setTaskNote(id: string, value: string) {
+    setPerTaskNote((m) => ({ ...m, [id]: value }));
   }
 
   const allIds = row.pending.map((t) => t.id);
