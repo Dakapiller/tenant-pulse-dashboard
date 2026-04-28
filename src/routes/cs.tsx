@@ -578,7 +578,8 @@ function ExpandedClubPanel({
   async function completeSingle(t: CSTask) {
     setSingleBusy(t.id);
     try {
-      await onSingleComplete(t.tenant_name, t.id, getOutcome(t.id));
+      const n = getNote(t.id).trim();
+      await onSingleComplete(t.tenant_name, t.id, getOutcome(t.id), n.length > 0 ? n : null);
     } finally {
       setSingleBusy(null);
     }
