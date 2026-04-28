@@ -779,17 +779,16 @@ async function generateWeeklyTasks(snapshots: Snapshot[], statuses: CSTenantStat
     const risk = computeRiskWithCS(hist, stats);
     if (risk.suppressed) continue;
     if (risk.flags.length === 0) continue;
-    for (const f of risk.flags) {
-      const meta = FLAG_CTA[f];
-      tasks.push({
-        tenant_name: name,
-        reason: meta.reason,
-        cta: meta.cta,
-        priority: risk.score,
-        flags: [f],
-        week_start: weekStart,
-      });
-    }
+    const reason = risk.flags.map((f) => FLAG_CTA[f].reason).join("\n");
+    const cta = risk.flags.map((f) => FLAG_CTA[f].cta).join("\n");
+    tasks.push({
+      tenant_name: name,
+      reason,
+      cta,
+      priority: risk.score,
+      flags: [...risk.flags],
+      week_start: weekStart,
+    });
   }
 
   if (tasks.length > 0) await insertCSTasks(tasks);
