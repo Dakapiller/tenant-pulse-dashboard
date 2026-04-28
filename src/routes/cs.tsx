@@ -382,7 +382,7 @@ function CSPage() {
                     <ExpandedClubPanel
                       row={r}
                       weekStart={weekStart}
-                      onComplete={handleComplete}
+                      onBatchComplete={handleBatchComplete}
                     />
                   ) : null}
                   columns={[
