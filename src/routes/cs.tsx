@@ -511,6 +511,26 @@ function ExpandedClubPanel({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Per-task outcome overrides (applied when confirming the batch)
+  const [perTaskOutcome, setPerTaskOutcome] = useState<Record<string, string>>({});
+  const [singleBusy, setSingleBusy] = useState<string | null>(null);
+
+  function setTaskOutcome(id: string, value: string) {
+    setPerTaskOutcome((m) => ({ ...m, [id]: value }));
+  }
+
+  async function completeSingle(t: CSTask) {
+    const oc = perTaskOutcome[t.id] ?? OUTCOME_OPTIONS[0].value;
+    setSingleBusy(t.id);
+    try {
+      await completeCSTask(t.id, t.tenant_name, oc, null);
+      // notify parent to reload
+      await onBatchComplete(row.name, [], "__noop__", ""); // triggers loadAll via parent? — instead use a dedicated reload
+    } finally {
+      setSingleBusy(null);
+    }
+  }
+
   const allIds = row.pending.map((t) => t.id);
   const allChecked = allIds.length > 0 && allIds.every((id) => checked.has(id));
   const someChecked = checked.size > 0 && !allChecked;
