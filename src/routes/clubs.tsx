@@ -18,6 +18,8 @@ import {
   currentClubStatus,
   currentChurnCompetitor,
   scoreWithDelta,
+  flagsWithDelta,
+  latestCSOutcome,
   sumCSImpact,
   lastCompletedActivityAt,
   currentWeekStart,
@@ -30,7 +32,7 @@ import {
   type ClubStatus,
   type ClubStatusLog,
 } from "@/lib/cs";
-import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
+import { computeRiskWithCS, FLAG_META, type RiskFlag } from "@/lib/risk";
 import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/format";
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 
@@ -55,6 +57,10 @@ interface ClubRow {
   missingFromLatest: boolean;
   isNew: boolean;
   firstSeen: string | null;
+  flagsCurrent: string[];
+  flagsAdded: string[];
+  flagsResolved: string[];
+  csOutcome: { outcome: string; impact: number; recordedAt: string } | null;
 }
 
 function ClubsPage() {
@@ -70,6 +76,7 @@ function ClubsPage() {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [missingOpen, setMissingOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
+  const [filterNewOnly, setFilterNewOnly] = useState(false);
 
   async function loadAll() {
     const [s, p, sts, tks] = await Promise.all([
@@ -117,6 +124,8 @@ function ClubsPage() {
       const missing = !!latestPeriod && !sorted.some((s) => s.period === latestPeriod);
       const firstSeen = sorted[0]?.period ?? null;
       const isNew = !!latestPeriod && firstSeen === latestPeriod && sorted.length === 1;
+      const fd = flagsWithDelta(sorted, sts);
+      const csOut = latestCSOutcome(sts);
       result.push({
         name, latest, history: sorted, statuses: sts, tasks: tks,
         status, competitor, score: sd.score, scoreDelta: sd.delta, level: sd.level,
@@ -124,6 +133,8 @@ function ClubsPage() {
         lastActivity: lastCompletedActivityAt(tks),
         pending, missingFromLatest: missing,
         isNew, firstSeen,
+        flagsCurrent: fd.current, flagsAdded: fd.added, flagsResolved: fd.resolved,
+        csOutcome: csOut,
       });
     }
     return result;
@@ -132,10 +143,11 @@ function ClubsPage() {
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
   const newCount = rows.filter((r) => r.isNew).length;
   const inactiveCount = rows.filter((r) => r.status === "churned" || r.status === "closed").length;
-  const visibleRows = useMemo(
-    () => showInactive ? rows : rows.filter((r) => r.status !== "churned" && r.status !== "closed"),
-    [rows, showInactive],
-  );
+  const visibleRows = useMemo(() => {
+    let r = showInactive ? rows : rows.filter((x) => x.status !== "churned" && x.status !== "closed");
+    if (filterNewOnly) r = r.filter((x) => x.isNew);
+    return r;
+  }, [rows, showInactive, filterNewOnly]);
 
   async function handleStatusChange(tenant: string, current: ClubStatus, next: ClubStatus, competitor: string | null) {
     if (next === "churned" && current !== "churned") {
@@ -187,17 +199,21 @@ function ClubsPage() {
       )}
 
       {newCount > 0 && (
-        <div className="w-full mb-5 rounded-lg border border-success/40 bg-success/10 p-4 flex items-start gap-3">
+        <button
+          onClick={() => setFilterNewOnly((v) => !v)}
+          className={`w-full mb-5 rounded-lg border p-4 flex items-start gap-3 text-left transition-colors ${filterNewOnly ? "border-success bg-success/15" : "border-success/40 bg-success/10 hover:bg-success/15"}`}
+        >
           <Sparkles className="h-5 w-5 text-success shrink-0 mt-0.5" />
           <div className="text-sm flex-1">
             <div className="font-medium text-success">
               {newCount} {newCount === 1 ? "novo clube" : "novos clubes"} em {latestPeriod ? periodLabel(latestPeriod) : "—"}
+              {filterNewOnly && <span className="ml-2 text-xs font-normal">· filtro ativo (clique para limpar)</span>}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              Apareceram pela primeira vez no último carregamento. Estão marcados com a etiqueta "Novo" na lista abaixo.
+              {filterNewOnly ? "A mostrar apenas novos clubes." : "Apareceram pela primeira vez no último carregamento. Clique para filtrar a lista."}
             </div>
           </div>
-        </div>
+        </button>
       )}
 
       <section className="rounded-xl border border-border bg-background overflow-hidden">
@@ -267,10 +283,12 @@ function ClubsPage() {
               render: (r) => {
                 const healthColor = r.score >= 60 ? "text-danger bg-danger/10" : r.score >= 30 ? "text-warning bg-warning/15" : "text-success bg-success/10";
                 return (
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${healthColor}`}>{r.score}</span>
-                    <ScoreDelta delta={r.scoreDelta} />
-                  </span>
+                  <ScoreTooltip row={r}>
+                    <span className="inline-flex items-center gap-1.5 cursor-help">
+                      <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${healthColor}`}>{r.score}</span>
+                      <ScoreDelta delta={r.scoreDelta} />
+                    </span>
+                  </ScoreTooltip>
                 );
               },
             },
@@ -571,6 +589,8 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
               <div className="text-xs text-muted-foreground">Sem sinalizações de risco ativas.</div>
             )}
           </section>
+
+          <ScoreVariationSection row={row} />
 
           <section className="rounded-lg border border-border overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de performance</div>
