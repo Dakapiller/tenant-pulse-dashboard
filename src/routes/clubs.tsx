@@ -76,6 +76,7 @@ function ClubsPage() {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [missingOpen, setMissingOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
+  const [filterNewOnly, setFilterNewOnly] = useState(false);
 
   async function loadAll() {
     const [s, p, sts, tks] = await Promise.all([
@@ -142,10 +143,11 @@ function ClubsPage() {
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
   const newCount = rows.filter((r) => r.isNew).length;
   const inactiveCount = rows.filter((r) => r.status === "churned" || r.status === "closed").length;
-  const visibleRows = useMemo(
-    () => showInactive ? rows : rows.filter((r) => r.status !== "churned" && r.status !== "closed"),
-    [rows, showInactive],
-  );
+  const visibleRows = useMemo(() => {
+    let r = showInactive ? rows : rows.filter((x) => x.status !== "churned" && x.status !== "closed");
+    if (filterNewOnly) r = r.filter((x) => x.isNew);
+    return r;
+  }, [rows, showInactive, filterNewOnly]);
 
   async function handleStatusChange(tenant: string, current: ClubStatus, next: ClubStatus, competitor: string | null) {
     if (next === "churned" && current !== "churned") {
