@@ -46,6 +46,7 @@ interface ClubRow {
   history: Snapshot[];
   statuses: CSTenantStatus[];
   tasks: CSTask[];
+  statusLogs: ClubStatusLog[];
   status: ClubStatus;
   competitor: string | null;
   score: number;
@@ -69,6 +70,7 @@ function ClubsPage() {
   const [periods, setPeriods] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
+  const [statusLogs, setStatusLogs] = useState<ClubStatusLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
@@ -81,10 +83,10 @@ function ClubsPage() {
   const [filterNewOnly, setFilterNewOnly] = useState(false);
 
   async function loadAll() {
-    const [s, p, sts, tks] = await Promise.all([
-      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(),
+    const [s, p, sts, tks, logs] = await Promise.all([
+      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchClubStatusLogs(),
     ]);
-    setSnapshots(s); setPeriods(p); setStatuses(sts); setTasks(tks);
+    setSnapshots(s); setPeriods(p); setStatuses(sts); setTasks(tks); setStatusLogs(logs);
   }
 
   useEffect(() => {
@@ -112,6 +114,11 @@ function ClubsPage() {
       if (!tasksByTenant.has(t.tenant_name)) tasksByTenant.set(t.tenant_name, []);
       tasksByTenant.get(t.tenant_name)!.push(t);
     });
+    const logsByTenant = new Map<string, ClubStatusLog[]>();
+    statusLogs.forEach((l) => {
+      if (!logsByTenant.has(l.tenant_name)) logsByTenant.set(l.tenant_name, []);
+      logsByTenant.get(l.tenant_name)!.push(l);
+    });
 
     const result: ClubRow[] = [];
     for (const [name, hist] of histByTenant) {
@@ -129,7 +136,7 @@ function ClubsPage() {
       const fd = flagsWithDelta(sorted, sts);
       const csOut = latestCSOutcome(sts);
       result.push({
-        name, latest, history: sorted, statuses: sts, tasks: tks,
+        name, latest, history: sorted, statuses: sts, tasks: tks, statusLogs: logsByTenant.get(name) ?? [],
         status, competitor, score: sd.score, prevScore: sd.prevScore, scoreDelta: sd.delta, level: sd.level,
         csImpact: sumCSImpact(sts),
         lastActivity: lastCompletedActivityAt(tks),
@@ -140,7 +147,7 @@ function ClubsPage() {
       });
     }
     return result;
-  }, [snapshots, statuses, tasks, weekStart, latestPeriod]);
+  }, [snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod]);
 
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
   const newCount = rows.filter((r) => r.isNew).length;
