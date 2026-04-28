@@ -516,37 +516,27 @@ function CSPage() {
 }
 
 function ExpandedClubPanel({
-  row, weekStart, onBatchComplete,
+  row, weekStart, onBatchComplete, onSingleComplete,
 }: {
   row: { name: string; pending: CSTask[]; completed: CSTask[] };
   weekStart: string;
-  onBatchComplete: (tenant: string, taskIds: string[], outcome: string, note: string) => Promise<void>;
+  onBatchComplete: (tenant: string, items: { id: string; outcome: string }[], sharedNote: string) => Promise<void>;
+  onSingleComplete: (tenant: string, taskId: string, outcome: string) => Promise<void>;
 }) {
   const [completedOpen, setCompletedOpen] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
-  const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-
-  // Per-task outcome overrides (applied when confirming the batch)
-  const [perTaskOutcome, setPerTaskOutcome] = useState<Record<string, string>>({});
   const [singleBusy, setSingleBusy] = useState<string | null>(null);
 
+  // Per-task outcome (defaults to first option)
+  const [perTaskOutcome, setPerTaskOutcome] = useState<Record<string, string>>({});
+  function getOutcome(id: string) {
+    return perTaskOutcome[id] ?? OUTCOME_OPTIONS[0].value;
+  }
   function setTaskOutcome(id: string, value: string) {
     setPerTaskOutcome((m) => ({ ...m, [id]: value }));
-  }
-
-  async function completeSingle(t: CSTask) {
-    const oc = perTaskOutcome[t.id] ?? OUTCOME_OPTIONS[0].value;
-    setSingleBusy(t.id);
-    try {
-      await completeCSTask(t.id, t.tenant_name, oc, null);
-      // notify parent to reload
-      await onBatchComplete(row.name, [], "__noop__", ""); // triggers loadAll via parent? — instead use a dedicated reload
-    } finally {
-      setSingleBusy(null);
-    }
   }
 
   const allIds = row.pending.map((t) => t.id);
@@ -567,11 +557,21 @@ function ExpandedClubPanel({
   async function confirm() {
     setBusy(true);
     try {
-      await onBatchComplete(row.name, Array.from(checked), outcome, note);
+      const items = Array.from(checked).map((id) => ({ id, outcome: getOutcome(id) }));
+      await onBatchComplete(row.name, items, note);
       setChecked(new Set());
       setShowForm(false);
       setNote("");
     } finally { setBusy(false); }
+  }
+
+  async function completeSingle(t: CSTask) {
+    setSingleBusy(t.id);
+    try {
+      await onSingleComplete(t.tenant_name, t.id, getOutcome(t.id));
+    } finally {
+      setSingleBusy(null);
+    }
   }
 
   return (
@@ -622,6 +622,24 @@ function ExpandedClubPanel({
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">{t.reason}</div>
                     {t.cta && <div className="text-xs text-muted-foreground/80 mt-1 italic">→ {t.cta}</div>}
+                    <div className="mt-2 flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                      <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Resultado</label>
+                      <select
+                        value={getOutcome(t.id)}
+                        onChange={(e) => setTaskOutcome(t.id, e.target.value)}
+                        className="px-2 py-1 rounded-md border border-border bg-background text-xs"
+                      >
+                        {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); completeSingle(t); }}
+                        disabled={singleBusy === t.id}
+                        className="px-2 py-1 text-xs rounded-md border border-border hover:bg-surface inline-flex items-center gap-1 disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="h-3 w-3" />
+                        {singleBusy === t.id ? "A guardar…" : "Marcar feita"}
+                      </button>
+                    </div>
                   </div>
                 </li>
               );
@@ -629,7 +647,7 @@ function ExpandedClubPanel({
           </ul>
           <div className="px-3 py-2.5 border-t border-border flex items-center justify-between gap-2 bg-surface/40">
             <div className="text-xs text-muted-foreground">
-              {checked.size > 0 ? `${checked.size} selecionada${checked.size === 1 ? "" : "s"}` : "Selecione pelo menos uma sinalização"}
+              {checked.size > 0 ? `${checked.size} selecionada${checked.size === 1 ? "" : "s"} — usa o resultado escolhido em cada uma` : "Selecione pelo menos uma sinalização"}
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); setShowForm(true); }}
@@ -641,15 +659,8 @@ function ExpandedClubPanel({
           </div>
           {showForm && (
             <div className="border-t border-border bg-background px-3 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-              <div>
-                <label className="text-[11px] uppercase tracking-wide text-muted-foreground">Resultado para todas as {checked.size} sinalizações</label>
-                <select
-                  value={outcome}
-                  onChange={(e) => setOutcome(e.target.value)}
-                  className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs"
-                >
-                  {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+              <div className="text-xs text-muted-foreground">
+                Cada sinalização será fechada com o resultado que escolheste acima. O comentário abaixo é guardado em todas.
               </div>
               <div>
                 <label className="text-[11px] uppercase tracking-wide text-muted-foreground">Comentário (opcional, guardado no histórico)</label>
