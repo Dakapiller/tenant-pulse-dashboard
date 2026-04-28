@@ -525,6 +525,87 @@ function ClubStatusBadge({ status, competitor }: { status: ClubStatus; competito
   );
 }
 
+function periodEndIso(period: string): string {
+  const d = new Date(period);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 23, 59, 59)).toISOString();
+}
+
+function scoreChangeEvents(row: ClubRow) {
+  const sorted = [...row.history].sort((a, b) => a.period.localeCompare(b.period));
+  let previous: number | null = null;
+  return sorted.flatMap((snapshot, index) => {
+    const statusesUntilPeriod = row.statuses.filter((s) => !s.recorded_at || s.recorded_at <= periodEndIso(snapshot.period));
+    const current = computeRiskWithCS(sorted.slice(0, index + 1), statusesUntilPeriod).score;
+    const old = previous;
+    previous = current;
+    if (old === null || old === current) return [];
+    return [{ period: snapshot.period, oldScore: old, newScore: current, delta: current - old }];
+  });
+}
+
+function ScoreChangeLine({ oldScore, newScore, delta }: { oldScore: number; newScore: number; delta: number }) {
+  const improving = delta < 0;
+  return (
+    <span className={`font-semibold tabular-nums ${improving ? "text-success" : "text-danger"}`}>
+      {improving ? "▼" : "▲"} {Math.abs(delta)} pts · {oldScore} → {newScore}
+    </span>
+  );
+}
+
+function ClubHistoryPanel({ row }: { row: ClubRow }) {
+  const taskEvents = row.tasks
+    .filter((t) => t.status === "completed" && t.completed_at)
+    .map((t) => ({
+      at: t.completed_at!,
+      type: "Tarefa CS",
+      title: t.reason,
+      meta: `${outcomeLabel(t.outcome)}${t.note ? ` · “${t.note}”` : ""}`,
+      score: null as { oldScore: number; newScore: number; delta: number } | null,
+    }));
+  const statusEvents = row.statusLogs.map((l) => ({
+    at: l.changed_at,
+    type: "Estado",
+    title: `${CLUB_STATUS_LABEL[l.previous_status as ClubStatus] ?? l.previous_status} → ${CLUB_STATUS_LABEL[l.new_status as ClubStatus] ?? l.new_status}`,
+    meta: l.note ? `“${l.note}”` : "",
+    score: null as { oldScore: number; newScore: number; delta: number } | null,
+  }));
+  const scoreEvents = scoreChangeEvents(row).map((s) => ({
+    at: periodEndIso(s.period),
+    type: "Score",
+    title: `Variação em ${periodLabel(s.period)}`,
+    meta: "",
+    score: { oldScore: s.oldScore, newScore: s.newScore, delta: s.delta },
+  }));
+  const events = [...taskEvents, ...statusEvents, ...scoreEvents].sort((a, b) => b.at.localeCompare(a.at));
+
+  return (
+    <div className="rounded-md border border-border bg-background p-3">
+      {events.length === 0 ? (
+        <div className="text-xs text-muted-foreground">Sem histórico registado.</div>
+      ) : (
+        <ul className="divide-y divide-border">
+          {events.map((event, index) => (
+            <li key={`${event.at}-${event.type}-${index}`} className="py-2.5 text-xs flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] uppercase text-muted-foreground">{event.type}</span>
+                  <span className="font-medium">{event.title}</span>
+                </div>
+                {event.score ? (
+                  <div className="mt-1"><ScoreChangeLine {...event.score} /></div>
+                ) : event.meta ? (
+                  <div className="mt-1 text-muted-foreground">{event.meta}</div>
+                ) : null}
+              </div>
+              <span className="shrink-0 text-muted-foreground tabular-nums">{new Date(event.at).toLocaleString("pt-PT")}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ---------- Drawer ----------
 
 function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; onClose: () => void; onChanged?: () => Promise<void> }) {
