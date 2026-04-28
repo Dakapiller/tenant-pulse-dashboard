@@ -57,17 +57,27 @@ export async function fetchSnapshotsForTenant(tenant: string): Promise<Snapshot[
 }
 
 export async function fetchPeriods(): Promise<string[]> {
-  const rows = await fetchAllPaged<{ period: string }>((from, to) =>
-    supabase
+  // Distinct periods are a tiny set (≤ a few dozen). Stream pages and stop
+  // as soon as we've seen no new period in a full page — avoids paginating
+  // the entire snapshots table (thousands of rows) every dashboard load.
+  const set = new Set<string>();
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
       .from("tenant_snapshots")
       .select("period")
       .order("period", { ascending: false })
-      .range(from, to),
-  );
-  const set = new Set<string>();
-  rows.forEach((r) => set.add(r.period));
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as { period: string }[];
+    const before = set.size;
+    rows.forEach((r) => set.add(r.period));
+    if (rows.length < PAGE) break;
+    if (set.size === before) break; // no new periods in this page → done
+  }
   return Array.from(set);
 }
+
 
 export async function fetchSnapshotsForPeriod(period: string): Promise<Snapshot[]> {
   const { data, error } = await supabase
