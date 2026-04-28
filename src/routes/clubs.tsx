@@ -199,17 +199,21 @@ function ClubsPage() {
       )}
 
       {newCount > 0 && (
-        <div className="w-full mb-5 rounded-lg border border-success/40 bg-success/10 p-4 flex items-start gap-3">
+        <button
+          onClick={() => setFilterNewOnly((v) => !v)}
+          className={`w-full mb-5 rounded-lg border p-4 flex items-start gap-3 text-left transition-colors ${filterNewOnly ? "border-success bg-success/15" : "border-success/40 bg-success/10 hover:bg-success/15"}`}
+        >
           <Sparkles className="h-5 w-5 text-success shrink-0 mt-0.5" />
           <div className="text-sm flex-1">
             <div className="font-medium text-success">
               {newCount} {newCount === 1 ? "novo clube" : "novos clubes"} em {latestPeriod ? periodLabel(latestPeriod) : "—"}
+              {filterNewOnly && <span className="ml-2 text-xs font-normal">· filtro ativo (clique para limpar)</span>}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              Apareceram pela primeira vez no último carregamento. Estão marcados com a etiqueta "Novo" na lista abaixo.
+              {filterNewOnly ? "A mostrar apenas novos clubes." : "Apareceram pela primeira vez no último carregamento. Clique para filtrar a lista."}
             </div>
           </div>
-        </div>
+        </button>
       )}
 
       <section className="rounded-xl border border-border bg-background overflow-hidden">
