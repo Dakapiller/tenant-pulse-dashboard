@@ -651,6 +651,15 @@ function ExpandedClubPanel({
                         {singleBusy === t.id ? "A guardar…" : "Marcar feita"}
                       </button>
                     </div>
+                    <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                      <textarea
+                        value={getNote(t.id)}
+                        onChange={(e) => setTaskNote(t.id, e.target.value)}
+                        placeholder="Comentário (opcional, fica no histórico)…"
+                        rows={1}
+                        className="w-full px-2 py-1 rounded-md border border-border bg-background text-xs resize-y"
+                      />
+                    </div>
                   </div>
                 </li>
               );
