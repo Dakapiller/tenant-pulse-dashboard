@@ -524,7 +524,7 @@ function ExpandedClubPanel({
   row: { name: string; pending: CSTask[]; completed: CSTask[] };
   weekStart: string;
   onBatchComplete: (tenant: string, items: { id: string; outcome: string }[], sharedNote: string) => Promise<void>;
-  onSingleComplete: (tenant: string, taskId: string, outcome: string) => Promise<void>;
+  onSingleComplete: (tenant: string, taskId: string, outcome: string, note: string | null) => Promise<void>;
 }) {
   const [completedOpen, setCompletedOpen] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
