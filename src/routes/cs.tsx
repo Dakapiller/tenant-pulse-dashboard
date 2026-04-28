@@ -794,7 +794,10 @@ function BulkCompleteBar({
     >
       <div className="mx-auto max-w-[1400px] px-4 py-3 flex items-center gap-3 flex-wrap">
         <span className="text-sm font-medium">
-          {count} {count === 1 ? "clube selecionado" : "clubes selecionados"} — marcar todas as pendentes como feitas
+          {count} {count === 1 ? "clube selecionado" : "clubes selecionados"} — marca as pendentes destes clubes
+        </span>
+        <span className="text-xs text-muted-foreground">
+          Só afeta sinalizações pendentes dos clubes selecionados.
         </span>
         <div className="flex items-center gap-2 flex-wrap ml-auto">
           <select
