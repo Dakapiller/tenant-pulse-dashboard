@@ -254,8 +254,8 @@ function CSPage() {
     await loadAll();
   }
 
-  async function handleSingleComplete(tenant: string, taskId: string, outcome: string) {
-    await completeCSTask(taskId, tenant, outcome, null);
+  async function handleSingleComplete(tenant: string, taskId: string, outcome: string, note: string | null) {
+    await completeCSTask(taskId, tenant, outcome, note);
     await loadAll();
   }
 
@@ -524,7 +524,7 @@ function ExpandedClubPanel({
   row: { name: string; pending: CSTask[]; completed: CSTask[] };
   weekStart: string;
   onBatchComplete: (tenant: string, items: { id: string; outcome: string }[], sharedNote: string) => Promise<void>;
-  onSingleComplete: (tenant: string, taskId: string, outcome: string) => Promise<void>;
+  onSingleComplete: (tenant: string, taskId: string, outcome: string, note: string | null) => Promise<void>;
 }) {
   const [completedOpen, setCompletedOpen] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -535,11 +535,18 @@ function ExpandedClubPanel({
 
   // Per-task outcome (defaults to first option)
   const [perTaskOutcome, setPerTaskOutcome] = useState<Record<string, string>>({});
+  const [perTaskNote, setPerTaskNote] = useState<Record<string, string>>({});
   function getOutcome(id: string) {
     return perTaskOutcome[id] ?? OUTCOME_OPTIONS[0].value;
   }
   function setTaskOutcome(id: string, value: string) {
     setPerTaskOutcome((m) => ({ ...m, [id]: value }));
+  }
+  function getNote(id: string) {
+    return perTaskNote[id] ?? "";
+  }
+  function setTaskNote(id: string, value: string) {
+    setPerTaskNote((m) => ({ ...m, [id]: value }));
   }
 
   const allIds = row.pending.map((t) => t.id);
@@ -571,7 +578,8 @@ function ExpandedClubPanel({
   async function completeSingle(t: CSTask) {
     setSingleBusy(t.id);
     try {
-      await onSingleComplete(t.tenant_name, t.id, getOutcome(t.id));
+      const n = getNote(t.id).trim();
+      await onSingleComplete(t.tenant_name, t.id, getOutcome(t.id), n.length > 0 ? n : null);
     } finally {
       setSingleBusy(null);
     }
@@ -642,6 +650,15 @@ function ExpandedClubPanel({
                         <CheckCircle2 className="h-3 w-3" />
                         {singleBusy === t.id ? "A guardar…" : "Marcar feita"}
                       </button>
+                    </div>
+                    <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                      <textarea
+                        value={getNote(t.id)}
+                        onChange={(e) => setTaskNote(t.id, e.target.value)}
+                        placeholder="Comentário (opcional, fica no histórico)…"
+                        rows={1}
+                        className="w-full px-2 py-1 rounded-md border border-border bg-background text-xs resize-y"
+                      />
                     </div>
                   </div>
                 </li>
