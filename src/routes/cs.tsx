@@ -400,6 +400,7 @@ function CSPage() {
                       row={r}
                       weekStart={weekStart}
                       onBatchComplete={handleBatchComplete}
+                      onSingleComplete={handleSingleComplete}
                     />
                   ) : null}
                   columns={[
