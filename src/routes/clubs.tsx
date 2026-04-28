@@ -746,8 +746,8 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
                           {impact > 0 ? `+${impact}` : impact < 0 ? impact : "—"}
                         </span>
                       </div>
-                      <div className="mt-1 font-medium">{t.reason}</div>
-                      <div className="text-muted-foreground mt-0.5">CTA: {t.cta}</div>
+                      <div className="mt-1 font-medium whitespace-pre-line">{t.reason}</div>
+                      <div className="text-muted-foreground mt-0.5 whitespace-pre-line">CTA: {t.cta}</div>
                       {t.note && <div className="text-muted-foreground mt-1 italic">Comentário: “{t.note}”</div>}
                       <div className="mt-1 flex flex-wrap gap-1">
                         {(t.flags ?? []).map((f) => (
