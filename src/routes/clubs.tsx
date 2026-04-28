@@ -689,7 +689,7 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
             )}
           </section>
 
-          {/* ScoreVariationSection placeholder — stub returns null */}
+          <ScoreVariationSection row={row} />
 
           <section className="rounded-lg border border-border overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de performance</div>
@@ -743,6 +743,7 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
                       </div>
                       <div className="mt-1 font-medium">{t.reason}</div>
                       <div className="text-muted-foreground mt-0.5">CTA: {t.cta}</div>
+                      {t.note && <div className="text-muted-foreground mt-1 italic">Comentário: “{t.note}”</div>}
                       <div className="mt-1 flex flex-wrap gap-1">
                         {(t.flags ?? []).map((f) => (
                           <span key={f} className="rounded-full bg-surface px-1.5 py-0.5 text-[10px]">
