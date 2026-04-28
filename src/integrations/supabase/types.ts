@@ -51,6 +51,7 @@ export type Database = {
           cta: string
           flags: string[] | null
           id: string
+          note: string | null
           outcome: string | null
           priority: number
           reason: string
@@ -64,6 +65,7 @@ export type Database = {
           cta: string
           flags?: string[] | null
           id?: string
+          note?: string | null
           outcome?: string | null
           priority: number
           reason: string
@@ -77,6 +79,7 @@ export type Database = {
           cta?: string
           flags?: string[] | null
           id?: string
+          note?: string | null
           outcome?: string | null
           priority?: number
           reason?: string

@@ -1,0 +1,1 @@
+ALTER TABLE public.cs_tasks ADD COLUMN IF NOT EXISTS note text;
