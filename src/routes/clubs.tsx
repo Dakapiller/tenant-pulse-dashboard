@@ -74,6 +74,7 @@ function ClubsPage() {
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<string | null>(null);
+  const [expandedTenant, setExpandedTenant] = useState<string | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [missingOpen, setMissingOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
@@ -244,7 +245,9 @@ function ClubsPage() {
           defaultSort={{ key: "name", dir: "asc" }}
           stickyHeader
           containerClassName="max-h-[700px]"
-          rowClassName={(r) => r.isNew ? "bg-success/5" : r.missingFromLatest ? "bg-warning/5" : ""}
+          rowClassName={(r) => expandedTenant === r.name ? "bg-surface/40" : r.isNew ? "bg-success/5" : r.missingFromLatest ? "bg-warning/5" : ""}
+          onRowClick={(r) => setExpandedTenant(expandedTenant === r.name ? null : r.name)}
+          expandedRow={(r) => expandedTenant === r.name ? <ClubHistoryPanel row={r} /> : null}
           emptyMessage="Sem clubes."
           selectable
           selectedKeys={selectedKeys}
@@ -287,7 +290,7 @@ function ClubsPage() {
                   <ScoreTooltip row={r}>
                     <span className="inline-flex items-center gap-1.5 cursor-help">
                       <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${healthColor}`}>{r.score}</span>
-                      <ScoreDelta delta={r.scoreDelta} />
+                      <ScoreDelta delta={r.scoreDelta} previous={r.prevScore} current={r.score} />
                     </span>
                   </ScoreTooltip>
                 );
