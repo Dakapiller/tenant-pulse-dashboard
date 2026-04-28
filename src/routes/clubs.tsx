@@ -1274,9 +1274,39 @@ function MissingClubsModal({
 }
 
 // Temporary stubs (prior-turn WIP) — render children/nothing until full impl lands
-function ScoreTooltip({ children }: { row: any; children: import("react").ReactNode }) {
+function ScoreTooltip({ children }: { row: ClubRow; children: import("react").ReactNode }) {
   return <>{children}</>;
 }
-function ScoreVariationSection(_props: { row: any }) {
-  return null;
+function ScoreVariationSection({ row }: { row: ClubRow }) {
+  const changes = scoreChangeEvents(row).sort((a, b) => {
+    const ad = a.period === "Atual" ? new Date().toISOString() : periodEndIso(a.period);
+    const bd = b.period === "Atual" ? new Date().toISOString() : periodEndIso(b.period);
+    return bd.localeCompare(ad);
+  });
+  const latest = changes[0];
+  return (
+    <section className="rounded-lg border border-border overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Variação do score</div>
+      <div className="p-4 text-xs space-y-3">
+        {latest ? (
+          <div className="rounded-md border border-border bg-background p-3 flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">Última alteração</span>
+            <ScoreChangeLine oldScore={latest.oldScore} newScore={latest.newScore} delta={latest.delta} />
+          </div>
+        ) : (
+          <div className="text-muted-foreground">Sem alterações de score registadas.</div>
+        )}
+        {changes.length > 0 && (
+          <ul className="divide-y divide-border rounded-md border border-border">
+            {changes.map((c) => (
+              <li key={`${c.period}-${c.oldScore}-${c.newScore}`} className="px-3 py-2 flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">{c.period === "Atual" ? "Atual" : periodLabel(c.period)}</span>
+                <ScoreChangeLine oldScore={c.oldScore} newScore={c.newScore} delta={c.delta} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
 }
