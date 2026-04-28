@@ -321,3 +321,41 @@ export function scoreWithDelta(
   return { score: cur.score, prevScore: prev.score, delta: cur.score - prev.score, level: cur.level, prevLevel: prev.level };
 }
 
+/** Compute current flags, plus which were added/resolved vs previous month. */
+export function flagsWithDelta(
+  history: Snapshot[],
+  statuses: CSTenantStatus[],
+): { current: string[]; added: string[]; resolved: string[]; prev: string[] } {
+  const sorted = [...history].sort((a, b) => a.period.localeCompare(b.period));
+  if (sorted.length === 0) return { current: [], added: [], resolved: [], prev: [] };
+  const cur = computeRiskWithCS(sorted, statuses);
+  if (sorted.length < 2) return { current: cur.flags, added: cur.flags, resolved: [], prev: [] };
+  const prevSlice = sorted.slice(0, -1);
+  const prevPeriod = prevSlice[prevSlice.length - 1].period;
+  const cutoff = `${prevPeriod.slice(0, 7)}-31T23:59:59Z`;
+  const filtered = statuses.filter((s) => !s.recorded_at || s.recorded_at <= cutoff);
+  const prev = computeRiskWithCS(prevSlice, filtered);
+  const prevSet = new Set(prev.flags);
+  const curSet = new Set(cur.flags);
+  return {
+    current: cur.flags,
+    added: cur.flags.filter((f) => !prevSet.has(f)),
+    resolved: prev.flags.filter((f) => !curSet.has(f)),
+    prev: prev.flags,
+  };
+}
+
+/** Most-recent CS outcome (non-status_*) and its score impact. */
+export function latestCSOutcome(statuses: CSTenantStatus[]): { outcome: string; impact: number; recordedAt: string } | null {
+  const MODS: Record<string, number> = { bad_relationship: 25, good_receptivity: -15, very_satisfied: -30 };
+  const sorted = [...statuses]
+    .filter((s) => !s.relationship_status.startsWith("status_"))
+    .sort((a, b) => (b.recorded_at ?? "").localeCompare(a.recorded_at ?? ""));
+  const latest = sorted[0];
+  if (!latest) return null;
+  return {
+    outcome: latest.relationship_status,
+    impact: MODS[latest.relationship_status] ?? 0,
+    recordedAt: latest.recorded_at,
+  };
+}
