@@ -591,7 +591,6 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
           </section>
 
           <ScoreVariationSection row={row} />
-          </section>
 
           <section className="rounded-lg border border-border overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de performance</div>
