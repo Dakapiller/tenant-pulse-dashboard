@@ -383,9 +383,7 @@ function CSPage() {
                   expandedRow={(r) => expanded === r.name ? (
                     <ExpandedClubPanel
                       row={r}
-                      weekStart={weekStart}
-                      onBatchComplete={handleBatchComplete}
-                      onSingleComplete={handleSingleComplete}
+                      onComplete={handleSingleComplete}
                     />
                   ) : null}
                   columns={[
