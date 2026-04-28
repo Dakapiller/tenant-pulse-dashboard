@@ -57,6 +57,10 @@ interface ClubRow {
   missingFromLatest: boolean;
   isNew: boolean;
   firstSeen: string | null;
+  flagsCurrent: string[];
+  flagsAdded: string[];
+  flagsResolved: string[];
+  csOutcome: { outcome: string; impact: number; recordedAt: string } | null;
 }
 
 function ClubsPage() {
@@ -119,6 +123,8 @@ function ClubsPage() {
       const missing = !!latestPeriod && !sorted.some((s) => s.period === latestPeriod);
       const firstSeen = sorted[0]?.period ?? null;
       const isNew = !!latestPeriod && firstSeen === latestPeriod && sorted.length === 1;
+      const fd = flagsWithDelta(sorted, sts);
+      const csOut = latestCSOutcome(sts);
       result.push({
         name, latest, history: sorted, statuses: sts, tasks: tks,
         status, competitor, score: sd.score, scoreDelta: sd.delta, level: sd.level,
@@ -126,6 +132,8 @@ function ClubsPage() {
         lastActivity: lastCompletedActivityAt(tks),
         pending, missingFromLatest: missing,
         isNew, firstSeen,
+        flagsCurrent: fd.current, flagsAdded: fd.added, flagsResolved: fd.resolved,
+        csOutcome: csOut,
       });
     }
     return result;
