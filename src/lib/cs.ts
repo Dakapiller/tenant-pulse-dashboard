@@ -14,6 +14,7 @@ export interface CSTask {
   created_at: string;
   completed_at: string | null;
   week_start: string;
+  note?: string | null;
 }
 
 export interface CSTenantStatus {
@@ -149,8 +150,29 @@ export async function insertCSTasks(tasks: Omit<CSTask, "id" | "created_at" | "c
 export async function completeCSTask(taskId: string, tenant: string, outcome: string, note: string | null): Promise<void> {
   const { error: e1 } = await supabase
     .from("cs_tasks")
-    .update({ status: "completed", outcome, completed_at: new Date().toISOString() })
+    .update({ status: "completed", outcome, note, completed_at: new Date().toISOString() } as never)
     .eq("id", taskId);
+  if (e1) throw e1;
+  const { error: e2 } = await supabase
+    .from("cs_tenant_status")
+    .insert({ tenant_name: tenant, relationship_status: outcome, note });
+  if (e2) throw e2;
+}
+
+/** Complete multiple tasks for a single tenant in one batch with shared outcome+note,
+ * then write a single cs_tenant_status row for that tenant. */
+export async function completeCSTasksBatch(
+  tenant: string,
+  taskIds: string[],
+  outcome: string,
+  note: string | null,
+): Promise<void> {
+  if (taskIds.length === 0) return;
+  const completedAt = new Date().toISOString();
+  const { error: e1 } = await supabase
+    .from("cs_tasks")
+    .update({ status: "completed", outcome, note, completed_at: completedAt } as never)
+    .in("id", taskIds);
   if (e1) throw e1;
   const { error: e2 } = await supabase
     .from("cs_tenant_status")
