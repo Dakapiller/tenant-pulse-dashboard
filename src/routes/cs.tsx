@@ -254,8 +254,8 @@ function CSPage() {
     await loadAll();
   }
 
-  async function handleSingleComplete(tenant: string, taskId: string, outcome: string) {
-    await completeCSTask(taskId, tenant, outcome, null);
+  async function handleSingleComplete(tenant: string, taskId: string, outcome: string, note: string | null) {
+    await completeCSTask(taskId, tenant, outcome, note);
     await loadAll();
   }
 
