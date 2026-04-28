@@ -533,7 +533,7 @@ function periodEndIso(period: string): string {
 function scoreChangeEvents(row: ClubRow) {
   const sorted = [...row.history].sort((a, b) => a.period.localeCompare(b.period));
   let previous: number | null = null;
-  return sorted.flatMap((snapshot, index) => {
+  const events = sorted.flatMap((snapshot, index) => {
     const statusesUntilPeriod = row.statuses.filter((s) => !s.recorded_at || s.recorded_at <= periodEndIso(snapshot.period));
     const current = computeRiskWithCS(sorted.slice(0, index + 1), statusesUntilPeriod).score;
     const old = previous;
@@ -541,6 +541,11 @@ function scoreChangeEvents(row: ClubRow) {
     if (old === null || old === current) return [];
     return [{ period: snapshot.period, oldScore: old, newScore: current, delta: current - old }];
   });
+  const latestMonthlyScore = previous;
+  if (row.prevScore !== null && row.scoreDelta !== null && row.scoreDelta !== 0 && latestMonthlyScore !== row.score) {
+    events.push({ period: "Atual", oldScore: row.prevScore, newScore: row.score, delta: row.scoreDelta });
+  }
+  return events;
 }
 
 function ScoreChangeLine({ oldScore, newScore, delta }: { oldScore: number; newScore: number; delta: number }) {
