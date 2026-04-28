@@ -500,69 +500,28 @@ function CSPage() {
 }
 
 function ExpandedClubPanel({
-  row, weekStart, onBatchComplete, onSingleComplete,
+  row, onComplete,
 }: {
   row: { name: string; pending: CSTask[]; completed: CSTask[] };
-  weekStart: string;
-  onBatchComplete: (tenant: string, items: { id: string; outcome: string }[], sharedNote: string) => Promise<void>;
-  onSingleComplete: (tenant: string, taskId: string, outcome: string, note: string | null) => Promise<void>;
+  onComplete: (tenant: string, taskId: string, outcome: string, note: string | null) => Promise<void>;
 }) {
   const [completedOpen, setCompletedOpen] = useState(false);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [showForm, setShowForm] = useState(false);
+  const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const [singleBusy, setSingleBusy] = useState<string | null>(null);
 
-  // Per-task outcome (defaults to first option)
-  const [perTaskOutcome, setPerTaskOutcome] = useState<Record<string, string>>({});
-  const [perTaskNote, setPerTaskNote] = useState<Record<string, string>>({});
-  function getOutcome(id: string) {
-    return perTaskOutcome[id] ?? OUTCOME_OPTIONS[0].value;
-  }
-  function setTaskOutcome(id: string, value: string) {
-    setPerTaskOutcome((m) => ({ ...m, [id]: value }));
-  }
-  function getNote(id: string) {
-    return perTaskNote[id] ?? "";
-  }
-  function setTaskNote(id: string, value: string) {
-    setPerTaskNote((m) => ({ ...m, [id]: value }));
-  }
+  // After dedupe, there's at most one pending task per club.
+  const task = row.pending[0];
 
-  const allIds = row.pending.map((t) => t.id);
-  const allChecked = allIds.length > 0 && allIds.every((id) => checked.has(id));
-  const someChecked = checked.size > 0 && !allChecked;
-  const headerRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (headerRef.current) headerRef.current.indeterminate = someChecked; }, [someChecked]);
-
-  function toggleAll() {
-    setChecked(allChecked ? new Set() : new Set(allIds));
-  }
-  function toggleOne(id: string) {
-    const next = new Set(checked);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    setChecked(next);
-  }
-
-  async function confirm() {
+  async function handleComplete() {
+    if (!task) return;
     setBusy(true);
     try {
-      const items = Array.from(checked).map((id) => ({ id, outcome: getOutcome(id) }));
-      await onBatchComplete(row.name, items, note);
-      setChecked(new Set());
-      setShowForm(false);
+      const n = note.trim();
+      await onComplete(task.tenant_name, task.id, outcome, n.length > 0 ? n : null);
       setNote("");
-    } finally { setBusy(false); }
-  }
-
-  async function completeSingle(t: CSTask) {
-    setSingleBusy(t.id);
-    try {
-      const n = getNote(t.id).trim();
-      await onSingleComplete(t.tenant_name, t.id, getOutcome(t.id), n.length > 0 ? n : null);
     } finally {
-      setSingleBusy(null);
+      setBusy(false);
     }
   }
 
@@ -579,112 +538,64 @@ function ExpandedClubPanel({
         </Link>
       </div>
 
-      {row.pending.length > 0 && (
-        <div className="rounded-md border border-border bg-background">
-          <label className="flex items-center gap-2 px-3 py-2 border-b border-border text-xs font-medium cursor-pointer hover:bg-surface">
-            <input
-              ref={headerRef}
-              type="checkbox"
-              checked={allChecked}
-              onChange={toggleAll}
-              className="h-4 w-4 accent-foreground cursor-pointer"
-            />
-            Selecionar todas ({row.pending.length})
-          </label>
-          <ul className="divide-y divide-border">
-            {row.pending.map((t) => {
-              const flag = (t.flags ?? [])[0] as RiskFlag | undefined;
-              const flagLabel = flag ? FLAG_META[flag]?.label ?? flag : "Sinalização";
-              const carryover = t.week_start < weekStart;
-              return (
-                <li key={t.id} className="flex items-start gap-3 px-3 py-2.5 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={checked.has(t.id)}
-                    onChange={() => toggleOne(t.id)}
-                    className="mt-1 h-4 w-4 accent-foreground cursor-pointer shrink-0"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium">{flagLabel}</span>
-                      {carryover && (
-                        <span className="text-[10px] uppercase rounded-full bg-muted text-muted-foreground px-1.5 py-0.5">Carry-over</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{t.reason}</div>
-                    {t.cta && <div className="text-xs text-muted-foreground/80 mt-1 italic">→ {t.cta}</div>}
-                    <div className="mt-2 flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-                      <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Resultado</label>
-                      <select
-                        value={getOutcome(t.id)}
-                        onChange={(e) => setTaskOutcome(t.id, e.target.value)}
-                        className="px-2 py-1 rounded-md border border-border bg-background text-xs"
-                      >
-                        {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); completeSingle(t); }}
-                        disabled={singleBusy === t.id}
-                        className="px-2 py-1 text-xs rounded-md border border-border hover:bg-surface inline-flex items-center gap-1 disabled:opacity-50"
-                      >
-                        <CheckCircle2 className="h-3 w-3" />
-                        {singleBusy === t.id ? "A guardar…" : "Marcar feita"}
-                      </button>
-                    </div>
-                    <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-                      <textarea
-                        value={getNote(t.id)}
-                        onChange={(e) => setTaskNote(t.id, e.target.value)}
-                        placeholder="Comentário (opcional, fica no histórico)…"
-                        rows={1}
-                        className="w-full px-2 py-1 rounded-md border border-border bg-background text-xs resize-y"
-                      />
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-          <div className="px-3 py-2.5 border-t border-border flex items-center justify-between gap-2 bg-surface/40">
-            <div className="text-xs text-muted-foreground">
-              {checked.size > 0 ? `${checked.size} selecionada${checked.size === 1 ? "" : "s"} — usa o resultado escolhido em cada uma` : "Selecione pelo menos uma sinalização"}
+      {task && (
+        <div className="rounded-md border border-border bg-background" onClick={(e) => e.stopPropagation()}>
+          <div className="px-4 py-3 border-b border-border">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
+              Sinalizações ativas ({task.flags?.length ?? 0})
             </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowForm(true); }}
-              disabled={checked.size === 0}
-              className="px-3 py-1.5 text-xs rounded-md bg-foreground text-background font-medium disabled:opacity-40 hover:opacity-90"
-            >
-              Marcar selecionadas como feitas
-            </button>
+            <ul className="space-y-2">
+              {(task.flags ?? []).map((f, i) => {
+                const meta = FLAG_META[f as RiskFlag];
+                const cta = FLAG_CTA[f as RiskFlag]?.cta;
+                const reason = FLAG_CTA[f as RiskFlag]?.reason;
+                return (
+                  <li key={`${f}-${i}`} className="flex items-start gap-2 text-sm">
+                    <span className="text-muted-foreground mt-1">•</span>
+                    <div className="min-w-0">
+                      <div className="font-medium">{meta?.label ?? f}</div>
+                      {reason && <div className="text-xs text-muted-foreground mt-0.5">{reason}</div>}
+                      {cta && <div className="text-xs text-muted-foreground/80 mt-0.5 italic">→ {cta}</div>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-          {showForm && (
-            <div className="border-t border-border bg-background px-3 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-              <div className="text-xs text-muted-foreground">
-                Cada sinalização será fechada com o resultado que escolheste acima. O comentário abaixo é guardado em todas.
-              </div>
-              <div>
-                <label className="text-[11px] uppercase tracking-wide text-muted-foreground">Comentário (opcional, guardado no histórico)</label>
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Notas sobre o contacto…"
-                  rows={2}
-                  className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs resize-none"
-                />
-              </div>
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button onClick={() => setShowForm(false)} disabled={busy} className="text-xs text-muted-foreground hover:text-foreground">Cancelar</button>
-                <button
-                  onClick={confirm}
-                  disabled={busy}
-                  className="px-3 py-1.5 text-xs rounded-md bg-foreground text-background font-medium hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" /> {busy ? "A guardar…" : "Confirmar"}
-                </button>
-              </div>
+
+          <div className="px-4 py-3 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Resultado</label>
+              <select
+                value={outcome}
+                onChange={(e) => setOutcome(e.target.value)}
+                className="px-2 py-1 rounded-md border border-border bg-background text-xs"
+              >
+                {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
             </div>
-          )}
+            <div>
+              <label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Comentário (opcional, fica no histórico)
+              </label>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Notas sobre o contacto…"
+                rows={2}
+                className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs resize-y"
+              />
+            </div>
+            <div className="flex items-center justify-end pt-1">
+              <button
+                onClick={handleComplete}
+                disabled={busy}
+                className="px-3 py-1.5 text-xs rounded-md bg-foreground text-background font-medium disabled:opacity-50 hover:opacity-90 inline-flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" /> {busy ? "A guardar…" : "Marcar como feita"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -702,8 +613,7 @@ function ExpandedClubPanel({
               {row.completed
                 .sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""))
                 .map((t) => {
-                  const flag = (t.flags ?? [])[0] as RiskFlag | undefined;
-                  const flagLabel = flag ? FLAG_META[flag]?.label ?? flag : "—";
+                  const flagsLabel = formatFlagsLabel(t.flags);
                   return (
                     <li key={t.id} className="px-3 py-2 text-xs">
                       <div className="flex items-start gap-2">
@@ -711,7 +621,7 @@ function ExpandedClubPanel({
                         <span className="text-muted-foreground shrink-0">
                           {t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : "—"}
                         </span>
-                        <span className="font-medium shrink-0">{flagLabel}</span>
+                        <span className="font-medium shrink-0">{flagsLabel}</span>
                         <span className="text-muted-foreground">— {outcomeLabel(t.outcome)}</span>
                       </div>
                       {t.note && <div className="ml-5 mt-1 italic text-muted-foreground">"{t.note}"</div>}
@@ -725,6 +635,12 @@ function ExpandedClubPanel({
     </div>
   );
 }
+
+export function formatFlagsLabel(flags: string[] | null | undefined): string {
+  if (!flags || flags.length === 0) return "—";
+  return flags.map((f) => FLAG_META[f as RiskFlag]?.label ?? f).join(" + ");
+}
+
 
 function YoyBadge({ label, cur, prev }: { label: string; cur: number; prev: number }) {
   if (prev === 0) return null;
