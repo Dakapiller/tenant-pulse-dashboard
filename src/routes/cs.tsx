@@ -498,14 +498,43 @@ function CSPage() {
 }
 
 function ExpandedClubPanel({
-  row, weekStart, onComplete,
+  row, weekStart, onBatchComplete,
 }: {
   row: { name: string; pending: CSTask[]; completed: CSTask[] };
   weekStart: string;
-  onComplete: (t: CSTask, outcome: string, note: string) => Promise<void>;
+  onBatchComplete: (tenant: string, taskIds: string[], outcome: string, note: string) => Promise<void>;
 }) {
   const [completedOpen, setCompletedOpen] = useState(false);
-  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [showForm, setShowForm] = useState(false);
+  const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const allIds = row.pending.map((t) => t.id);
+  const allChecked = allIds.length > 0 && allIds.every((id) => checked.has(id));
+  const someChecked = checked.size > 0 && !allChecked;
+  const headerRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (headerRef.current) headerRef.current.indeterminate = someChecked; }, [someChecked]);
+
+  function toggleAll() {
+    setChecked(allChecked ? new Set() : new Set(allIds));
+  }
+  function toggleOne(id: string) {
+    const next = new Set(checked);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setChecked(next);
+  }
+
+  async function confirm() {
+    setBusy(true);
+    try {
+      await onBatchComplete(row.name, Array.from(checked), outcome, note);
+      setChecked(new Set());
+      setShowForm(false);
+      setNote("");
+    } finally { setBusy(false); }
+  }
 
   return (
     <div className="space-y-3">
@@ -521,55 +550,98 @@ function ExpandedClubPanel({
       </div>
 
       {row.pending.length > 0 && (
-        <ul className="space-y-2">
-          {row.pending.map((t) => {
-            const flag = (t.flags ?? [])[0] as RiskFlag | undefined;
-            const flagLabel = flag ? FLAG_META[flag]?.label ?? flag : "Sinalização";
-            const carryover = t.week_start < weekStart;
-            const isCompleting = completingId === t.id;
-            return (
-              <li key={t.id} className="rounded-md border border-border bg-background">
-                <div className="flex items-start gap-3 px-3 py-2.5 text-sm">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-foreground/60 shrink-0" />
+        <div className="rounded-md border border-border bg-background">
+          <label className="flex items-center gap-2 px-3 py-2 border-b border-border text-xs font-medium cursor-pointer hover:bg-surface">
+            <input
+              ref={headerRef}
+              type="checkbox"
+              checked={allChecked}
+              onChange={toggleAll}
+              className="h-4 w-4 accent-foreground cursor-pointer"
+            />
+            Selecionar todas ({row.pending.length})
+          </label>
+          <ul className="divide-y divide-border">
+            {row.pending.map((t) => {
+              const flag = (t.flags ?? [])[0] as RiskFlag | undefined;
+              const flagLabel = flag ? FLAG_META[flag]?.label ?? flag : "Sinalização";
+              const carryover = t.week_start < weekStart;
+              return (
+                <li key={t.id} className="flex items-start gap-3 px-3 py-2.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={checked.has(t.id)}
+                    onChange={() => toggleOne(t.id)}
+                    className="mt-1 h-4 w-4 accent-foreground cursor-pointer shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium">{flagLabel}</span>
                       {carryover && (
-                        <span className="text-[10px] uppercase rounded-full bg-muted text-muted-foreground px-1.5 py-0.5">
-                          Carry-over
-                        </span>
+                        <span className="text-[10px] uppercase rounded-full bg-muted text-muted-foreground px-1.5 py-0.5">Carry-over</span>
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">{t.reason}</div>
+                    {t.cta && <div className="text-xs text-muted-foreground/80 mt-1 italic">→ {t.cta}</div>}
                   </div>
-                  {!isCompleting && (
-                    <button
-                      onClick={() => setCompletingId(t.id)}
-                      className="text-xs font-medium text-foreground hover:underline shrink-0"
-                    >
-                      Marcar feita ▸
-                    </button>
-                  )}
-                </div>
-                {isCompleting && (
-                  <CompleteForm
-                    onCancel={() => setCompletingId(null)}
-                    onConfirm={async (outcome, note) => {
-                      await onComplete(t, outcome, note);
-                      setCompletingId(null);
-                    }}
-                  />
-                )}
-              </li>
-            );
-          })}
-        </ul>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="px-3 py-2.5 border-t border-border flex items-center justify-between gap-2 bg-surface/40">
+            <div className="text-xs text-muted-foreground">
+              {checked.size > 0 ? `${checked.size} selecionada${checked.size === 1 ? "" : "s"}` : "Selecione pelo menos uma sinalização"}
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowForm(true); }}
+              disabled={checked.size === 0}
+              className="px-3 py-1.5 text-xs rounded-md bg-foreground text-background font-medium disabled:opacity-40 hover:opacity-90"
+            >
+              Marcar selecionadas como feitas
+            </button>
+          </div>
+          {showForm && (
+            <div className="border-t border-border bg-background px-3 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+              <div>
+                <label className="text-[11px] uppercase tracking-wide text-muted-foreground">Resultado para todas as {checked.size} sinalizações</label>
+                <select
+                  value={outcome}
+                  onChange={(e) => setOutcome(e.target.value)}
+                  className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs"
+                >
+                  {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] uppercase tracking-wide text-muted-foreground">Comentário (opcional, guardado no histórico)</label>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Notas sobre o contacto…"
+                  rows={2}
+                  className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs resize-none"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button onClick={() => setShowForm(false)} disabled={busy} className="text-xs text-muted-foreground hover:text-foreground">Cancelar</button>
+                <button
+                  onClick={confirm}
+                  disabled={busy}
+                  className="px-3 py-1.5 text-xs rounded-md bg-foreground text-background font-medium hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" /> {busy ? "A guardar…" : "Confirmar"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {row.completed.length > 0 && (
         <div className="rounded-md border border-border">
           <button
-            onClick={() => setCompletedOpen((v) => !v)}
+            onClick={(e) => { e.stopPropagation(); setCompletedOpen((v) => !v); }}
             className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-surface inline-flex items-center gap-1.5"
           >
             {completedOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -583,18 +655,16 @@ function ExpandedClubPanel({
                   const flag = (t.flags ?? [])[0] as RiskFlag | undefined;
                   const flagLabel = flag ? FLAG_META[flag]?.label ?? flag : "—";
                   return (
-                    <li key={t.id} className="px-3 py-2 text-xs flex items-start gap-2">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" />
-                      <span className="text-muted-foreground shrink-0">
-                        {t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : "—"}
-                      </span>
-                      <span className="font-medium shrink-0">{flagLabel}</span>
-                      <span className="text-muted-foreground">— {outcomeLabel(t.outcome)}</span>
-                      {t.outcome && (
-                        <span className="text-muted-foreground italic truncate">
-                          {/* Note isn't on task; outcome is the label */}
+                    <li key={t.id} className="px-3 py-2 text-xs">
+                      <div className="flex items-start gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" />
+                        <span className="text-muted-foreground shrink-0">
+                          {t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : "—"}
                         </span>
-                      )}
+                        <span className="font-medium shrink-0">{flagLabel}</span>
+                        <span className="text-muted-foreground">— {outcomeLabel(t.outcome)}</span>
+                      </div>
+                      {t.note && <div className="ml-5 mt-1 italic text-muted-foreground">"{t.note}"</div>}
                     </li>
                   );
                 })}
@@ -602,47 +672,6 @@ function ExpandedClubPanel({
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function CompleteForm({
-  onCancel, onConfirm,
-}: {
-  onCancel: () => void;
-  onConfirm: (outcome: string, note: string) => Promise<void>;
-}) {
-  const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  return (
-    <div className="border-t border-border bg-surface/40 px-3 py-2.5 space-y-2">
-      <select
-        value={outcome}
-        onChange={(e) => setOutcome(e.target.value)}
-        className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs"
-      >
-        {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-      <input
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="Nota opcional…"
-        className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs"
-      />
-      <div className="flex items-center justify-end gap-2">
-        <button onClick={onCancel} disabled={busy} className="text-xs text-muted-foreground hover:text-foreground">Cancelar</button>
-        <button
-          onClick={async () => {
-            setBusy(true);
-            try { await onConfirm(outcome, note); } finally { setBusy(false); }
-          }}
-          disabled={busy}
-          className="px-3 py-1 text-xs rounded-md bg-foreground text-background font-medium hover:opacity-90 disabled:opacity-50"
-        >
-          {busy ? "A guardar…" : "Confirmar"}
-        </button>
-      </div>
     </div>
   );
 }
