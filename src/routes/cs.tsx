@@ -237,23 +237,6 @@ function CSPage() {
 
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  async function handleBatchComplete(
-    tenant: string,
-    items: { id: string; outcome: string }[],
-    sharedNote: string,
-  ) {
-    // Group by outcome to minimise round-trips, but each batch shares the same note.
-    const byOutcome = new Map<string, string[]>();
-    for (const it of items) {
-      if (!byOutcome.has(it.outcome)) byOutcome.set(it.outcome, []);
-      byOutcome.get(it.outcome)!.push(it.id);
-    }
-    for (const [oc, ids] of byOutcome) {
-      await completeCSTasksBatch(tenant, ids, oc, sharedNote.trim() || null);
-    }
-    await loadAll();
-  }
-
   async function handleSingleComplete(tenant: string, taskId: string, outcome: string, note: string | null) {
     await completeCSTask(taskId, tenant, outcome, note);
     await loadAll();
