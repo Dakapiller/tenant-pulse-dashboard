@@ -158,10 +158,11 @@ export function computeRisk(snapshots: Snapshot[]): RiskResult {
   }
 
   const flags = details.map((d) => d.flag);
-  const dataScore = Math.min(100, details.reduce((s, d) => s + d.points, 0));
-  const score = dataScore;
-  const level: RiskResult["level"] = score >= 60 ? "high" : score >= 30 ? "medium" : "healthy";
-  return { flags, flagDetails: details, score, level, dataScore, csModifier: 0 };
+  // Flags are informational only — they do NOT add to the health score.
+  // The real score lives in cs_tenant_status.health_score (see src/lib/health.ts).
+  // We keep `flagDetails` (with their `points`) so the UI can still render the
+  // descriptive badges, but the returned `score`/`level` are neutral.
+  return { flags, flagDetails: details, score: 0, level: "healthy", dataScore: 0, csModifier: 0 };
 }
 
 // CS outcome / club-status modifiers. Negative = healthier.
@@ -187,24 +188,12 @@ export function computeRiskWithCS(
 ): RiskResult & { suppressed: boolean } {
   const base = computeRisk(snapshots);
 
+  // CS modifiers no longer affect the health score (the real score is managed
+  // exclusively by src/lib/health.ts). We still derive `suppressed` so the
+  // legacy callers don't crash, but it's no longer used by task generation.
   const sorted = [...csStatuses].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
-  let modifier = 0;
   let suppressed = false;
   const fourWeeksAgo = Date.now() - 28 * 24 * 60 * 60 * 1000;
-
-  let latestOutcome: CSStatusEntry | undefined;
-  let latestStatus: CSStatusEntry | undefined;
-  for (const s of sorted) {
-    if (s.relationship_status.startsWith("status_")) latestStatus = s;
-    else latestOutcome = s;
-  }
-  if (latestOutcome && CS_MODIFIER[latestOutcome.relationship_status] !== undefined) {
-    modifier += CS_MODIFIER[latestOutcome.relationship_status];
-  }
-  if (latestStatus && CS_MODIFIER[latestStatus.relationship_status] !== undefined) {
-    modifier += CS_MODIFIER[latestStatus.relationship_status];
-  }
-
   for (const s of sorted) {
     if (s.relationship_status === "very_satisfied" && new Date(s.recorded_at).getTime() >= fourWeeksAgo) {
       suppressed = true;
@@ -212,17 +201,13 @@ export function computeRiskWithCS(
     }
   }
 
-  const dataScore = base.dataScore ?? base.score;
-  const finalScore = Math.max(0, Math.min(100, dataScore + modifier));
-  const level: RiskResult["level"] = finalScore >= 60 ? "high" : finalScore >= 30 ? "medium" : "healthy";
-
   return {
     flags: base.flags,
     flagDetails: base.flagDetails,
-    score: finalScore,
-    level,
-    dataScore,
-    csModifier: modifier,
+    score: 0,
+    level: "healthy",
+    dataScore: 0,
+    csModifier: 0,
     suppressed,
   };
 }
