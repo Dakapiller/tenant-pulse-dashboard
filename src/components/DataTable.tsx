@@ -227,10 +227,7 @@ export function DataTable<T>({
                 <input
                   type="search"
                   value={searchInput}
-                  onChange={(e) => {
-                    setSearchInput(e.target.value);
-                    if (e.target.value === "") setSearch("");
-                  }}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   placeholder={searchPlaceholder}
                   className="w-full pl-8 pr-8 py-2 text-base sm:text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-foreground/20"
                 />
