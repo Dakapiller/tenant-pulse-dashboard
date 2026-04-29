@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ClubLink } from "@/components/ClubLink";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -37,6 +38,9 @@ import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/form
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 
 export const Route = createFileRoute("/clubs")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    tenant: typeof s.tenant === "string" ? s.tenant : undefined,
+  }),
   component: ClubsPage,
 });
 
