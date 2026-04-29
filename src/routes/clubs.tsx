@@ -1149,16 +1149,17 @@ function BulkStatusBar({
   const [busy, setBusy] = useState(false);
   return (
     <div
-      className="fixed left-0 right-0 bottom-0 z-40 lg:left-60 border-t border-border bg-background/95 backdrop-blur shadow-lg"
+      className="fixed left-0 right-0 z-40 lg:left-60 border-t border-border bg-background/95 backdrop-blur shadow-lg
+                 bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="mx-auto max-w-[1500px] px-4 py-3 flex items-center gap-3 flex-wrap">
+      <div className="mx-auto max-w-[1500px] px-4 py-3 flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
         <span className="text-sm font-medium">{count} {count === 1 ? "clube selecionado" : "clubes selecionados"}</span>
-        <div className="flex items-center gap-2 flex-wrap ml-auto">
+        <div className="flex flex-col md:flex-row md:items-center gap-2 md:ml-auto w-full md:w-auto">
           <select
             value={next}
             onChange={(e) => setNext(e.target.value as ClubStatus)}
-            className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background"
+            className="w-full md:w-auto px-3 h-11 md:h-9 text-base md:text-sm rounded-md border border-border bg-background"
           >
             {CLUB_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -1168,30 +1169,32 @@ function BulkStatusBar({
             <select
               value={comp}
               onChange={(e) => setComp(e.target.value)}
-              className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background"
+              className="w-full md:w-auto px-3 h-11 md:h-9 text-base md:text-sm rounded-md border border-border bg-background"
             >
               {COMPETITOR_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
           )}
-          <button
-            onClick={async () => {
-              setBusy(true);
-              try { await onApply(next, next === "churned" ? comp : null); }
-              finally { setBusy(false); }
-            }}
-            disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
-          >
-            <Check className="h-4 w-4" /> {busy ? "A aplicar…" : "Aplicar"}
-          </button>
-          <button
-            onClick={onCancel}
-            className="text-sm text-muted-foreground hover:text-foreground px-2 py-2"
-          >
-            Cancelar
-          </button>
+          <div className="flex gap-2 w-full md:w-auto">
+            <button
+              onClick={async () => {
+                setBusy(true);
+                try { await onApply(next, next === "churned" ? comp : null); }
+                finally { setBusy(false); }
+              }}
+              disabled={busy}
+              className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 rounded-md bg-foreground text-background px-4 min-h-11 md:min-h-9 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              <Check className="h-4 w-4" /> {busy ? "A aplicar…" : "Aplicar"}
+            </button>
+            <button
+              onClick={onCancel}
+              className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 md:min-h-9"
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       </div>
     </div>
