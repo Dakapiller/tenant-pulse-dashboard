@@ -279,6 +279,8 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
   const inactiveRowsCount = rows.filter((r) => excluded.has(r.name)).length;
 
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [historyLimit, setHistoryLimit] = useState(50);
+  useEffect(() => { setHistoryLimit(50); }, [showInactive]);
 
   async function handleSingleComplete(tenant: string, taskId: string, outcome: string, note: string | null) {
     await completeCSTask(taskId, tenant, outcome, note);
