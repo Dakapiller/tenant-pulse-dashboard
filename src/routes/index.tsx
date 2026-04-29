@@ -472,7 +472,7 @@ function DashboardPage() {
         <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita mês" value={snapshotsLoaded ? formatEuro(kpis.monthRevenue) : "…"} />
       </section>
       <p className="text-[11px] text-muted-foreground -mt-3 mb-6">
-        Clubes ativos = clubes com atividade reportada no período selecionado, excluindo churned, fechados e mudança de proprietário.
+        Clubes ativos = clubes cujo estado atual não é churned, fechado nem mudança de proprietário (independente do período selecionado).
       </p>
 
       {/* Row 2 — Charts (deferred until snapshots load) */}
