@@ -158,10 +158,11 @@ export function computeRisk(snapshots: Snapshot[]): RiskResult {
   }
 
   const flags = details.map((d) => d.flag);
-  const dataScore = Math.min(100, details.reduce((s, d) => s + d.points, 0));
-  const score = dataScore;
-  const level: RiskResult["level"] = score >= 60 ? "high" : score >= 30 ? "medium" : "healthy";
-  return { flags, flagDetails: details, score, level, dataScore, csModifier: 0 };
+  // Flags are informational only — they do NOT add to the health score.
+  // The real score lives in cs_tenant_status.health_score (see src/lib/health.ts).
+  // We keep `flagDetails` (with their `points`) so the UI can still render the
+  // descriptive badges, but the returned `score`/`level` are neutral.
+  return { flags, flagDetails: details, score: 0, level: "healthy", dataScore: 0, csModifier: 0 };
 }
 
 // CS outcome / club-status modifiers. Negative = healthier.
