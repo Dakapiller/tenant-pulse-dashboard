@@ -429,13 +429,19 @@ export function DataTable<T>({
         </table>
       </div>
       {pageSize && totalRows > 0 ? (
-        <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2 text-xs text-muted-foreground border-t border-border bg-background flex-wrap">
+        <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2.5 text-xs text-muted-foreground border-t border-border bg-surface flex-wrap">
           <span className="tabular-nums">
-            {(search || activeFilterCount > 0)
-              ? `${totalRows} de ${rows.length} resultado${rows.length === 1 ? "" : "s"}`
-              : `${totalRows} resultado${totalRows === 1 ? "" : "s"}`}
-            {totalPages > 1 && (
-              <> · {Math.min(page * pageSize + 1, totalRows)}–{Math.min((page + 1) * pageSize, totalRows)}</>
+            {totalPages > 1 ? (
+              <>
+                {Math.min(page * pageSize + 1, totalRows)}–{Math.min((page + 1) * pageSize, totalRows)} de {totalRows} resultado{totalRows === 1 ? "" : "s"}
+                {(search || activeFilterCount > 0) && rows.length !== totalRows && (
+                  <> · filtrado de {rows.length}</>
+                )}
+              </>
+            ) : (
+              <>
+                {totalRows} de {Math.max(rows.length, totalRows)} resultado{rows.length === 1 ? "" : "s"}
+              </>
             )}
           </span>
           {totalPages > 1 && (
@@ -444,7 +450,7 @@ export function DataTable<T>({
                 type="button"
                 onClick={() => goToPage(page - 1)}
                 disabled={page === 0}
-                className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-border bg-background hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1 px-3 h-8 rounded-lg border border-border bg-surface text-foreground transition-colors duration-150 hover:bg-primary/5 hover:border-primary/40 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface disabled:hover:text-foreground disabled:hover:border-border focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <ChevronLeft className="h-3.5 w-3.5" /> Anterior
               </button>
@@ -453,7 +459,7 @@ export function DataTable<T>({
                 type="button"
                 onClick={() => goToPage(page + 1)}
                 disabled={page >= totalPages - 1}
-                className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-border bg-background hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1 px-3 h-8 rounded-lg border border-border bg-surface text-foreground transition-colors duration-150 hover:bg-primary/5 hover:border-primary/40 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface disabled:hover:text-foreground disabled:hover:border-border focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 Próximo <ChevronRight className="h-3.5 w-3.5" />
               </button>
@@ -461,7 +467,7 @@ export function DataTable<T>({
           )}
         </div>
       ) : (search || activeFilterCount > 0) && filtered.length > 0 ? (
-        <div className="px-3 sm:px-4 py-2 text-[11px] text-muted-foreground border-t border-border bg-background">
+        <div className="px-3 sm:px-4 py-2 text-[11px] text-muted-foreground border-t border-border bg-surface">
           {filtered.length} de {rows.length} resultado{rows.length === 1 ? "" : "s"}
         </div>
       ) : null}
