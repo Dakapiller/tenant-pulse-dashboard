@@ -520,12 +520,18 @@ function DashboardPage() {
               <span className="text-xs text-muted-foreground">vs {periodShort(previousPeriod)}</span>
             )}
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <PositiveCard value={positives.improved} title="Clubes melhorados" subtitle="Score de saúde diminuiu vs mês anterior" />
-            <PositiveCard value={positives.leftHighRisk} title="Saíram de risco alto" subtitle="Estavam ≥60 e baixaram para médio ou saudável" />
-            <PositiveCard value={positives.revenueGrew} title="Receita cresceu" subtitle="Receita mensal superior à do mês anterior" />
-            <PositiveCard value={positives.csImpacted} title="Impacto CS" subtitle="Tarefa CS concluída este mês e score melhorou" />
-          </div>
+          {tasksLoaded ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <PositiveCard value={positives.improved} title="Clubes melhorados" subtitle="Score de saúde diminuiu vs mês anterior" />
+              <PositiveCard value={positives.leftHighRisk} title="Saíram de risco alto" subtitle="Estavam ≥60 e baixaram para médio ou saudável" />
+              <PositiveCard value={positives.revenueGrew} title="Receita cresceu" subtitle="Receita mensal superior à do mês anterior" />
+              <PositiveCard value={positives.csImpacted} title="Impacto CS" subtitle="Tarefa CS concluída este mês e score melhorou" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[0,1,2,3].map((i) => <CardSkeleton key={i} />)}
+            </div>
+          )}
         </div>
         <div className="rounded-xl border border-border bg-background p-5">
           <h2 className="text-sm font-semibold mb-1">Distribuição por estado</h2>
