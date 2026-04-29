@@ -5,22 +5,30 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design system definition.
+ * Design system — standardized palette.
  *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
+ * Source of truth for colors, radius, fonts, shadows. Components consume
+ * semantic tokens (bg-primary, bg-surface, text-success, etc.) so a single
+ * edit here propagates app-wide.
  *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
+ * Palette:
+ *   Primary  #2563EB (blue-600)
+ *   Danger   #DC2626 (red-600)
+ *   Success  #16A34A (green-600)
+ *   Warning  #D97706 (amber-600)
+ *   Surface  #FFFFFF
+ *   Background #F8FAFC (slate-50)
+ *   Border   #E2E8F0 (slate-200)
+ *   Foreground #0F172A (slate-900)
+ *   Muted    slate-500
  *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ * All values must be oklch.
  */
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
@@ -67,79 +75,90 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.18 0.02 250);
-  --surface: oklch(0.985 0.005 250);
-  --sidebar-bg: oklch(0.975 0.005 250);
-  --success: oklch(0.68 0.16 150);
-  --warning: oklch(0.78 0.15 75);
-  --danger: oklch(0.62 0.22 25);
+  /* 8px radius everywhere */
+  --radius: 0.5rem;
+
+  /* Backgrounds & surfaces */
+  --background: oklch(0.984 0.005 247);     /* #F8FAFC slate-50 */
+  --surface: oklch(1 0 0);                    /* #FFFFFF */
+  --sidebar-bg: oklch(1 0 0);                 /* white sidebar */
+  --foreground: oklch(0.21 0.034 264);        /* slate-900 */
+
+  /* Brand & status — mapped to requested hex values */
+  --primary: oklch(0.546 0.215 262.9);        /* #2563EB blue-600 */
+  --primary-foreground: oklch(1 0 0);
+  --danger: oklch(0.577 0.232 27.5);          /* #DC2626 red-600 */
+  --success: oklch(0.605 0.165 149.6);        /* #16A34A green-600 */
+  --warning: oklch(0.659 0.169 50.8);         /* #D97706 amber-600 */
+
+  /* Neutrals */
+  --border: oklch(0.929 0.013 255);           /* #E2E8F0 slate-200 */
+  --input: oklch(0.929 0.013 255);
+  --ring: oklch(0.546 0.215 262.9);           /* focus ring = primary */
+  --muted: oklch(0.968 0.007 247);            /* slate-100 */
+  --muted-foreground: oklch(0.554 0.046 257); /* slate-500 */
+  --accent: oklch(0.968 0.007 247);
+  --accent-foreground: oklch(0.21 0.034 264);
+
+  /* shadcn-derived tokens (kept consistent with palette) */
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
+  --card-foreground: oklch(0.21 0.034 264);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
+  --popover-foreground: oklch(0.21 0.034 264);
+  --secondary: oklch(0.968 0.007 247);
+  --secondary-foreground: oklch(0.21 0.034 264);
+  --destructive: oklch(0.577 0.232 27.5);
+  --destructive-foreground: oklch(1 0 0);
+
+  --chart-1: oklch(0.546 0.215 262.9);
+  --chart-2: oklch(0.605 0.165 149.6);
+  --chart-3: oklch(0.659 0.169 50.8);
+  --chart-4: oklch(0.577 0.232 27.5);
+  --chart-5: oklch(0.554 0.046 257);
+
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.21 0.034 264);
+  --sidebar-primary: oklch(0.546 0.215 262.9);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.968 0.007 247);
+  --sidebar-accent-foreground: oklch(0.21 0.034 264);
+  --sidebar-border: oklch(0.929 0.013 255);
+  --sidebar-ring: oklch(0.546 0.215 262.9);
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
+  --background: oklch(0.21 0.034 264);
+  --foreground: oklch(0.984 0.003 247);
+  --surface: oklch(0.27 0.04 264);
+  --sidebar-bg: oklch(0.27 0.04 264);
+  --card: oklch(0.27 0.04 264);
+  --card-foreground: oklch(0.984 0.003 247);
+  --popover: oklch(0.27 0.04 264);
+  --popover-foreground: oklch(0.984 0.003 247);
+  --primary: oklch(0.65 0.2 262.9);
+  --primary-foreground: oklch(0.21 0.034 264);
+  --secondary: oklch(0.279 0.041 260);
+  --secondary-foreground: oklch(0.984 0.003 247);
+  --muted: oklch(0.279 0.041 260);
+  --muted-foreground: oklch(0.704 0.04 256);
+  --accent: oklch(0.279 0.041 260);
+  --accent-foreground: oklch(0.984 0.003 247);
+  --destructive: oklch(0.704 0.191 22);
+  --destructive-foreground: oklch(0.984 0.003 247);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
+  --ring: oklch(0.65 0.2 262.9);
+  --danger: oklch(0.704 0.191 22);
+  --success: oklch(0.7 0.16 149);
+  --warning: oklch(0.78 0.16 70);
+  --sidebar: oklch(0.27 0.04 264);
+  --sidebar-foreground: oklch(0.984 0.003 247);
+  --sidebar-primary: oklch(0.65 0.2 262.9);
+  --sidebar-primary-foreground: oklch(0.984 0.003 247);
+  --sidebar-accent: oklch(0.279 0.041 260);
+  --sidebar-accent-foreground: oklch(0.984 0.003 247);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  --sidebar-ring: oklch(0.65 0.2 262.9);
 }
 
 @layer base {
@@ -147,8 +166,75 @@
     border-color: var(--color-border);
   }
 
+  html, body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+  }
+
+  /* Reserve space for the mobile bottom nav so content never sits under it. */
+  @media (max-width: 767px) {
+    body {
+      padding-bottom: calc(64px + env(safe-area-inset-bottom));
+    }
+  }
+
+  /* Consistent focus ring across the app */
+  :where(button, a, input, select, textarea, [role="button"]):focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--ring);
+    border-radius: var(--radius);
+  }
+}
+
+/*
+ * Reusable component classes.
+ * These let us standardize buttons / badges / cards without rewriting
+ * every consumer. Existing `bg-foreground text-background` style buttons
+ * still work; new code should prefer .btn-primary etc.
+ */
+@layer components {
+  .btn-base {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium
+           transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-ring
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn-base px-4 py-2 text-sm bg-primary text-primary-foreground hover:opacity-90;
+  }
+  .btn-secondary {
+    @apply btn-base px-4 py-2 text-sm bg-surface text-foreground border border-border hover:bg-muted;
+  }
+  .btn-danger {
+    @apply btn-base px-4 py-2 text-sm bg-danger text-white hover:opacity-90;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .badge-base {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+  .badge-risk-high    { @apply badge-base bg-danger/10 text-danger; }
+  .badge-risk-medium  { @apply badge-base bg-warning/15 text-warning; }
+  .badge-risk-healthy { @apply badge-base bg-success/10 text-success; }
+  .badge-info         { @apply badge-base bg-primary/10 text-primary; }
+  .badge-neutral      { @apply badge-base bg-muted text-foreground; }
+
+  .card-surface {
+    @apply bg-surface rounded-lg border border-border shadow-sm;
+  }
+
+  /* Mobile bottom-nav touch targets */
+  .bottom-nav-item {
+    @apply flex flex-col items-center justify-center gap-0.5 flex-1 min-h-[56px] text-[10px] font-medium text-muted-foreground transition-colors;
+  }
+  .bottom-nav-item[data-active="true"] {
+    @apply text-primary;
   }
 }
