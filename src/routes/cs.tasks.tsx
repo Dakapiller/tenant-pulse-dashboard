@@ -19,6 +19,7 @@ import {
   type CSTask,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_CTA, FLAG_META, type RiskFlag } from "@/lib/risk";
+import { fetchHealthScores } from "@/lib/health";
 import { formatEuro, formatNumber, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta } from "@/components/DataTable";
 import { ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Eye, EyeOff, ListChecks } from "lucide-react";
