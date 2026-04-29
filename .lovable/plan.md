@@ -1,46 +1,114 @@
 ## Goal
-Stop the `/cs` (Customer Success) page from freezing the browser. Click currently triggers heavy, repeated computation and a potentially huge write on the main thread.
 
-## Root causes found in `src/routes/cs.tsx`
+Stop the Customer Success crash, finish the remaining performance gaps, and lock down risk accuracy.
 
-1. **Weekly task auto-generation runs synchronously on every visit** (lines 67-82). `generateWeeklyTasks` loops every tenant (~324), runs `computeRiskWithCS` for each, then writes all tasks to the database, then calls `loadAll()` again — a second full fetch. If the insert ever fails or the week's tasks exist with `status !== "pending"`, this can also re-trigger.
-2. **`rows` memo is O(tenants × tasks)** (lines 194-225). Inside `ensure()`, `lastCompletedActivityAt(allTasks.filter(t => t.tenant_name === name))` re-scans the full task list per tenant.
-3. **`scoreWithDelta` runs per row** and internally calls `computeRiskWithCS` twice with a fresh sort each time. Combined with #2, building `rows` is the hot path that locks the tab.
-4. **`historyTasks` renders unbounded** (lines 453-471) — every completed task ever, no pagination.
-5. **`tenantHistory` / `tenantStatuses` not pre-sorted** so each `computeRiskWithCS` re-sorts.
-6. **Cronologia chart series** recomputes on every unrelated state change because `snapshots` is in deps and the filter walks all rows.
+---
 
-## Fix plan (in order)
+## 1. CS crash — proper sub-route split (no shared mega-component)
 
-### 1. Pre-index tasks once
-Build `tasksByTenant: Map<string, CSTask[]>` in a `useMemo([allTasks])`. Replace the per-row `allTasks.filter(...)` with a map lookup. Removes the O(N×M) cost.
+Today `/cs/tasks` and `/cs/history` both mount the same `CSPage` component, which fetches **every** snapshot, status, and `cs_tasks` row (via `fetchAllCSTasks` paginated). The History view then renders the full completed list (sliced client-side). That single page is what kills the tab.
 
-### 2. Pre-sort tenant history / statuses once
-In the existing `tenantHistory` and `tenantStatuses` memos, sort each tenant's array by `period` / `recorded_at` ascending before storing. Then change `riskWithDelta` callers to skip the redundant `[...history].sort(...)` (or just accept already-sorted input — riskWithDelta still sorts defensively, which is cheap on already-sorted arrays).
+I'll revert to a small shared scaffold and give each tab its own data path:
 
-### 3. Make weekly task generation safe and one-shot
-- Guard with a ref so it can only run once per mount.
-- Check if **any** task exists with `week_start === weekStart` (pending OR completed) before generating, so we never regenerate after the user completes them.
-- Run generation in an idle callback (`requestIdleCallback` w/ setTimeout fallback) so it never blocks the first paint.
-- After insert, do a partial reload of just `allTasks` instead of a full `loadAll()`.
+**`src/routes/cs.tsx`** — becomes a thin layout only:
+- Renders `<CSSubNav />` + `<Outlet />`. No data fetching, no charts, no rows.
+- `/cs` still redirects to `/cs/tasks`.
+- Move the heavy "Cronologia" timeline section out of this file. It only matters on Tarefas, so it lives in `cs.tasks.tsx` and is loaded lazily after the task list paints (Phase 2 of that page).
 
-### 4. Paginate history list
-Reuse the existing `DataTable` pagination pattern, or add a simple "Mostrar mais" button capping the list at 50 items initially. This keeps the DOM small.
+**`src/routes/cs.tasks.tsx`** — Tarefas (pending only):
+- New helper `fetchPendingCSTasks()` in `src/lib/cs.ts`:
+  ```ts
+  supabase.from("cs_tasks")
+    .select("*")
+    .eq("status", "pending")
+    .order("priority", { ascending: false })
+  ```
+  Paginated via `fetchAllPaged` (pending set is small — typically dozens, not thousands).
+- Phase 0: snapshots + statuses + pending tasks → render the contacts table.
+- Phase 1 (deferred via `setTimeout(0)`): generate weekly tasks if missing (existing `requestIdleCallback` guard kept).
+- Phase 2 (deferred): Cronologia chart data.
+- "Mostrar inativos" toggle stays.
+- No completed-task data is ever fetched here.
 
-### 5. Stabilize the Cronologia chart
-- Move the `excluded`-set filter into a precomputed `Map<period, agg>` keyed by `chartMode + selectedTenant` only.
-- Cap the chart to the last 24 months so x-axis labels and SVG paths don't explode.
+**`src/routes/cs.history.tsx`** — Histórico (server-paginated):
+- New helper `fetchCompletedCSTasksPage(offset, limit)`:
+  ```ts
+  supabase.from("cs_tasks")
+    .select("*")
+    .eq("status", "completed")
+    .not("completed_at", "is", null)
+    .order("completed_at", { ascending: false })
+    .range(offset, offset + limit - 1)
+  ```
+- Initial load: 50 rows. Button "Carregar mais" fetches the next 50 and appends. Track `hasMore` from the returned page size.
+- "Mostrar inativos" still works — it only filters the rows already loaded (excluded set comes from cached statuses, fetched once).
+- No snapshot fetch, no risk computation on this page.
 
-### 6. Audit effects
-- The `useEffect` at line 67-82 has empty deps + eslint-disable; convert to a `didRunRef` guard so React 18 strict-mode double-mount doesn't double-fire generation.
-- Effect at 108-112 is fine but add `tenantNames[0]` as a stable dep is OK.
+**Result**: Tarefas page no longer touches the completed-tasks table at all; Histórico no longer touches snapshots. Switching tabs only re-fetches what that tab needs.
 
-## Files to edit
-- `src/routes/cs.tsx` — items 1, 2, 3, 4, 5, 6
-- `src/lib/cs.ts` — small helper `lastCompletedActivityAtFromMap` (optional) or just reuse `lastCompletedActivityAt` with the indexed list
+---
+
+## 2. Performance — finish the gaps
+
+**a. Memoize remaining risk computations**
+The dashboard, clubs list, at-risk and CS rows already wrap `computeRisk*` in `useMemo`. The one straggler is `scoreChangeEvents()` in `src/routes/clubs.tsx` (used by the per-row `ClubHistoryPanel`): it walks history and calls `computeRiskWithCS` once per snapshot, called at render, not memoized.
+
+Fix:
+- Wrap in `useMemo(() => scoreChangeEvents(row), [row.history, row.statuses])` inside `ClubHistoryPanel`.
+- Only call when the row is actually expanded (already gated by `expandedTenant`, but the panel currently computes eagerly on mount; the memo + lazy mount keeps it cheap).
+
+**b. Paginate clubs table 50/page** — already wired (`pageSize={50}` on the DataTable in `clubs.tsx`). Verify the footer renders for >50 rows; no code change expected.
+
+**c. Dashboard load order KPIs → charts → radar/activity**
+`src/routes/index.tsx` already uses three phases. I'll make the order explicit and prevent the heavy sections from rendering before their data exists:
+- Phase 0: `fetchPeriods()` + `fetchAllCSStatuses()` → KPI shell + period selector.
+- Phase 1 (after Phase 0): `fetchAllSnapshots()` → charts (Tendência mensal, Distribuição saúde) + KPI numbers that need GMV/revenue.
+- Phase 2 (after Phase 1): `fetchAllCSTasks()` → "Evolução positiva", "Atividade CS recente".
+- KPI cards that depend on snapshots (GMV mês, Receita mês, Em risco alto) show a small spinner/skeleton until Phase 1 finishes, instead of showing 0.
+
+**d. Debounce search inputs 300ms**
+- `at-risk.tsx` already debounced (`useDebouncedValue`).
+- `DataTable.tsx` uses an explicit "Procurar" button (commit-on-Enter), so no live filter — no debounce needed.
+- Add the same `useDebouncedValue` to the new Histórico's optional client-side filter (if added — currently planned to keep it simple, no live search box, just paginate).
+
+**e. Audit useEffect dependency arrays**
+- `src/routes/cs.tsx` (becoming layout): no effects.
+- `src/routes/cs.tasks.tsx` and `cs.history.tsx`: written fresh, deps are explicit.
+- `src/routes/index.tsx`: phase-1 effect depends on `loading`; phase-2 on `snapshotsLoaded`; period-default effect on `[periods, selectedPeriod]` ✅.
+- `src/routes/clubs.tsx`: mount-only `loadAll()` is fine; the search-param sync depends on `[search.tenant]` ✅.
+- `src/routes/at-risk.tsx`: mount-only ✅.
+
+No infinite-loop suspects. Will keep the existing `// eslint-disable-next-line react-hooks/exhaustive-deps` only on the intentional mount-only effects.
+
+---
+
+## 3. Accuracy — never cap snapshot history
+
+Confirmed by reading `src/lib/data.ts`: `fetchAllSnapshots` and `fetchSnapshotsForTenant` both use full pagination via `fetchAllPaged`, no `.limit()`. The risk engine (`computeRiskWithCS` and `riskWithDelta`) operates on the full passed-in history.
+
+Guardrails I will add:
+- Code comment at the top of `data.ts` and inside `riskWithDelta` saying "do NOT add `.limit()` on `tenant_snapshots` — risk depends on full history".
+- The Cronologia chart's "last 24 months" cap stays — it's a display cap on the **already-computed** series, not on the data fetch.
+- The Dashboard's `healthByMonth` 12-month cap also stays — same story, display only.
+
+---
+
+## Files I'll touch
+
+- `src/lib/cs.ts` — add `fetchPendingCSTasks`, `fetchCompletedCSTasksPage`. Keep `fetchAllCSTasks` (still used by Dashboard for "Atividade CS recente" / "positives").
+- `src/lib/data.ts` — add a comment guard, no behavior change.
+- `src/routes/cs.tsx` — slim down to layout-only (`<CSSubNav /> + <Outlet />`), keep redirect.
+- `src/routes/cs.tasks.tsx` — own page: pending tasks + cronologia + weekly-task generator.
+- `src/routes/cs.history.tsx` — own page: server-paginated completed tasks with "Carregar mais".
+- `src/routes/clubs.tsx` — memoize `scoreChangeEvents` inside `ClubHistoryPanel`.
+- `src/routes/index.tsx` — make KPI cards skeleton until Phase 1 data lands; tighten phase comments.
+
+No DB migrations. No schema changes.
+
+---
 
 ## Out of scope
-No DB schema changes. No new dependencies. Visual layout unchanged.
 
-## Expected outcome
-Clicking "Customer Success" paints the shell immediately, runs computation against pre-indexed data (single pass), and never blocks the main thread on weekly task generation.
+- Reworking the risk engine itself.
+- Adding a cs_tasks index — Postgres already handles `status='pending'` and `completed_at desc` efficiently for the volumes here.
+- Changing the Cronologia chart's data shape.

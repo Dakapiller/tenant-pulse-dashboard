@@ -1,5 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 
+// IMPORTANT: never add `.limit()` to tenant_snapshots queries.
+// Risk scoring depends on the COMPLETE history per tenant — capping
+// rows here would silently corrupt scores. Use `fetchAllPaged` instead.
+
 export interface Snapshot {
   id: string;
   tenant_name: string;
