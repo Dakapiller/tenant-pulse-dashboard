@@ -172,29 +172,24 @@ function DashboardPage() {
       const status = currentClubStatus(sts);
       const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
       const latest = sorted[sorted.length - 1] ?? null;
-      let prevScore: number | null = null;
-      let prevLevel: "high" | "medium" | "healthy" | null = null;
       let prevSnapshot: Snapshot | null = null;
       if (latest && sorted.length >= 2) {
-        const prevSlice = sorted.slice(0, -1);
-        prevSnapshot = prevSlice[prevSlice.length - 1] ?? null;
-        const prevCutoff = `${prevSnapshot?.period.slice(0, 7) ?? ""}-31T23:59:59Z`;
-        let pEnd = sts.length;
-        for (let i = 0; i < sts.length; i++) {
-          if ((sts[i].recorded_at ?? "") > prevCutoff) { pEnd = i; break; }
-        }
-        const filteredSts = pEnd === sts.length ? sts : sts.slice(0, pEnd);
-        const prevRisk = computeRiskWithCS(prevSlice, filteredSts);
-        prevScore = prevRisk.score;
-        prevLevel = prevRisk.level;
+        prevSnapshot = sorted[sorted.length - 2] ?? null;
       }
+      // Real health score from DB (current value). Historical per-period scores
+      // would require querying health_score_log, so prevScore stays null here.
+      const isLatestPeriod = !!latest && latest.period === latestPeriod;
+      const realScore = isLatestPeriod ? healthScores.get(name) : undefined;
+      const score = realScore ?? 100;
+      const lvlMap = { risk: "high", monitor: "medium", healthy: "healthy" } as const;
+      const level = lvlMap[healthLevel(score)];
       list.push({
         name,
-        score: risk.score,
-        prevScore,
-        scoreDelta: prevScore !== null ? risk.score - prevScore : null,
-        level: risk.level,
-        prevLevel,
+        score,
+        prevScore: null,
+        scoreDelta: null,
+        level,
+        prevLevel: null,
         flags: risk.flags,
         status,
         lastContact: lastCompletedActivityAt(tks),
@@ -204,7 +199,7 @@ function DashboardPage() {
       });
     }
     return list;
-  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart, latestPeriod]);
+  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart, latestPeriod, healthScores]);
 
   // KPIs
   const kpis = useMemo(() => {
