@@ -109,7 +109,12 @@ function TenantDetail() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{name}</h1>
           <div className="mt-2 flex items-center gap-3">
-            <RiskBadge level={risk.level} score={risk.score} />
+            {(() => {
+              const s = healthScore ?? 100;
+              const lvl = healthLevel(s);
+              const badgeLevel = lvl === "risk" ? "high" : lvl === "monitor" ? "medium" : "healthy";
+              return <RiskBadge level={badgeLevel} score={s} />;
+            })()}
             <span className="text-sm text-muted-foreground">{sorted.length} meses de dados</span>
           </div>
         </div>
