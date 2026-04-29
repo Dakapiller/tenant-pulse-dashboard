@@ -260,7 +260,7 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
       }
       return b.score - a.score;
     });
-  }, [pendingTasks, completedInRange, tenantHistory, tenantStatuses, allTasks]);
+  }, [pendingTasks, completedInRange, tenantHistory, tenantStatuses, tasksByTenant]);
 
   const historyTasks = useMemo(
     () => allTasks.filter((t) => t.status === "completed").sort((a, b) =>
