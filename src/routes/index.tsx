@@ -258,7 +258,7 @@ function DashboardPage() {
       return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.revenue ?? 0), 0);
     })();
     return { activeClubs, churnedThisYear, highRisk, monthGmv, monthRevenue };
-  }, [clubs, statuses, includedSnapshots, latestPeriod]);
+  }, [clubs, statuses, includedSnapshots, latestPeriod, currentStatusByTenant]);
   // (latestPeriod intentionally referenced inside activeClubs filter above)
 
   // Monthly trend series — current and prior-year overlay
