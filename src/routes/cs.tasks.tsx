@@ -504,14 +504,21 @@ function CSTasksPage() {
 }
 
 function ExpandedClubPanel({
-  row, onComplete,
+  row, onComplete, onPostpone,
 }: {
   row: { name: string; pending: CSTask[]; overdue?: CSTask[] };
   onComplete: (tenant: string, taskIds: string[], outcome: string, note: string | null) => Promise<void>;
+  onPostpone?: (taskIds: string[], target: string) => Promise<void>;
 }) {
   const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [postponeOpen, setPostponeOpen] = useState(false);
+  const [postponeTarget, setPostponeTarget] = useState<string>(() => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + 7);
+    return currentWeekStart(d);
+  });
 
   const overdueTasks = row.overdue ?? [];
   const tasks = [...row.pending, ...overdueTasks];
