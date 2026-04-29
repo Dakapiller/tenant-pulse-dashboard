@@ -639,7 +639,51 @@ function ExpandedClubPanel({
               className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs resize-y"
             />
           </div>
-          <div className="flex items-center justify-end pt-1">
+          <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+            {onPostpone ? (
+              postponeOpen ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Adiar para</label>
+                  <input
+                    type="date"
+                    value={postponeTarget}
+                    onChange={(e) => setPostponeTarget(e.target.value)}
+                    className="px-2 py-1 rounded-md border border-border bg-background text-xs"
+                  />
+                  <span className="text-[10px] text-muted-foreground">
+                    → semana de {currentWeekStart(new Date(postponeTarget))}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setBusy(true);
+                      try {
+                        await onPostpone(tasks.map((t) => t.id), postponeTarget);
+                        setPostponeOpen(false);
+                      } finally { setBusy(false); }
+                    }}
+                    disabled={busy}
+                    className="px-2.5 py-1 text-[11px] rounded-md bg-foreground text-background font-medium disabled:opacity-50 hover:opacity-90 inline-flex items-center gap-1"
+                  >
+                    <Clock className="h-3 w-3" /> {busy ? "A guardar…" : "Confirmar adiar"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPostponeOpen(false)}
+                    className="text-[11px] text-muted-foreground hover:text-foreground"
+                  >Cancelar</button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPostponeOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-surface text-muted-foreground"
+                  title="Adiar todas as tarefas para outra semana"
+                >
+                  <Clock className="h-3.5 w-3.5" /> Adiar todas
+                </button>
+              )
+            ) : <span />}
             <button
               onClick={handleComplete}
               disabled={busy || tasks.length === 0}
