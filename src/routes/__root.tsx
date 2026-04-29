@@ -1,5 +1,9 @@
-import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { Outlet, Link, createRootRoute, HeadContent, Scripts, useLocation, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { PendingApprovalScreen } from "@/components/PendingApprovalScreen";
+import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
 
@@ -74,6 +78,62 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+  return (
+    <AuthProvider>
+      <AuthGate />
+      <Toaster />
+    </AuthProvider>
+  );
+}
+
+function AuthGate() {
+  const { user, profile, loading } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isLoginRoute = location.pathname === "/login";
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user && !isLoginRoute) {
+      void navigate({ to: "/login" });
+    } else if (user && profile && profile.role !== "pending" && isLoginRoute) {
+      void navigate({ to: "/" });
+    }
+  }, [user, profile, loading, isLoginRoute, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
+        A carregar…
+      </div>
+    );
+  }
+
+  if (isLoginRoute) {
+    return <Outlet />;
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
+        A redirecionar…
+      </div>
+    );
+  }
+
+  // user is authenticated; profile may still be loading on first frame
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
+        A carregar perfil…
+      </div>
+    );
+  }
+
+  if (profile.role === "pending") {
+    return <PendingApprovalScreen />;
+  }
+
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-background text-foreground">
       <Sidebar />
