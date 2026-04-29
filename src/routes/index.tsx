@@ -71,12 +71,14 @@ function DashboardPage() {
   }, [periods, latestPeriod]);
   const weekStart = useMemo(() => currentWeekStart(), []);
 
+  // Pre-sort once per tenant so downstream consumers don't re-sort on every period change.
   const tenantHistory = useMemo(() => {
     const m = new Map<string, Snapshot[]>();
     snapshots.forEach((s) => {
       if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
       m.get(s.tenant_name)!.push(s);
     });
+    for (const arr of m.values()) arr.sort((a, b) => a.period.localeCompare(b.period));
     return m;
   }, [snapshots]);
 
@@ -86,6 +88,8 @@ function DashboardPage() {
       if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
       m.get(s.tenant_name)!.push(s);
     });
+    // sort ascending by recorded_at so slicing by cutoff is a simple linear scan
+    for (const arr of m.values()) arr.sort((a, b) => (a.recorded_at ?? "").localeCompare(b.recorded_at ?? ""));
     return m;
   }, [statuses]);
 
@@ -111,12 +115,21 @@ function DashboardPage() {
     const list: ClubAgg[] = [];
     if (!latestPeriod) return list;
     const cutoff = `${latestPeriod.slice(0, 7)}-31T23:59:59Z`;
-    for (const [name, hist] of tenantHistory) {
-      const sortedAll = [...hist].sort((a, b) => a.period.localeCompare(b.period));
-      const sorted = sortedAll.filter((s) => s.period <= latestPeriod);
-      if (sorted.length === 0) continue; // tenant didn't exist yet at this period
+    for (const [name, sortedAll] of tenantHistory) {
+      // tenantHistory is already sorted ascending. Find slice end via lastIndex with period <= latestPeriod.
+      let endIdx = -1;
+      for (let i = sortedAll.length - 1; i >= 0; i--) {
+        if (sortedAll[i].period <= latestPeriod) { endIdx = i; break; }
+      }
+      if (endIdx < 0) continue;
+      const sorted = endIdx === sortedAll.length - 1 ? sortedAll : sortedAll.slice(0, endIdx + 1);
       const stsAll = tenantStatuses.get(name) ?? [];
-      const sts = stsAll.filter((s) => !s.recorded_at || s.recorded_at <= cutoff);
+      // tenantStatuses is sorted ascending by recorded_at — find first index past cutoff
+      let stsEnd = stsAll.length;
+      for (let i = 0; i < stsAll.length; i++) {
+        if ((stsAll[i].recorded_at ?? "") > cutoff) { stsEnd = i; break; }
+      }
+      const sts = stsEnd === stsAll.length ? stsAll : stsAll.slice(0, stsEnd);
       const tks = tasksByTenant.get(name) ?? [];
       const risk = computeRiskWithCS(sorted, sts);
       const status = currentClubStatus(sts);
@@ -129,7 +142,11 @@ function DashboardPage() {
         const prevSlice = sorted.slice(0, -1);
         prevSnapshot = prevSlice[prevSlice.length - 1] ?? null;
         const prevCutoff = `${prevSnapshot?.period.slice(0, 7) ?? ""}-31T23:59:59Z`;
-        const filteredSts = sts.filter((s) => !s.recorded_at || s.recorded_at <= prevCutoff);
+        let pEnd = sts.length;
+        for (let i = 0; i < sts.length; i++) {
+          if ((sts[i].recorded_at ?? "") > prevCutoff) { pEnd = i; break; }
+        }
+        const filteredSts = pEnd === sts.length ? sts : sts.slice(0, pEnd);
         const prevRisk = computeRiskWithCS(prevSlice, filteredSts);
         prevScore = prevRisk.score;
         prevLevel = prevRisk.level;
@@ -236,21 +253,41 @@ function DashboardPage() {
       }));
   }, [monthlySeries]);
 
-  // Health distribution per month — count ALL clubs in that period
+  // Health distribution per month — limited to last 12 months for perf.
+  // For each month we slice the (already-sorted) history at the month and run risk.
   const healthByMonth = useMemo(() => {
-    const periodsAsc = [...new Set(includedSnapshots.map((s) => s.period))]
+    const allPeriods = [...new Set(includedSnapshots.map((s) => s.period))]
       .filter((p) => !latestPeriod || p <= latestPeriod)
       .sort();
+    const periodsAsc = allPeriods.slice(-12);
+    if (periodsAsc.length === 0) return [];
+    // Group tenants by period once (single pass) instead of filtering N times.
+    const tenantsByPeriod = new Map<string, Set<string>>();
+    for (const p of periodsAsc) tenantsByPeriod.set(p, new Set());
+    for (const s of includedSnapshots) {
+      const set = tenantsByPeriod.get(s.period);
+      if (set) set.add(s.tenant_name);
+    }
     return periodsAsc.map((p) => {
-      // All non-excluded tenants present in this exact month.
-      const tenantsThatMonth = new Set(
-        includedSnapshots.filter((s) => s.period === p).map((s) => s.tenant_name),
-      );
+      const tenantsThatMonth = tenantsByPeriod.get(p)!;
+      const cutoffSts = `${p.slice(0, 7)}-31T23:59:59Z`;
       let healthy = 0, medium = 0, high = 0;
       for (const name of tenantsThatMonth) {
-        const hist = (tenantHistory.get(name) ?? []).filter((s) => s.period <= p);
-        if (hist.length === 0) { healthy++; continue; }
-        const sts = (tenantStatuses.get(name) ?? []).filter((s) => !s.recorded_at || s.recorded_at.slice(0, 10) <= p);
+        const fullHist = tenantHistory.get(name);
+        if (!fullHist || fullHist.length === 0) { healthy++; continue; }
+        // sorted ascending: find slice end <= p
+        let endIdx = -1;
+        for (let i = fullHist.length - 1; i >= 0; i--) {
+          if (fullHist[i].period <= p) { endIdx = i; break; }
+        }
+        if (endIdx < 0) { healthy++; continue; }
+        const hist = endIdx === fullHist.length - 1 ? fullHist : fullHist.slice(0, endIdx + 1);
+        const stsAll = tenantStatuses.get(name) ?? [];
+        let stsEnd = stsAll.length;
+        for (let i = 0; i < stsAll.length; i++) {
+          if ((stsAll[i].recorded_at ?? "") > cutoffSts) { stsEnd = i; break; }
+        }
+        const sts = stsEnd === stsAll.length ? stsAll : stsAll.slice(0, stsEnd);
         const r = computeRiskWithCS(hist, sts);
         if (r.level === "high") high++;
         else if (r.level === "medium") medium++;
