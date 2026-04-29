@@ -223,7 +223,7 @@ function DashboardPage() {
       });
       return set.size;
     })();
-    const highRisk = clubs.filter((c) => c.score >= 60 && c.status !== "churned" && c.status !== "closed").length;
+    const highRisk = clubs.filter((c) => c.score < 30 && c.status !== "churned" && c.status !== "closed").length;
     const monthGmv = (() => {
       if (!latestPeriod) return 0;
       return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.gmv_all ?? 0), 0);
