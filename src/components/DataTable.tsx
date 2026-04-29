@@ -229,12 +229,12 @@ export function DataTable<T>({
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder={searchPlaceholder}
-                  className="w-full pl-8 pr-8 py-2 text-base sm:text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-foreground/20"
+                  className="w-full pl-8 pr-8 py-2 text-base sm:text-sm rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 {searchInput && (
                   <button
                     onClick={() => { setSearchInput(""); setSearch(""); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-surface text-muted-foreground"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted text-muted-foreground"
                     aria-label="Limpar pesquisa"
                     type="button"
                   >
@@ -244,7 +244,7 @@ export function DataTable<T>({
               </div>
               <button
                 type="submit"
-                className="shrink-0 inline-flex items-center gap-1.5 px-3.5 h-9 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90"
+                className="shrink-0 inline-flex items-center gap-1.5 px-3.5 h-9 rounded-lg bg-primary text-primary-foreground text-sm font-medium transition-colors duration-150 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <Search className="h-3.5 w-3.5" />
                 Procurar
