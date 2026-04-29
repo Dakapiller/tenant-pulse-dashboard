@@ -217,7 +217,7 @@ function DashboardPage() {
       });
     }
     return list;
-  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart, latestPeriod, healthScores]);
+  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart, latestPeriod, healthScores, prevMonthScores]);
 
   // KPIs
   const kpis = useMemo(() => {
