@@ -1,75 +1,46 @@
 ## Goal
+Stop the `/cs` (Customer Success) page from freezing the browser. Click currently triggers heavy, repeated computation and a potentially huge write on the main thread.
 
-Stop the main thread from freezing. Three concrete causes:
+## Root causes found in `src/routes/cs.tsx`
 
-1. `clubs.tsx` builds rows for ~293 tenants and runs **two** `computeRiskWithCS` calls per tenant (`scoreWithDelta` + `flagsWithDelta`) → ~600 risk passes on every render where any of `snapshots/statuses/tasks/statusLogs` change.
-2. `DataTable` renders **every** row in the DOM (no pagination) — 293 rows × ~12 columns of badges/links is the biggest paint cost.
-3. Dashboard `index.tsx` builds KPIs, charts, YoY, status donut and the activity table all in one synchronous pass before first paint.
+1. **Weekly task auto-generation runs synchronously on every visit** (lines 67-82). `generateWeeklyTasks` loops every tenant (~324), runs `computeRiskWithCS` for each, then writes all tasks to the database, then calls `loadAll()` again — a second full fetch. If the insert ever fails or the week's tasks exist with `status !== "pending"`, this can also re-trigger.
+2. **`rows` memo is O(tenants × tasks)** (lines 194-225). Inside `ensure()`, `lastCompletedActivityAt(allTasks.filter(t => t.tenant_name === name))` re-scans the full task list per tenant.
+3. **`scoreWithDelta` runs per row** and internally calls `computeRiskWithCS` twice with a fresh sort each time. Combined with #2, building `rows` is the hot path that locks the tab.
+4. **`historyTasks` renders unbounded** (lines 453-471) — every completed task ever, no pagination.
+5. **`tenantHistory` / `tenantStatuses` not pre-sorted** so each `computeRiskWithCS` re-sorts.
+6. **Cronologia chart series** recomputes on every unrelated state change because `snapshots` is in deps and the filter walks all rows.
 
-Memos are mostly already in place — the wins come from **doing less work** and **rendering fewer DOM nodes**, plus splitting the dashboard into tiers so the first paint is fast.
+## Fix plan (in order)
 
-## Changes
+### 1. Pre-index tasks once
+Build `tasksByTenant: Map<string, CSTask[]>` in a `useMemo([allTasks])`. Replace the per-row `allTasks.filter(...)` with a map lookup. Removes the O(N×M) cost.
 
-### 1. Single risk pass per tenant (clubs + at-risk)
+### 2. Pre-sort tenant history / statuses once
+In the existing `tenantHistory` and `tenantStatuses` memos, sort each tenant's array by `period` / `recorded_at` ascending before storing. Then change `riskWithDelta` callers to skip the redundant `[...history].sort(...)` (or just accept already-sorted input — riskWithDelta still sorts defensively, which is cheap on already-sorted arrays).
 
-In `src/routes/clubs.tsx` and `src/routes/at-risk.tsx`, replace the two-call pattern (`scoreWithDelta` + `flagsWithDelta`) with **one** helper `riskWithDelta(history, statuses)` in `src/lib/cs.ts` that returns `{ score, prevScore, delta, level, prevLevel, flags: { current, added, resolved } }` from a single current + single previous `computeRiskWithCS`. Halves the work for the heaviest table.
+### 3. Make weekly task generation safe and one-shot
+- Guard with a ref so it can only run once per mount.
+- Check if **any** task exists with `week_start === weekStart` (pending OR completed) before generating, so we never regenerate after the user completes them.
+- Run generation in an idle callback (`requestIdleCallback` w/ setTimeout fallback) so it never blocks the first paint.
+- After insert, do a partial reload of just `allTasks` instead of a full `loadAll()`.
 
-Keep memo dep arrays minimal and stable (already `[snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod]`).
+### 4. Paginate history list
+Reuse the existing `DataTable` pagination pattern, or add a simple "Mostrar mais" button capping the list at 50 items initially. This keeps the DOM small.
 
-### 2. Paginate the clubs table (50 / page)
+### 5. Stabilize the Cronologia chart
+- Move the `excluded`-set filter into a precomputed `Map<period, agg>` keyed by `chartMode + selectedTenant` only.
+- Cap the chart to the last 24 months so x-axis labels and SVG paths don't explode.
 
-Add lightweight pagination to `src/components/DataTable.tsx`:
+### 6. Audit effects
+- The `useEffect` at line 67-82 has empty deps + eslint-disable; convert to a `didRunRef` guard so React 18 strict-mode double-mount doesn't double-fire generation.
+- Effect at 108-112 is fine but add `tenantNames[0]` as a stable dep is OK.
 
-- New optional prop `pageSize?: number` (default `undefined` = no pagination, current behavior).
-- Internal `page` state, reset to 0 whenever the post-filter/sort `filtered` length or search/filters change.
-- Slice `filtered` to `pageRows = filtered.slice(page*pageSize, (page+1)*pageSize)`; render only `pageRows` in `<tbody>`.
-- Footer with `« Anterior`, page X/N, `Próximo »`, total count.
-- Scroll table container to top on page change.
-
-Apply `pageSize={50}` to the main table in `clubs.tsx` (line 267 `rows={visibleRows}`) and the duplicate clubs/missing tables (lines 395/402). Smaller tables (CS tasks, history, recent activity) stay unpaginated.
-
-Note on requirement #2 ("only compute risk for the visible page"): we keep risk computation at the rows level because sort/filter/search must operate on full data — the row objects must already carry score/level. After change #1 the cost is ~293 single risk passes on data load only, which is fast; the real saving is rendering 50 rows instead of 293.
-
-### 3. Tier the dashboard load
-
-Split `DashboardPage` into 3 phases driven by separate state:
-
-```text
-phase 0  fetch periods + statuses        → render KPI cards + period selector
-phase 1  fetch all snapshots             → render trend & status charts
-phase 2  fetch tasks + compute clubs[]   → render positives + recent activity
-```
-
-Implementation:
-
-- Replace the single `Promise.all` with three sequential `useEffect`s, each gated on the previous phase's data being present.
-- Each chart/section guards with `{snapshotsLoaded ? <Chart/> : <Skeleton/>}` so React paints KPIs immediately.
-- `clubs[]`, `positives`, `recentActivity` only build once tasks arrive (phase 2).
-- `healthByMonth` is already capped at 12 months from the previous fix — keep it.
-
-### 4. Debounce search
-
-In `DataTable.tsx` the search is already commit-on-Enter/click (no live filtering), so no debounce needed there. Audit other live-filter inputs in `cs.tsx` history view, `clubs.tsx` toolbar inputs, and the `at-risk.tsx` filter — wrap any `onChange` that triggers heavy filtering with a 300 ms `useDebouncedValue` hook (`src/hooks/use-debounced-value.ts`, new file).
-
-### 5. useEffect audit
-
-Walk every `useEffect` in `index.tsx`, `clubs.tsx`, `cs.tsx`:
-
-- Confirm dependency arrays are correct and minimal.
-- Watch for the known TanStack pattern `useEffect(() => { … setDrawerTenant(search.tenant) }, [search.tenant])` — fine.
-- The CS page has `useEffect(() => { setStatuses(...) }, [tenantNames])` (line 108) — verify it doesn't loop by checking `tenantNames` is properly memoized.
-- Add no new effects; only fix any found loops.
-
-## Files
-
-- `src/lib/cs.ts` — add `riskWithDelta` helper combining score + flags in one pass.
-- `src/components/DataTable.tsx` — `pageSize` prop, page state, footer pager.
-- `src/routes/clubs.tsx` — use `riskWithDelta`; pass `pageSize={50}` to main table.
-- `src/routes/at-risk.tsx` — use `riskWithDelta`.
-- `src/routes/index.tsx` — split fetch into 3 phases with skeleton fallbacks.
-- `src/hooks/use-debounced-value.ts` — new tiny hook.
-- `src/routes/cs.tsx` — debounce history search input if present; verify effects.
+## Files to edit
+- `src/routes/cs.tsx` — items 1, 2, 3, 4, 5, 6
+- `src/lib/cs.ts` — small helper `lastCompletedActivityAtFromMap` (optional) or just reuse `lastCompletedActivityAt` with the indexed list
 
 ## Out of scope
+No DB schema changes. No new dependencies. Visual layout unchanged.
 
-Row virtualization (react-window) — pagination is enough at 293 rows. Web Workers for risk — not needed once duplicate passes are removed.
+## Expected outcome
+Clicking "Customer Success" paints the shell immediately, runs computation against pre-indexed data (single pass), and never blocks the main thread on weekly task generation.
