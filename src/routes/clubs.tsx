@@ -78,6 +78,19 @@ function ClubsPage() {
   const [loading, setLoading] = useState(true);
 
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const search = useSearch({ from: "/clubs" });
+
+  // Sync ?tenant=… search param into the drawer
+  useEffect(() => {
+    if (search.tenant) setDrawerTenant(search.tenant);
+    else setDrawerTenant(null);
+  }, [search.tenant]);
+
+  const closeDrawer = () => {
+    navigate({ to: "/clubs", search: {} });
+  };
+
   const [exportOpen, setExportOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<string | null>(null);
   const [expandedTenant, setExpandedTenant] = useState<string | null>(null);
