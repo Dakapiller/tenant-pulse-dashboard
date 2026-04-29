@@ -33,6 +33,7 @@ function CSTasksPage() {
   const [pendingTasks, setPendingTasks] = useState<CSTask[]>([]);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
+  const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const [chartMode, setChartMode] = useState<"aggregate" | "tenant">("aggregate");
