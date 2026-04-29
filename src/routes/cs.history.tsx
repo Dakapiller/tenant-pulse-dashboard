@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
-import { CSSubNav } from "@/components/CSSubNav";
 import { ClubLink } from "@/components/ClubLink";
 import {
   fetchAllCSStatuses,
@@ -75,16 +74,11 @@ function CSHistoryPage() {
   }
 
   if (loading) return (
-    <div>
-      <CSSubNav />
-      <div className="p-10 text-muted-foreground">A carregar…</div>
-    </div>
+    <div className="p-10 text-muted-foreground">A carregar…</div>
   );
 
   return (
-    <div>
-      <CSSubNav />
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight">Histórico CS</h1>
           <p className="text-sm text-muted-foreground mt-1">Tarefas concluídas, das mais recentes para as mais antigas.</p>
@@ -148,7 +142,6 @@ function CSHistoryPage() {
             )}
           </div>
         </section>
-      </div>
     </div>
   );
 }
