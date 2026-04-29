@@ -351,3 +351,41 @@ export function latestCSOutcome(statuses: CSTenantStatus[]): { outcome: string; 
   if (!latest) return null;
   return { outcome: latest.relationship_status, recordedAt: latest.recorded_at };
 }
+
+// ---- Backward-compat shims ----
+// The old score+flag bundle is now derived from health_score (passed in)
+// and the informational flags. These keep existing UI call sites compiling
+// while the screens are progressively migrated to read health_score directly.
+export function riskWithDelta(
+  history: Snapshot[],
+  _statuses: CSTenantStatus[],
+  currentScore: number | null = null,
+  prevScore: number | null = null,
+): {
+  score: number;
+  prevScore: number | null;
+  delta: number | null;
+  level: "high" | "medium" | "healthy";
+  prevLevel: "high" | "medium" | "healthy" | null;
+  flags: { current: RiskFlag[]; added: RiskFlag[]; resolved: RiskFlag[]; prev: RiskFlag[] };
+} {
+  const f = flagsWithDelta(history);
+  const score = currentScore ?? 100;
+  // Map health score → legacy "high/medium/healthy" levels (inverted: low health = high risk).
+  const toLevel = (s: number): "high" | "medium" | "healthy" =>
+    s < 30 ? "high" : s < 60 ? "medium" : "healthy";
+  return {
+    score,
+    prevScore,
+    delta: prevScore !== null ? score - prevScore : null,
+    level: toLevel(score),
+    prevLevel: prevScore !== null ? toLevel(prevScore) : null,
+    flags: f,
+  };
+}
+
+/** @deprecated kept for old callers — returns 0 (no longer used in scoring). */
+export function sumCSImpact(_statuses: CSTenantStatus[]): number { return 0; }
+
+/** @deprecated alias for riskWithDelta. */
+export const scoreWithDelta = riskWithDelta;
