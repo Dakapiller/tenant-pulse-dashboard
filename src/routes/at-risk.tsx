@@ -109,8 +109,10 @@ function AtRiskPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Tenants em risco</h1>
-        <p className="text-sm text-muted-foreground mt-1">Clubes com pelo menos uma sinalização de risco no último mês, ordenados por gravidade.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Em Risco</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Clubes com health score abaixo de 30, ordenados por gravidade. Os badges abaixo são indicadores informativos e não influenciam o score.
+        </p>
       </header>
 
       {cards.length > 0 && (
@@ -139,29 +141,26 @@ function AtRiskPage() {
       {cards.length === 0 ? (
         <div className="rounded-xl border border-border p-12 text-center">
           <ShieldCheck className="mx-auto h-10 w-10 text-success mb-3" />
-          <div className="text-lg font-medium">Todos os clubes saudáveis</div>
-          <div className="text-sm text-muted-foreground mt-1">Nenhuma sinalização de risco no último snapshot.</div>
+          <div className="text-lg font-medium">Nenhum clube em risco</div>
+          <div className="text-sm text-muted-foreground mt-1">Todos os clubes têm health score igual ou superior a 30.</div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {cards
             .filter((c) => !debouncedSearch || c.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
             .map((c) => {
-            const tone = c.level === "high"
-              ? { bar: "bg-danger", text: "text-danger", bg: "bg-danger/5", border: "border-danger/30" }
-              : { bar: "bg-warning", text: "text-warning", bg: "bg-warning/5", border: "border-warning/30" };
+            // All cards here have health < 30 → red tone.
+            const tone = { bar: "bg-danger", text: "text-danger", bg: "bg-danger/5", border: "border-danger/30" };
             return (
               <div key={c.name} className={`rounded-xl border ${tone.border} ${tone.bg} p-5 flex flex-col`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{c.name}</div>
-                    <div className={`text-xs mt-0.5 ${tone.text} font-medium`}>
-                      {c.level === "high" ? "Risco alto" : "Risco médio"}
-                    </div>
+                    <div className={`text-xs mt-0.5 ${tone.text} font-medium`}>Em risco</div>
                   </div>
                   <div className="text-right">
                     <div className={`text-3xl font-bold tabular-nums ${tone.text}`}>{c.score}</div>
-                    <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Score</div>
+                    <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Health</div>
                     <div className="mt-1"><ScoreDelta delta={c.scoreDelta} /></div>
                   </div>
                 </div>
