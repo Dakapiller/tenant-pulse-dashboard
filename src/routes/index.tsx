@@ -41,6 +41,10 @@ function DashboardPage() {
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
+  // Score per tenant as of the start of the current calendar month — used to compute
+  // monthly improvements ("Evolução positiva este mês"). Defaults to current score
+  // when missing so unchanged clubs show 0 delta (not a fake improvement).
+  const [prevMonthScores, setPrevMonthScores] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
   const [tasksLoaded, setTasksLoaded] = useState(false);
