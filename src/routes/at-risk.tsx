@@ -193,7 +193,7 @@ function AtRiskPage() {
                 </div>
                 <div className="text-[10px] text-muted-foreground -mt-1 mb-3">Jogos online · últimos 6 meses</div>
 
-                <Link to="/tenant/$name" params={{ name: c.name }} className="mt-auto inline-flex items-center justify-between rounded-md bg-foreground text-background px-3 py-2 text-sm font-medium hover:opacity-90">
+                <Link to="/clubs" search={{ tenant: c.name }} className="mt-auto inline-flex items-center justify-between rounded-md bg-foreground text-background px-3 py-2 text-sm font-medium hover:opacity-90">
                   Ver detalhe <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
