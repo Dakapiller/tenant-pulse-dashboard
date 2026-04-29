@@ -463,22 +463,7 @@ function DashboardPage() {
         </div>
       </section>
 
-      {/* Row 4 — Risk radar */}
-      <section className="rounded-xl border border-border bg-background overflow-hidden mb-6">
-        <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-danger" />
-          <h2 className="text-sm font-semibold">Radar de risco</h2>
-          <span className="text-xs text-muted-foreground ml-auto">{topRisk.length} clubes</span>
-        </div>
-        <DataTable
-          rows={topRisk}
-          columns={radarColumns}
-          rowKey={(r) => r.name}
-          defaultSort={{ key: "score", dir: "desc" }}
-          containerClassName="max-h-[600px]"
-          stickyHeader
-        />
-      </section>
+
 
       {/* Row 5 — Recent CS activity */}
       <section className="rounded-xl border border-border bg-background overflow-hidden">
