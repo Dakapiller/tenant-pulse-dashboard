@@ -381,7 +381,7 @@ function ClubsPage() {
         />
       </section>
 
-      {drawerTenant && (
+      {drawerTenant && rows.find((r) => r.name === drawerTenant) && (
         <ClubDrawer
           tenant={drawerTenant}
           row={rows.find((r) => r.name === drawerTenant)!}
