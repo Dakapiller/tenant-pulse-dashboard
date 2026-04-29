@@ -380,7 +380,7 @@ export function DataTable<T>({
               return (
                 <Fragment key={k}>
                   <tr
-                    className={`border-t border-border hover:bg-surface ${onRowClick ? "cursor-pointer" : ""} ${isSelected ? "bg-foreground/[0.04]" : ""} ${rowClassName?.(row) ?? ""}`}
+                    className={`border-t border-border even:bg-muted/40 hover:bg-primary/5 transition-colors duration-150 ${onRowClick ? "cursor-pointer" : ""} ${isSelected ? "bg-primary/10" : ""} ${rowClassName?.(row) ?? ""}`}
                     onClick={() => onRowClick?.(row)}
                   >
                     {selectable && (
@@ -391,7 +391,7 @@ export function DataTable<T>({
                             aria-label="Selecionar linha"
                             checked={isSelected}
                             onChange={() => toggleRow(row)}
-                            className="h-4 w-4 align-middle accent-foreground cursor-pointer"
+                            className="h-4 w-4 align-middle accent-primary cursor-pointer"
                           />
                         ) : null}
                       </td>
