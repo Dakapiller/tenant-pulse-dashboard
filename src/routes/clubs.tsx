@@ -689,7 +689,7 @@ function ScoreChangeLine({ oldScore, newScore, delta }: { oldScore: number; newS
   );
 }
 
-function ClubHistoryPanel({ row }: { row: ClubRow }) {
+function ClubHistoryPanel({ row, onChanged }: { row: ClubRow; onChanged?: () => void | Promise<void> }) {
   // Memoize per-snapshot risk recomputation; expensive for tenants with long history.
   const scoreEventsRaw = useMemo(() => scoreChangeEvents(row), [row]);
 
