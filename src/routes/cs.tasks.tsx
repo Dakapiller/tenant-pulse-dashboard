@@ -11,6 +11,7 @@ import {
   fetchPendingCSTasks,
   insertCSTasks,
   completeCSTask,
+  completeCSTasksBatch,
   currentWeekStart,
   scoreWithDelta,
   excludedTenants,
@@ -215,9 +216,10 @@ function CSTasksPage() {
     setPendingTasks(p);
   }
 
-  async function handleSingleComplete(tenant: string, taskId: string, outcome: string, note: string | null) {
-    await completeCSTask(taskId, tenant, outcome, note);
+  async function handleClubComplete(tenant: string, taskIds: string[], outcome: string, note: string | null) {
+    await completeCSTasksBatch(tenant, taskIds, outcome, note);
     await reloadPending();
+    setExpanded(null);
   }
 
   if (loading) return (
@@ -327,7 +329,7 @@ function CSTasksPage() {
                   onSelectionChange={setSelectedKeys}
                   isRowSelectable={(r) => r.pending.length > 0}
                   expandedRow={(r) => expanded === r.name ? (
-                    <ExpandedClubPanel row={r} onComplete={handleSingleComplete} />
+                    <ExpandedClubPanel row={r} onComplete={handleClubComplete} />
                   ) : null}
                   columns={[
                     {
@@ -399,28 +401,51 @@ function ExpandedClubPanel({
   row, onComplete,
 }: {
   row: { name: string; pending: CSTask[] };
-  onComplete: (tenant: string, taskId: string, outcome: string, note: string | null) => Promise<void>;
+  onComplete: (tenant: string, taskIds: string[], outcome: string, note: string | null) => Promise<void>;
 }) {
   const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const task = row.pending[0];
+  const tasks = row.pending;
 
   async function handleComplete() {
-    if (!task) return;
+    if (tasks.length === 0) return;
     setBusy(true);
     try {
       const n = note.trim();
-      await onComplete(task.tenant_name, task.id, outcome, n.length > 0 ? n : null);
+      await onComplete(
+        tasks[0].tenant_name,
+        tasks.map((t) => t.id),
+        outcome,
+        n.length > 0 ? n : null,
+      );
       setNote("");
     } finally {
       setBusy(false);
     }
   }
 
+  // Build a flat list of {reason, cta} bullets across every pending task for this club.
+  // Tasks are generated with one line per flag joined by "\n", so split back out.
+  type Bullet = { reason: string; cta: string; flags: string[] };
+  const bullets: Bullet[] = [];
+  for (const t of tasks) {
+    const reasons = (t.reason ?? "").split("\n").filter((s) => s.trim().length > 0);
+    const ctas = (t.cta ?? "").split("\n").filter((s) => s.trim().length > 0);
+    const flags = t.flags ?? [];
+    const n = Math.max(reasons.length, ctas.length, 1);
+    for (let i = 0; i < n; i++) {
+      bullets.push({
+        reason: reasons[i] ?? reasons[0] ?? "",
+        cta: ctas[i] ?? ctas[0] ?? "",
+        flags: flags[i] ? [flags[i]] : [],
+      });
+    }
+  }
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-end gap-3 -mt-1">
         <ClubLink
           name={row.name}
@@ -430,66 +455,72 @@ function ExpandedClubPanel({
         </ClubLink>
       </div>
 
-      {task && (
-        <div className="rounded-md border border-border bg-background" onClick={(e) => e.stopPropagation()}>
-          <div className="px-4 py-3 border-b border-border">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
-              Sinalizações ativas ({task.flags?.length ?? 0})
-            </div>
+      <div className="rounded-md border border-border bg-background">
+        <div className="px-4 py-3 border-b border-border">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
+            Tarefas pendentes ({tasks.length})
+          </div>
+          {bullets.length === 0 ? (
+            <div className="text-xs text-muted-foreground">Sem detalhes disponíveis.</div>
+          ) : (
             <ul className="space-y-2">
-              {(task.flags ?? []).map((f, i) => {
-                const meta = FLAG_META[f as RiskFlag];
-                const cta = FLAG_CTA[f as RiskFlag]?.cta;
-                const reason = FLAG_CTA[f as RiskFlag]?.reason;
+              {bullets.map((b, i) => {
+                const flag = b.flags[0] as RiskFlag | undefined;
+                const meta = flag ? FLAG_META[flag] : undefined;
                 return (
-                  <li key={`${f}-${i}`} className="flex items-start gap-2 text-sm">
+                  <li key={i} className="flex items-start gap-2 text-sm">
                     <span className="text-muted-foreground mt-1">•</span>
                     <div className="min-w-0">
-                      <div className="font-medium">{meta?.label ?? f}</div>
-                      {reason && <div className="text-xs text-muted-foreground mt-0.5">{reason}</div>}
-                      {cta && <div className="text-xs text-muted-foreground/80 mt-0.5 italic">→ {cta}</div>}
+                      <div className="font-medium">{meta?.label ?? b.reason}</div>
+                      {meta && b.reason && (
+                        <div className="text-xs text-muted-foreground mt-0.5">{b.reason}</div>
+                      )}
+                      {b.cta && (
+                        <div className="text-xs text-muted-foreground/80 mt-0.5 italic">→ {b.cta}</div>
+                      )}
                     </div>
                   </li>
                 );
               })}
             </ul>
-          </div>
+          )}
+        </div>
 
-          <div className="px-4 py-3 space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Resultado</label>
-              <select
-                value={outcome}
-                onChange={(e) => setOutcome(e.target.value)}
-                className="px-2 py-1 rounded-md border border-border bg-background text-xs"
-              >
-                {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Comentário (opcional, fica no histórico)
-              </label>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Notas sobre o contacto…"
-                rows={2}
-                className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs resize-y"
-              />
-            </div>
-            <div className="flex items-center justify-end pt-1">
-              <button
-                onClick={handleComplete}
-                disabled={busy}
-                className="px-3 py-1.5 text-xs rounded-md bg-foreground text-background font-medium disabled:opacity-50 hover:opacity-90 inline-flex items-center gap-1.5"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" /> {busy ? "A guardar…" : "Marcar como feita"}
-              </button>
-            </div>
+        <div className="px-4 py-3 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Resultado</label>
+            <select
+              value={outcome}
+              onChange={(e) => setOutcome(e.target.value)}
+              className="px-2 py-1 rounded-md border border-border bg-background text-xs"
+            >
+              {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              Comentário (opcional, fica no histórico)
+            </label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Notas sobre o contacto…"
+              rows={2}
+              className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs resize-y"
+            />
+          </div>
+          <div className="flex items-center justify-end pt-1">
+            <button
+              onClick={handleComplete}
+              disabled={busy || tasks.length === 0}
+              className="px-3 py-1.5 text-xs rounded-md bg-foreground text-background font-medium disabled:opacity-50 hover:opacity-90 inline-flex items-center gap-1.5"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {busy ? "A guardar…" : `Marcar ${tasks.length === 1 ? "como feita" : `as ${tasks.length} como feitas`}`}
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
