@@ -329,7 +329,7 @@ function CSTasksPage() {
                   onSelectionChange={setSelectedKeys}
                   isRowSelectable={(r) => r.pending.length > 0}
                   expandedRow={(r) => expanded === r.name ? (
-                    <ExpandedClubPanel row={r} onComplete={handleSingleComplete} />
+                    <ExpandedClubPanel row={r} onComplete={handleClubComplete} />
                   ) : null}
                   columns={[
                     {
