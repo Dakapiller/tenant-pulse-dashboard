@@ -243,6 +243,12 @@ function CSTasksPage() {
     setExpanded(null);
   }
 
+  async function handleClubPostpone(taskIds: string[], target: string) {
+    for (const id of taskIds) await postponeCSTask(id, target);
+    await reloadPending();
+    setExpanded(null);
+  }
+
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const activeClubNames = useMemo(
     () => tenantNames.filter((n) => !excluded.has(n)),
