@@ -10,7 +10,7 @@ import {
   outcomeLabel, excludedTenants, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
-import { fetchHealthScores, healthLevel } from "@/lib/health";
+import { fetchHealthScores, fetchHealthScoresAt, healthLevel } from "@/lib/health";
 import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 import { ClubLink } from "@/components/ClubLink";
@@ -41,6 +41,10 @@ function DashboardPage() {
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
+  // Score per tenant as of the start of the current calendar month — used to compute
+  // monthly improvements ("Evolução positiva este mês"). Defaults to current score
+  // when missing so unchanged clubs show 0 delta (not a fake improvement).
+  const [prevMonthScores, setPrevMonthScores] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
   const [tasksLoaded, setTasksLoaded] = useState(false);
@@ -51,11 +55,20 @@ function DashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [p, st, sc] = await Promise.all([fetchPeriods(), fetchAllCSStatuses(), fetchHealthScores()]);
+        // Start of the current calendar month (UTC) — anchor for monthly delta.
+        const now = new Date();
+        const monthStartIso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+        const [p, st, sc, prevSc] = await Promise.all([
+          fetchPeriods(),
+          fetchAllCSStatuses(),
+          fetchHealthScores(),
+          fetchHealthScoresAt(monthStartIso),
+        ]);
         if (cancelled) return;
         setPeriods(p);
         setStatuses(st);
         setHealthScores(sc);
+        setPrevMonthScores(prevSc);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -183,13 +196,18 @@ function DashboardPage() {
       const score = realScore ?? 100;
       const lvlMap = { risk: "high", monitor: "medium", healthy: "healthy" } as const;
       const level = lvlMap[healthLevel(score)];
+      // Previous = score at start of the current calendar month (from health_score_log).
+      // Tenants with no log entry before that cutoff fall back to the current score
+      // (no change → no fake improvement).
+      const prevScoreVal = prevMonthScores.has(name) ? (prevMonthScores.get(name) as number) : score;
+      const prevLvl = lvlMap[healthLevel(prevScoreVal)];
       list.push({
         name,
         score,
-        prevScore: null,
-        scoreDelta: null,
+        prevScore: prevScoreVal,
+        scoreDelta: score - prevScoreVal,
         level,
-        prevLevel: null,
+        prevLevel: prevLvl,
         flags: risk.flags,
         status,
         lastContact: lastCompletedActivityAt(tks),
@@ -199,7 +217,7 @@ function DashboardPage() {
       });
     }
     return list;
-  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart, latestPeriod, healthScores]);
+  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart, latestPeriod, healthScores, prevMonthScores]);
 
   // KPIs
   const kpis = useMemo(() => {
@@ -347,19 +365,23 @@ function DashboardPage() {
     });
   }, [includedSnapshots, tenantHistory, tenantStatuses, latestPeriod, healthScores]);
 
-  // Positive metrics
+  // Positive metrics — anchored to the CURRENT calendar month, not the
+  // selected snapshot period. "Improved" means the health score went UP vs
+  // its value at the start of this month (higher score = healthier club).
   const positives = useMemo(() => {
     if (!latestPeriod) return { improved: 0, leftHighRisk: 0, revenueGrew: 0, csImpacted: 0 };
     let improved = 0, leftHighRisk = 0, revenueGrew = 0, csImpacted = 0;
-    const monthStart = new Date(`${latestPeriod}T00:00:00Z`).toISOString();
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
     for (const c of clubs) {
       if (excluded.has(c.name)) continue;
-      if (c.scoreDelta !== null && c.scoreDelta < 0) improved++;
+      if (c.scoreDelta !== null && c.scoreDelta > 0) improved++;
+      // "Saíram de risco alto" = estavam em risco (level "high" = health < 30) e já não estão.
       if (c.prevLevel === "high" && c.level !== "high") leftHighRisk++;
       if (c.latest && c.prevSnapshot && Number(c.latest.revenue ?? 0) > Number(c.prevSnapshot.revenue ?? 0)) revenueGrew++;
       const tks = tasksByTenant.get(c.name) ?? [];
       const completedThisMonth = tks.some((t) => t.status === "completed" && t.completed_at && t.completed_at >= monthStart);
-      if (completedThisMonth && c.scoreDelta !== null && c.scoreDelta < 0) csImpacted++;
+      if (completedThisMonth && c.scoreDelta !== null && c.scoreDelta > 0) csImpacted++;
     }
     return { improved, leftHighRisk, revenueGrew, csImpacted };
   }, [clubs, latestPeriod, tasksByTenant, excluded]);
@@ -544,8 +566,8 @@ function DashboardPage() {
           </div>
           {tasksLoaded ? (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <PositiveCard value={positives.improved} title="Clubes melhorados" subtitle="Score de saúde diminuiu vs mês anterior" />
-              <PositiveCard value={positives.leftHighRisk} title="Saíram de risco alto" subtitle="Estavam ≥60 e baixaram para médio ou saudável" />
+              <PositiveCard value={positives.improved} title="Clubes melhorados" subtitle="Health score subiu desde o início do mês" />
+              <PositiveCard value={positives.leftHighRisk} title="Saíram de risco" subtitle="Estavam abaixo de 30 e já estão acima" />
               <PositiveCard value={positives.revenueGrew} title="Receita cresceu" subtitle="Receita mensal superior à do mês anterior" />
               <PositiveCard value={positives.csImpacted} title="Impacto CS" subtitle="Tarefa CS concluída este mês e score melhorou" />
             </div>
