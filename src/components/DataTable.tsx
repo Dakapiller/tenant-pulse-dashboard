@@ -23,6 +23,12 @@ export interface ColumnDef<T> {
   thClassName?: string;
   /** Hide on small screens */
   hideOnMobile?: boolean;
+  /** Show as primary (title) on mobile card */
+  mobilePrimary?: boolean;
+  /** Show on mobile card body. At most 2 columns should be marked. */
+  mobileSecondary?: boolean;
+  /** Custom render for mobile card secondary slots (label + value). */
+  mobileLabel?: string;
 }
 
 export interface DataTableProps<T> {
