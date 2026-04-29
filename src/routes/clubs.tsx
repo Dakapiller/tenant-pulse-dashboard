@@ -284,6 +284,36 @@ function ClubsPage() {
           onSelectionChange={setSelectedKeys}
           columns={[
             {
+              key: "priority",
+              header: "",
+              align: "center",
+              sortable: false,
+              render: (r) => (
+                <button
+                  type="button"
+                  title="Clube prioritário — recebe tarefa semanal automática independentemente do health score. Útil para clubes de alto GMV ou com potencial de crescimento."
+                  aria-label={r.isPriority ? "Remover prioridade" : "Marcar como prioritário"}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const next = !r.isPriority;
+                    // Optimistic toggle.
+                    setPriorityMap((m) => { const n = new Map(m); n.set(r.name, next); return n; });
+                    try {
+                      await setTenantPriority(r.name, next);
+                    } catch {
+                      // Revert on failure.
+                      setPriorityMap((m) => { const n = new Map(m); n.set(r.name, !next); return n; });
+                    }
+                  }}
+                  className="p-1 rounded hover:bg-surface"
+                >
+                  <Star
+                    className={`h-4 w-4 ${r.isPriority ? "fill-warning text-warning" : "text-muted-foreground/40"}`}
+                  />
+                </button>
+              ),
+            },
+            {
               key: "name",
               header: "Clube",
               sortValue: (r) => r.name,
