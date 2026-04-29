@@ -146,6 +146,27 @@ export function DataTable<T>({
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
+  // Pagination — only when pageSize is set. Reset to page 0 whenever the underlying
+  // filtered/sorted result set changes (search committed, filter applied, sort toggled).
+  const [page, setPage] = useState(0);
+  const totalRows = filtered.length;
+  const totalPages = pageSize ? Math.max(1, Math.ceil(totalRows / pageSize)) : 1;
+  useEffect(() => {
+    setPage(0);
+  }, [search, filters, sort, pageSize, totalRows]);
+  const pageRows = useMemo(() => {
+    if (!pageSize) return filtered;
+    const start = page * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  function goToPage(next: number) {
+    const clamped = Math.max(0, Math.min(totalPages - 1, next));
+    setPage(clamped);
+    // Scroll the table viewport to top so the user sees row 1 of the new page
+    if (tableScrollRef.current) tableScrollRef.current.scrollTop = 0;
+  }
+
   // Bulk-selection helpers (computed against the filtered, currently-visible rows)
   const visibleSelectableRows = useMemo(
     () => (selectable ? filtered.filter((r) => (isRowSelectable ? isRowSelectable(r) : true)) : []),
