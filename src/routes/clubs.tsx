@@ -721,21 +721,23 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
 
 // ---------- Drawer ----------
 
-function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; onClose: () => void; onChanged?: () => Promise<void> }) {
+function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: ClubRow; onClose: () => void; onChanged?: () => Promise<void> }) {
   const [statusLogs, setStatusLogs] = useState<ClubStatusLog[]>([]);
   const [tenantTasks, setTenantTasks] = useState<CSTask[]>([]);
   const [tenantStatuses, setTenantStatuses] = useState<CSTenantStatus[]>([]);
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [scoreOpen, setScoreOpen] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const [logs, tks, sts] = await Promise.all([
-        fetchClubStatusLogsForTenant(tenant),
-        fetchCSTasksForTenant(tenant),
-        fetchCSStatusesForTenant(tenant),
-      ]);
-      setStatusLogs(logs); setTenantTasks(tks); setTenantStatuses(sts);
-    })();
-  }, [tenant]);
+  async function reload() {
+    const [logs, tks, sts] = await Promise.all([
+      fetchClubStatusLogsForTenant(tenant),
+      fetchCSTasksForTenant(tenant),
+      fetchCSStatusesForTenant(tenant),
+    ]);
+    setStatusLogs(logs); setTenantTasks(tks); setTenantStatuses(sts);
+  }
+
+  useEffect(() => { reload(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [tenant]);
 
   const risk = useMemo(() => computeRiskWithCS(row.history, tenantStatuses), [row.history, tenantStatuses]);
 
@@ -767,8 +769,8 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
         className="relative w-full md:max-w-3xl h-full bg-background md:border-l border-border shadow-xl overflow-y-auto animate-in slide-in-from-bottom md:slide-in-from-right duration-200"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-background border-b border-border px-4 sm:px-6 py-4 flex items-center justify-between z-10">
-          <div className="min-w-0">
+        <div className="sticky top-0 bg-background border-b border-border px-4 sm:px-6 py-4 flex items-center justify-between gap-2 z-10">
+          <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold truncate">{tenant}</h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <ClubStatusBadge status={row.status} competitor={row.competitor} />
@@ -777,7 +779,33 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
               </Link>
             </div>
           </div>
-          <button onClick={onClose} className="shrink-0 ml-2 inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface" aria-label="Fechar"><X className="h-5 w-5" /></button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setTaskOpen(true)}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-9 text-xs font-medium hover:bg-surface"
+              title="Criar nova tarefa para este clube"
+            >
+              <Plus className="h-3.5 w-3.5" /> Tarefa
+            </button>
+            <button
+              onClick={() => setScoreOpen(true)}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-9 text-xs font-medium hover:bg-surface"
+              title="Ajustar manualmente o health score"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" /> Score
+            </button>
+            <button
+              onClick={() => setTaskOpen(true)}
+              className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
+              aria-label="Nova tarefa"
+            ><Plus className="h-5 w-5" /></button>
+            <button
+              onClick={() => setScoreOpen(true)}
+              className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
+              aria-label="Ajustar score"
+            ><SlidersHorizontal className="h-5 w-5" /></button>
+            <button onClick={onClose} className="inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface" aria-label="Fechar"><X className="h-5 w-5" /></button>
+          </div>
         </div>
 
         <div className="p-6 space-y-6">
