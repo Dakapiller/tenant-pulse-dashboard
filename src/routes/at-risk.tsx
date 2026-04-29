@@ -291,7 +291,3 @@ function AtRiskPage() {
   );
 }
 
-export const Route = createFileRoute("/at-risk")({
-  component: AtRiskPage,
-});
-
