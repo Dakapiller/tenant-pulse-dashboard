@@ -24,18 +24,19 @@ function AtRiskPage() {
   const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [newTaskTenant, setNewTaskTenant] = useState<string | null>(null);
   const debouncedSearch = useDebouncedValue(search, 300);
+
+  async function loadAll() {
+    const [s, p, st, tk, sc] = await Promise.all([
+      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchHealthScores(),
+    ]);
+    setSnapshots(s); setPeriods(p); setStatuses(st); setTasks(tk); setHealthScores(sc);
+  }
 
   useEffect(() => {
     (async () => {
-      try {
-        const [s, p, st, tk, sc] = await Promise.all([
-          fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchHealthScores(),
-        ]);
-        setSnapshots(s); setPeriods(p); setStatuses(st); setTasks(tk); setHealthScores(sc);
-      } finally {
-        setLoading(false);
-      }
+      try { await loadAll(); } finally { setLoading(false); }
     })();
   }, []);
 
