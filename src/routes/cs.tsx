@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RiskBadge } from "./index";
+import { ClubLink } from "@/components/ClubLink";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
@@ -392,14 +393,7 @@ function CSPage() {
                       sortValue: (r) => r.name,
                       filterValue: (r) => r.name, filter: { kind: "text" },
                       render: (r) => (
-                        <Link
-                          to="/tenant/$name"
-                          params={{ name: r.name }}
-                          onClick={(e) => e.stopPropagation()}
-                          className="font-semibold hover:underline"
-                        >
-                          {r.name}
-                        </Link>
+                        <ClubLink name={r.name} className="font-semibold hover:underline" />
                       ),
                     },
                     {
@@ -460,7 +454,7 @@ function CSPage() {
                   <li key={t.id} className="py-3 flex items-start justify-between gap-3 text-sm">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Link to="/tenant/$name" params={{ name: t.tenant_name }} className="font-medium hover:underline">{t.tenant_name}</Link>
+                        <ClubLink name={t.tenant_name} />
                         <span className="text-xs px-1.5 py-0.5 rounded bg-surface">{formatFlagsLabel(t.flags)}</span>
                         <span className="text-xs text-muted-foreground">
                           {t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : ""} · Semana de {periodLabel(t.week_start)}
@@ -529,14 +523,12 @@ function ExpandedClubPanel({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end gap-3 -mt-1">
-        <Link
-          to="/tenant/$name"
-          params={{ name: row.name }}
-          onClick={(e) => e.stopPropagation()}
+        <ClubLink
+          name={row.name}
           className="inline-flex items-center gap-1 text-xs font-medium text-foreground hover:underline"
         >
-          Ver histórico do clube <ArrowRight className="h-3 w-3" />
-        </Link>
+          Ver perfil do clube <ArrowRight className="h-3 w-3" />
+        </ClubLink>
       </div>
 
       {task && (

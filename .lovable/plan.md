@@ -1,71 +1,97 @@
-## Objetivo
+## 1. Deep-link to the club profile from any club name
 
-Mostrar **a razão** ao lado de cada variação de score no histórico de cada clube, e tornar o motor de scoring mais conservador para que o score só varie quando existir um motivo real:
+Today the club "profile" lives inside `/clubs` as a side drawer opened by local React state (`setDrawerTenant`). We'll make it deep-linkable so every club name across the app can route to it.
 
-1. Alguma métrica-chave piorou ou melhorou **mais de 5%** vs o último mês analisado, **ou**
-2. Existe uma **tendência negativa há 4+ meses consecutivos** numa métrica-chave.
+- `/clubs` will read a `?tenant=<name>` search param and, when present, auto-open the existing drawer for that tenant.
+- Add a small helper component `<ClubLink name="…">` that renders a `<Link to="/clubs" search={{ tenant: name }}>`. Closing the drawer clears the search param.
+- Replace every clickable club name across the app with `<ClubLink>`:
+  - `src/routes/index.tsx` — Radar de Risco (will be removed in step 2, but Atividade CS recente keeps a club name → make it a link too).
+  - `src/routes/cs.tsx` — Tasks list, History list, club selector references.
+  - `src/routes/at-risk.tsx` — card title + "Ver detalhe" button now go to `/clubs?tenant=…` instead of `/tenant/$name`.
+  - `src/routes/clubs.tsx` — keep the in-page click but also sync the URL.
+- The standalone `/tenant/$name` route stays in place as a fallback (no broken links), but is no longer linked from the UI.
 
-Caso contrário, o score mantém-se estável de mês para mês.
+## 2. Remove "Radar de Risco" from Visão Geral
 
----
+Delete the Row 4 "Radar de risco" section in `src/routes/index.tsx` (header + `DataTable` + the `radarColumns` definition + `topRisk` memo). The full at-risk view already lives at `/at-risk` and the full club table at `/clubs`.
 
-## Mudanças de scoring (`src/lib/risk.ts`)
+## 3. Period selector on Visão Geral
 
-Atualmente as flags disparam com regras heterogéneas (ex.: `gmv_stagnant` quando varia <5%, `rate_declining` >10pp, `games_dropping` em 2 meses). Vou alinhá-las com a regra única do utilizador.
+Add a period dropdown in the dashboard header (defaults to the latest uploaded month, listing every period from `fetchPeriods()` in descending order).
 
-**Métricas-chave consideradas:** `games_online`, `gmv_all`, `revenue`, `transacted_rate`.
+All "current month" computations are reworked to use the **selected** period instead of `latestPeriod`:
+- KPIs `monthGmv` / `monthRevenue` filter by selected period.
+- "Em risco alto", "Clubes ativos" and the status donut compute risk using snapshots up to the selected period (slice `hist` by `period <= selected`, filter statuses by `recorded_at <= selected month-end`).
+- "Evolução positiva este mês" compares selected period vs the period immediately before it.
+- "Tendência mensal" and "Distribuição de saúde" charts truncate the X-axis at the selected period (everything ≤ selected) so the user sees the historical view ending at that month.
+- Header subtitle updates to `periodLabel(selectedPeriod)`.
 
-**Novas flags:**
+## 4. Standardize tables, filters, headers and buttons
 
-| Flag | Quando dispara | Pontos |
-|---|---|---|
-| `games_drop_5` | jogos caíram >5% vs mês anterior | 25 |
-| `gmv_drop_5` | GMV caiu >5% vs mês anterior | 20 |
-| `revenue_drop_5` | receita caiu >5% vs mês anterior | 25 |
-| `rate_drop_5` | taxa transacionada caiu >5pp vs mês anterior | 20 |
-| `games_trend_4m` | jogos a cair 4 meses seguidos | 30 |
-| `gmv_trend_4m` | GMV a cair 4 meses seguidos | 25 |
-| `revenue_trend_4m` | receita a cair 4 meses seguidos | 30 |
-| `no_revenue` *(mantida)* | GMV>0 e receita=0 | 25 |
+Goal: every table behaves the same — search + filters live in a toolbar **above** the table, every column is sortable, and primary actions use one shared button style.
 
-Flags antigas `games_dropping`, `gmv_stagnant`, `rate_declining`, `spike_then_crash`, `saas_only` são **removidas** (cobertas pelas novas regras ou ruído).
+- Extend `src/components/DataTable.tsx`:
+  - Move the search input and any active per-column filters into a sticky **toolbar above** the table (current implementation puts the search in a `toolbar` slot but per-column filter chips live in headers — we'll surface active filter chips in the toolbar with a "Limpar" affordance).
+  - Add `size="md"` search input by default (h-10, rounded-md, leading magnifier icon, trailing clear button) and accept a `searchSize` prop.
+  - Default `sortable` to `true` for **every** column unless explicitly `sortable: false`. When a column has no `sortValue`, fall back to the rendered text.
+  - Keep the existing per-column filter dropdown but always render the funnel icon next to sortable arrows for visual consistency.
+- Create `src/components/ui/page-header.tsx` with `<PageHeader title subtitle actions>` and use it on `/`, `/clubs`, `/cs`, `/at-risk`, `/upload` so headers look identical (font size, spacing, action alignment).
+- Create `src/components/ui/primary-button.tsx` (and `secondary-button.tsx`) wrapping the existing button primitive with the standard sizes used today (`h-9 px-3 text-sm` primary, `h-8 px-2.5 text-xs` secondary). Replace ad-hoc `<button class="...">` instances on the four main pages.
+- Apply the new `DataTable` toolbar + sortable defaults to:
+  - `/clubs` Risk table
+  - `/cs` Tasks + History tables
+  - `/at-risk` cards stay as cards, but its standalone search input is replaced by the shared `<SearchInput>` for consistency.
+  - Atividade CS recente on `/` is upgraded from a hand-rolled `<table>` to `DataTable` (so it gets the shared search + sort).
 
-Cada flag passa a ter um **`reason`** legível (ex.: "Receita caiu 12,4% (€340 → €298)") guardado no resultado, para que o histórico possa explicá-la.
+## 5. Review and amend dashboards & charts
 
-A função `computeRisk` passa a devolver, além de `flags`, um array `flagDetails: { flag, label, points, reason }[]` com a razão calculada a partir dos snapshots.
+- **Tendência mensal** (line chart on `/`): tighten the legend (drop the duplicated "ano anterior" lines if no prior year data exists), align Y-axis tick formatting, add a short caption noting the selected period range. Respect the new period selector.
+- **Distribuição de saúde** (stacked bar on `/`): switch to absolute counts AND a small "% Alto" annotation per month so users see both volume and proportion. Cut the chart at the selected period.
+- **Distribuição por estado** (donut on `/`): show centre total ("N clubes") and percentages in the tooltip; ensure colours match the legend chips already shown (Ativo / Em churn / Fechado / Possível churn).
+- **Evolução positiva**: keep the four positive cards but add a tiny delta arrow next to each value vs the previous month for context.
+- **Sparklines** on `/at-risk`: standardize colour to match the risk tone, add `aria-label` for accessibility, and align the "últimos 6 meses" caption styling.
+- **Risk-score variation list** in the club drawer (already added in a previous step): no behaviour change, just the new shared `<ScoreDelta>` styling.
+- Audit Recharts containers to use a consistent margin (`{ top: 6, right: 16, bottom: 0, left: 4 }`) and `CartesianGrid` colour token.
 
-## Mudanças no histórico (`src/routes/clubs.tsx`)
+## 6. Customer Success → sub-menu with Tasks and History
 
-`scoreChangeEvents` passa a também devolver, para cada variação, o **conjunto de razões**: comparando os `flagDetails` do mês com os do mês anterior, identificamos:
+The existing `/cs` route uses an in-page tab to switch between "Contactos" and "Histórico". We'll surface them as proper sub-pages:
 
-- **Flags adicionadas** → "Receita caiu 12% vs mês anterior"
-- **Flags resolvidas** → "Recuperação: jogos voltaram a subir"
-- **Variação CS** (se o `csModifier` mudou) → "Outcome CS: má relação (+25)"
+- Convert `/cs` into a layout route: `src/routes/cs.tsx` becomes a thin wrapper with a header + a sub-nav (Tasks · História) + `<Outlet />`.
+- Move the contacts/tasks view into `src/routes/cs.tasks.tsx` (path `/cs/tasks`) and the history view into `src/routes/cs.history.tsx` (path `/cs/history`).
+- `/cs` redirects to `/cs/tasks` (default landing).
+- Sidebar item "Customer Success" stays pointing to `/cs`; when on a CS sub-route it stays highlighted. The sub-nav lives inside the page (pill-style, same look as a small tabs row).
+- The History page gets a more prominent header and the standardized DataTable toolbar (search + per-column filters + sortable everywhere), so it no longer feels hidden.
 
-`ClubHistoryPanel` (a lista de eventos no dropdown da `/clubs`) e `ScoreVariationSection` (no drawer) renderizam essas razões por baixo da linha "▲ X pts · old → new", em bullets pequenos cinza.
+## Technical details
 
-```text
-SCORE   Variação em março de 2026               01/04/2026
-▲ 10 pts · 20 → 30
-  • Receita caiu 14% (€325 → €279)
-  • GMV caiu 6% vs fevereiro
-```
+- New search-param schema on `/clubs`:
+  ```ts
+  validateSearch: (s) => ({ tenant: typeof s.tenant === "string" ? s.tenant : undefined })
+  ```
+  Drawer effect: `useEffect(() => { if (search.tenant) setDrawerTenant(search.tenant); }, [search.tenant])`. Closing the drawer calls `navigate({ to: "/clubs", search: {} })`.
+- `<ClubLink>` lives in `src/components/ClubLink.tsx` and is the single source of truth for in-app navigation to a club profile.
+- The CS route split requires:
+  - keeping `src/routes/cs.tsx` as the layout (renders sub-nav + `<Outlet />`).
+  - extracting the current tasks state/handlers into `cs.tasks.tsx` and history rendering into `cs.history.tsx`. Shared helpers (loaders, generators, type defs) move to `src/lib/cs-page.ts` so both children import from one place.
+  - `Route.beforeLoad` on `/cs` redirects to `/cs/tasks` when no child path is matched.
+- DataTable changes are backwards-compatible: existing call sites keep working; the toolbar prop is opt-in but defaulted on for the four main tables.
+- Period selector state lives in `src/routes/index.tsx` local state (default = `periods[0]`); no URL persistence needed.
 
-Quando não há variação (todas as métricas dentro de ±5% e sem tendências), **não é gerado evento** — o histórico fica mais limpo, alinhado com a regra do utilizador.
+## Files to add
+- `src/components/ClubLink.tsx`
+- `src/components/ui/page-header.tsx`
+- `src/lib/cs-page.ts` (shared helpers extracted from current `cs.tsx`)
+- `src/routes/cs.tasks.tsx`
+- `src/routes/cs.history.tsx`
 
-## Impacto noutros locais
+## Files to edit
+- `src/components/DataTable.tsx` (toolbar, sortable default)
+- `src/routes/index.tsx` (period selector, remove Radar, club links, chart polish, Atividade CS as DataTable)
+- `src/routes/clubs.tsx` (read `?tenant=`, sync drawer to URL)
+- `src/routes/cs.tsx` (becomes layout + sub-nav, redirect to `/cs/tasks`)
+- `src/routes/at-risk.tsx` (card link → `/clubs?tenant=`, shared search input)
 
-- `/cs` (geração de tarefas semanais): continua a usar `computeRiskWithCS` mas a lista de flags muda. Os labels apresentados (`FLAG_META[f].label`) e textos de CTA (`FLAG_CTA[f]`) são atualizados para as novas flags. Tarefas pendentes geradas com flags antigas continuam válidas (o campo `flags` é `text[]` na BD); apenas deixarão de ser regeradas com nomes antigos.
-- `/at-risk`, `/index` (Dashboard): consomem `computeRiskWithCS` — funcionam sem alterações, scores ficam mais estáveis.
-- `tenant.$name`: idem.
-
-## Ficheiros a editar
-
-- `src/lib/risk.ts` — novas flags com regra de 5% / 4-meses, função produz `flagDetails` com `reason` calculada.
-- `src/routes/clubs.tsx` — `scoreChangeEvents` devolve `reasons[]`; `ClubHistoryPanel` e `ScoreVariationSection` mostram-nas.
-- `src/routes/cs.tsx` — atualizar `FLAG_CTA` map para as novas flags (reason + cta em PT).
-
-## Notas
-
-- Não há migração de BD: as flags são calculadas em runtime a partir de `tenant_snapshots`.
-- Histórico anterior ao deploy é recalculado retroativamente com as novas regras (o histórico exibido é derivado, não armazenado).
+## Out of scope
+- No DB schema changes.
+- The standalone `/tenant/$name` route stays as a fallback URL but is no longer linked from the UI.

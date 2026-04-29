@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ClubLink } from "@/components/ClubLink";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -37,6 +38,9 @@ import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/form
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 
 export const Route = createFileRoute("/clubs")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    tenant: typeof s.tenant === "string" ? s.tenant : undefined,
+  }),
   component: ClubsPage,
 });
 
@@ -74,6 +78,19 @@ function ClubsPage() {
   const [loading, setLoading] = useState(true);
 
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const search = useSearch({ from: "/clubs" });
+
+  // Sync ?tenant=… search param into the drawer
+  useEffect(() => {
+    if (search.tenant) setDrawerTenant(search.tenant);
+    else setDrawerTenant(null);
+  }, [search.tenant]);
+
+  const closeDrawer = () => {
+    navigate({ to: "/clubs", search: { tenant: undefined } });
+  };
+
   const [exportOpen, setExportOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<string | null>(null);
   const [expandedTenant, setExpandedTenant] = useState<string | null>(null);
@@ -268,7 +285,7 @@ function ClubsPage() {
               filter: { kind: "text" },
               render: (r) => (
                 <>
-                  <button onClick={(e) => { e.stopPropagation(); setDrawerTenant(r.name); }} className="font-medium hover:underline text-left">{r.name}</button>
+                  <ClubLink name={r.name} />
                   {r.isNew && (
                     <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase font-semibold text-success bg-success/10 px-1.5 py-0.5 rounded-full">
                       <Sparkles className="h-2.5 w-2.5" /> Novo
@@ -364,11 +381,11 @@ function ClubsPage() {
         />
       </section>
 
-      {drawerTenant && (
+      {drawerTenant && rows.find((r) => r.name === drawerTenant) && (
         <ClubDrawer
           tenant={drawerTenant}
           row={rows.find((r) => r.name === drawerTenant)!}
-          onClose={() => setDrawerTenant(null)}
+          onClose={closeDrawer}
           onChanged={loadAll}
         />
       )}

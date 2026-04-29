@@ -12,6 +12,7 @@ import {
 import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
 import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
+import { ClubLink } from "@/components/ClubLink";
 import { Activity, AlertTriangle, Building2, Euro, Sparkles, TrendingDown, Upload } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -39,6 +40,7 @@ function DashboardPage() {
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
@@ -56,8 +58,17 @@ function DashboardPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const latestPeriod = periods[0];
-  const previousPeriod = periods[1] ?? null;
+  // Default selected period to the latest available, but allow the user to change it.
+  useEffect(() => {
+    if (periods.length > 0 && !selectedPeriod) setSelectedPeriod(periods[0]);
+  }, [periods, selectedPeriod]);
+
+  const latestPeriod = selectedPeriod || periods[0];
+  const previousPeriod = useMemo(() => {
+    if (!latestPeriod) return null;
+    const idx = periods.indexOf(latestPeriod);
+    return idx >= 0 && idx + 1 < periods.length ? periods[idx + 1] : null;
+  }, [periods, latestPeriod]);
   const weekStart = useMemo(() => currentWeekStart(), []);
 
   const tenantHistory = useMemo(() => {
@@ -94,17 +105,22 @@ function DashboardPage() {
     [snapshots, excluded],
   );
 
-  // Per-tenant aggregate with score + previous-month score
+  // Per-tenant aggregate as of the SELECTED period (history truncated to <= selected,
+  // statuses filtered by recorded_at <= end of selected month).
   const clubs: ClubAgg[] = useMemo(() => {
     const list: ClubAgg[] = [];
+    if (!latestPeriod) return list;
+    const cutoff = `${latestPeriod.slice(0, 7)}-31T23:59:59Z`;
     for (const [name, hist] of tenantHistory) {
-      const sorted = [...hist].sort((a, b) => a.period.localeCompare(b.period));
-      const sts = tenantStatuses.get(name) ?? [];
+      const sortedAll = [...hist].sort((a, b) => a.period.localeCompare(b.period));
+      const sorted = sortedAll.filter((s) => s.period <= latestPeriod);
+      if (sorted.length === 0) continue; // tenant didn't exist yet at this period
+      const stsAll = tenantStatuses.get(name) ?? [];
+      const sts = stsAll.filter((s) => !s.recorded_at || s.recorded_at <= cutoff);
       const tks = tasksByTenant.get(name) ?? [];
       const risk = computeRiskWithCS(sorted, sts);
       const status = currentClubStatus(sts);
       const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
-      // Previous-month score (slice off the latest period and recompute)
       const latest = sorted[sorted.length - 1] ?? null;
       let prevScore: number | null = null;
       let prevLevel: "high" | "medium" | "healthy" | null = null;
@@ -112,8 +128,8 @@ function DashboardPage() {
       if (latest && sorted.length >= 2) {
         const prevSlice = sorted.slice(0, -1);
         prevSnapshot = prevSlice[prevSlice.length - 1] ?? null;
-        const cutoff = `${prevSnapshot?.period.slice(0, 7) ?? ""}-31T23:59:59Z`;
-        const filteredSts = sts.filter((s) => !s.recorded_at || s.recorded_at <= cutoff);
+        const prevCutoff = `${prevSnapshot?.period.slice(0, 7) ?? ""}-31T23:59:59Z`;
+        const filteredSts = sts.filter((s) => !s.recorded_at || s.recorded_at <= prevCutoff);
         const prevRisk = computeRiskWithCS(prevSlice, filteredSts);
         prevScore = prevRisk.score;
         prevLevel = prevRisk.level;
@@ -134,7 +150,7 @@ function DashboardPage() {
       });
     }
     return list;
-  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart]);
+  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart, latestPeriod]);
 
   // KPIs
   const kpis = useMemo(() => {
@@ -165,6 +181,8 @@ function DashboardPage() {
   const monthlySeries = useMemo(() => {
     const byPeriod = new Map<string, { games: number; gmv: number; revenue: number }>();
     includedSnapshots.forEach((s) => {
+      // Truncate the chart at the selected period
+      if (latestPeriod && s.period > latestPeriod) return;
       const cur = byPeriod.get(s.period) ?? { games: 0, gmv: 0, revenue: 0 };
       cur.games += Number(s.games_online ?? 0);
       cur.gmv += Number(s.gmv_all ?? 0);
@@ -193,7 +211,7 @@ function DashboardPage() {
         revenuePrev: prior?.revenue ?? null,
       };
     });
-  }, [includedSnapshots]);
+  }, [includedSnapshots, latestPeriod]);
 
   // YoY comparison row
   const yoyRow = useMemo(() => {
@@ -210,7 +228,9 @@ function DashboardPage() {
 
   // Health distribution per month — count ALL clubs in that period
   const healthByMonth = useMemo(() => {
-    const periodsAsc = [...new Set(includedSnapshots.map((s) => s.period))].sort();
+    const periodsAsc = [...new Set(includedSnapshots.map((s) => s.period))]
+      .filter((p) => !latestPeriod || p <= latestPeriod)
+      .sort();
     return periodsAsc.map((p) => {
       // All non-excluded tenants present in this exact month.
       const tenantsThatMonth = new Set(
@@ -235,7 +255,7 @@ function DashboardPage() {
         total: healthy + medium + high,
       };
     });
-  }, [includedSnapshots, tenantHistory, tenantStatuses]);
+  }, [includedSnapshots, tenantHistory, tenantStatuses, latestPeriod]);
 
   // Positive metrics
   const positives = useMemo(() => {
@@ -265,10 +285,7 @@ function DashboardPage() {
       .filter((s) => s.value > 0);
   }, [clubs]);
 
-  // Top 10 at-risk
-  const topRisk = useMemo(() => {
-    return clubs.filter((c) => c.status !== "churned" && c.status !== "closed");
-  }, [clubs]);
+  // (Radar de Risco was removed — full at-risk view lives at /at-risk and the full club table at /clubs.)
 
   // Recent CS activity (last 10)
   const recentActivity = useMemo(() => {
@@ -297,77 +314,28 @@ function DashboardPage() {
     );
   }
 
-  // Top-risk table columns
-  const radarColumns: ColumnDef<ClubAgg>[] = [
-    {
-      key: "name",
-      header: "Clube",
-      sortValue: (r) => r.name,
-      filterValue: (r) => r.name,
-      filter: { kind: "text" },
-      render: (r) => <Link to="/clubs" className="font-medium hover:underline">{r.name}</Link>,
-    },
-    {
-      key: "score",
-      header: "Saúde",
-      align: "center",
-      sortValue: (r) => r.score,
-      filter: { kind: "select", options: [
-        { value: "high", label: "Alto" },
-        { value: "medium", label: "Médio" },
-        { value: "healthy", label: "Saudável" },
-      ]},
-      filterValue: (r) => r.level,
-      render: (r) => (
-        <div className="inline-flex items-center gap-1.5">
-          <ScoreBadge score={r.score} level={r.level} />
-          <ScoreDelta delta={r.scoreDelta} />
-        </div>
-      ),
-    },
-    {
-      key: "flags",
-      header: "Sinalizações",
-      sortValue: (r) => r.flags.length,
-      render: (r) => (
-        <div className="flex flex-wrap gap-1">
-          {r.flags.map((f) => (
-            <span key={f} className="text-[10px] rounded-full bg-surface border border-border px-1.5 py-0.5">
-              {FLAG_META[f as keyof typeof FLAG_META]?.label ?? f}
-            </span>
-          ))}
-          {r.flags.length === 0 && <span className="text-xs text-muted-foreground">—</span>}
-        </div>
-      ),
-    },
-    {
-      key: "lastContact",
-      header: "Último contacto CS",
-      sortValue: (r) => r.lastContact ?? "",
-      render: (r) => (
-        <span className="text-xs text-muted-foreground">
-          {r.lastContact ? new Date(r.lastContact).toLocaleDateString("pt-PT") : "Nunca"}
-        </span>
-      ),
-    },
-    {
-      key: "pending",
-      header: "Pendentes",
-      align: "center",
-      sortValue: (r) => r.pending,
-      render: (r) => (
-        r.pending > 0 ? (
-          <span className="inline-flex items-center justify-center rounded-full bg-warning/15 text-warning px-2 py-0.5 text-xs font-medium">{r.pending}</span>
-        ) : <span className="text-success">✓</span>
-      ),
-    },
-  ];
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1500px] mx-auto">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Centro de comando para prevenção de churn — {periodLabel(latestPeriod)}</p>
+      <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Visão geral</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Centro de comando para prevenção de churn — {periodLabel(latestPeriod)}
+          </p>
+        </div>
+        <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+          Período
+          <select
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(e.target.value)}
+            className="px-3 h-9 rounded-md border border-border bg-background text-sm min-w-[160px]"
+          >
+            {periods.map((p) => (
+              <option key={p} value={p}>{periodLabel(p)}</option>
+            ))}
+          </select>
+        </label>
       </header>
 
       {/* Row 1 — KPIs */}
@@ -495,22 +463,7 @@ function DashboardPage() {
         </div>
       </section>
 
-      {/* Row 4 — Risk radar */}
-      <section className="rounded-xl border border-border bg-background overflow-hidden mb-6">
-        <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-danger" />
-          <h2 className="text-sm font-semibold">Radar de risco</h2>
-          <span className="text-xs text-muted-foreground ml-auto">{topRisk.length} clubes</span>
-        </div>
-        <DataTable
-          rows={topRisk}
-          columns={radarColumns}
-          rowKey={(r) => r.name}
-          defaultSort={{ key: "score", dir: "desc" }}
-          containerClassName="max-h-[600px]"
-          stickyHeader
-        />
-      </section>
+
 
       {/* Row 5 — Recent CS activity */}
       <section className="rounded-xl border border-border bg-background overflow-hidden">
@@ -531,7 +484,7 @@ function DashboardPage() {
               {recentActivity.map((t) => (
                 <tr key={t.id} className="border-t border-border hover:bg-surface">
                   <td className="px-4 py-2 text-xs text-muted-foreground">{t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : "—"}</td>
-                  <td className="px-4 py-2 font-medium">{t.tenant_name}</td>
+                  <td className="px-4 py-2 font-medium"><ClubLink name={t.tenant_name} /></td>
                   <td className="px-4 py-2"><OutcomeBadge outcome={t.outcome} /></td>
                   <td className="px-4 py-2 text-xs text-muted-foreground truncate max-w-md">{t.reason}</td>
                 </tr>
