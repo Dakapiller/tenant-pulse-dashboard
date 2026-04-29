@@ -316,6 +316,7 @@ function ClubsPage() {
             {
               key: "name",
               header: "Clube",
+              mobilePrimary: true,
               sortValue: (r) => r.name,
               filterValue: (r) => r.name,
               filter: { kind: "text" },
