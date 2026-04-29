@@ -440,7 +440,7 @@ function DashboardPage() {
 
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1500px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 max-w-[1500px] mx-auto">
       <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Visão geral</h1>
