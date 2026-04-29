@@ -756,23 +756,23 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
   const MODS: Record<string, number> = { bad_relationship: 25, good_receptivity: -15, very_satisfied: -30 };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 flex md:justify-end" onMouseDown={onClose}>
       <div className="absolute inset-0 bg-black/40" />
       <div
-        className="relative w-full max-w-3xl h-full bg-background border-l border-border shadow-xl overflow-y-auto"
+        className="relative w-full md:max-w-3xl h-full bg-background md:border-l border-border shadow-xl overflow-y-auto animate-in slide-in-from-bottom md:slide-in-from-right duration-200"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-background border-b border-border px-6 py-4 flex items-center justify-between z-10">
-          <div>
-            <h2 className="text-lg font-semibold">{tenant}</h2>
-            <div className="flex items-center gap-2 mt-1">
+        <div className="sticky top-0 bg-background border-b border-border px-4 sm:px-6 py-4 flex items-center justify-between z-10">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold truncate">{tenant}</h2>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <ClubStatusBadge status={row.status} competitor={row.competitor} />
               <Link to="/tenant/$name" params={{ name: tenant }} className="text-xs text-muted-foreground hover:text-foreground underline">
                 Abrir página completa
               </Link>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded hover:bg-surface" aria-label="Fechar"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="shrink-0 ml-2 inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface" aria-label="Fechar"><X className="h-5 w-5" /></button>
         </div>
 
         <div className="p-6 space-y-6">
