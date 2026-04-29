@@ -84,17 +84,17 @@
   --sidebar-bg: oklch(1 0 0);                 /* white sidebar */
   --foreground: oklch(0.21 0.034 264);        /* slate-900 */
 
-  /* Brand & status — mapped to requested hex values */
-  --primary: oklch(0.546 0.245 262.881);      /* #2563EB blue-600 */
+  /* Brand & status — mapped to requested hex values (in-gamut oklch) */
+  --primary: oklch(0.546 0.215 262.88);       /* #2563EB blue-600 */
   --primary-foreground: oklch(1 0 0);
-  --danger: oklch(0.577 0.245 27.325);        /* #DC2626 red-600 */
-  --success: oklch(0.627 0.194 149.214);      /* #16A34A green-600 */
-  --warning: oklch(0.681 0.162 75.834);       /* #D97706 amber-600 */
+  --danger: oklch(0.577 0.214 27.3);          /* #DC2626 red-600 */
+  --success: oklch(0.627 0.184 149.2);        /* #16A34A green-600 */
+  --warning: oklch(0.681 0.156 51.6);         /* #D97706 amber-600 */
 
   /* Neutrals */
   --border: oklch(0.929 0.013 255);           /* #E2E8F0 slate-200 */
   --input: oklch(0.929 0.013 255);
-  --ring: oklch(0.546 0.245 262.881);         /* focus ring = primary */
+  --ring: oklch(0.546 0.215 262.88);          /* focus ring = primary */
   --muted: oklch(0.968 0.007 247);            /* slate-100 */
   --muted-foreground: oklch(0.554 0.046 257); /* slate-500 */
   --accent: oklch(0.968 0.007 247);
@@ -110,20 +110,20 @@
   --destructive: oklch(0.577 0.232 27.5);
   --destructive-foreground: oklch(1 0 0);
 
-  --chart-1: oklch(0.546 0.245 262.881);
-  --chart-2: oklch(0.605 0.165 149.6);
-  --chart-3: oklch(0.659 0.169 50.8);
-  --chart-4: oklch(0.577 0.232 27.5);
+  --chart-1: oklch(0.546 0.215 262.88);
+  --chart-2: oklch(0.627 0.184 149.2);
+  --chart-3: oklch(0.681 0.156 51.6);
+  --chart-4: oklch(0.577 0.214 27.3);
   --chart-5: oklch(0.554 0.046 257);
 
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.21 0.034 264);
-  --sidebar-primary: oklch(0.546 0.245 262.881);
+  --sidebar-primary: oklch(0.546 0.215 262.88);
   --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: oklch(0.968 0.007 247);
   --sidebar-accent-foreground: oklch(0.21 0.034 264);
   --sidebar-border: oklch(0.929 0.013 255);
-  --sidebar-ring: oklch(0.546 0.245 262.881);
+  --sidebar-ring: oklch(0.546 0.215 262.88);
 }
 
 .dark {
@@ -199,32 +199,48 @@
  * still work; new code should prefer .btn-primary etc.
  */
 @layer components {
-  .btn-base {
+  /*
+   * NOTE: Tailwind v4 does not allow @apply to reference other custom
+   * component classes (e.g. `@apply btn-base`). Each class below inlines
+   * its base utilities directly.
+   */
+  .btn-primary {
     @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium
            transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-ring
-           disabled:opacity-50 disabled:pointer-events-none;
-  }
-  .btn-primary {
-    @apply btn-base px-4 py-2 text-sm bg-primary text-primary-foreground hover:opacity-90;
+           disabled:opacity-50 disabled:pointer-events-none
+           px-4 py-2 text-sm bg-primary text-primary-foreground hover:opacity-90;
   }
   .btn-secondary {
-    @apply btn-base px-4 py-2 text-sm bg-surface text-foreground border border-border hover:bg-muted;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium
+           transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-ring
+           disabled:opacity-50 disabled:pointer-events-none
+           px-4 py-2 text-sm bg-surface text-foreground border border-border hover:bg-muted;
   }
   .btn-danger {
-    @apply btn-base px-4 py-2 text-sm bg-danger text-white hover:opacity-90;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium
+           transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-ring
+           disabled:opacity-50 disabled:pointer-events-none
+           px-4 py-2 text-sm bg-danger text-white hover:opacity-90;
   }
   .btn-sm {
     @apply px-3 py-1.5 text-xs;
   }
 
-  .badge-base {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  .badge-risk-high {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-danger/10 text-danger;
   }
-  .badge-risk-high    { @apply badge-base bg-danger/10 text-danger; }
-  .badge-risk-medium  { @apply badge-base bg-warning/15 text-warning; }
-  .badge-risk-healthy { @apply badge-base bg-success/10 text-success; }
-  .badge-info         { @apply badge-base bg-primary/10 text-primary; }
-  .badge-neutral      { @apply badge-base bg-muted text-foreground; }
+  .badge-risk-medium {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-warning/15 text-warning;
+  }
+  .badge-risk-healthy {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-success/10 text-success;
+  }
+  .badge-info {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary;
+  }
+  .badge-neutral {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-muted text-foreground;
+  }
 
   .card-surface {
     @apply bg-surface rounded-lg border border-border shadow-sm;

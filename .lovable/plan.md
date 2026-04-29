@@ -1,114 +1,90 @@
-## Goal
+## Problem
 
-Stop the Customer Success crash, finish the remaining performance gaps, and lock down risk accuracy.
+Two issues, both in `src/styles.css`.
 
----
+### 1. Build error (blocking)
 
-## 1. CS crash — proper sub-route split (no shared mega-component)
+Vite log:
+```
+[vite] Internal server error: Cannot apply unknown utility class `btn-base`
+  Plugin: @tailwindcss/vite:generate:serve
+  File: /dev-server/src/styles.css?direct
+```
 
-Today `/cs/tasks` and `/cs/history` both mount the same `CSPage` component, which fetches **every** snapshot, status, and `cs_tasks` row (via `fetchAllCSTasks` paginated). The History view then renders the full completed list (sliced client-side). That single page is what kills the tab.
+Tailwind v4 does not allow `@apply` to reference another **custom component class** defined in `@layer components`. `.btn-primary`, `.btn-secondary`, `.btn-danger` all do `@apply btn-base ...`, which Tailwind v4 rejects because `btn-base` is not a real utility — only true Tailwind utilities (or `@theme` tokens) are valid inside `@apply`.
 
-I'll revert to a small shared scaffold and give each tab its own data path:
+Same pattern in the badges: `.badge-risk-high` etc. do `@apply badge-base ...`.
 
-**`src/routes/cs.tsx`** — becomes a thin layout only:
-- Renders `<CSSubNav />` + `<Outlet />`. No data fetching, no charts, no rows.
-- `/cs` still redirects to `/cs/tasks`.
-- Move the heavy "Cronologia" timeline section out of this file. It only matters on Tarefas, so it lives in `cs.tasks.tsx` and is loaded lazily after the task list paints (Phase 2 of that page).
+This makes the whole stylesheet fail to compile, so the preview shows an unstyled / broken page.
 
-**`src/routes/cs.tasks.tsx`** — Tarefas (pending only):
-- New helper `fetchPendingCSTasks()` in `src/lib/cs.ts`:
-  ```ts
-  supabase.from("cs_tasks")
-    .select("*")
-    .eq("status", "pending")
-    .order("priority", { ascending: false })
-  ```
-  Paginated via `fetchAllPaged` (pending set is small — typically dozens, not thousands).
-- Phase 0: snapshots + statuses + pending tasks → render the contacts table.
-- Phase 1 (deferred via `setTimeout(0)`): generate weekly tasks if missing (existing `requestIdleCallback` guard kept).
-- Phase 2 (deferred): Cronologia chart data.
-- "Mostrar inativos" toggle stays.
-- No completed-task data is ever fetched here.
+### 2. Primary color wrong (#2563EB rendering as a different blue)
 
-**`src/routes/cs.history.tsx`** — Histórico (server-paginated):
-- New helper `fetchCompletedCSTasksPage(offset, limit)`:
-  ```ts
-  supabase.from("cs_tasks")
-    .select("*")
-    .eq("status", "completed")
-    .not("completed_at", "is", null)
-    .order("completed_at", { ascending: false })
-    .range(offset, offset + limit - 1)
-  ```
-- Initial load: 50 rows. Button "Carregar mais" fetches the next 50 and appends. Track `hasMore` from the returned page size.
-- "Mostrar inativos" still works — it only filters the rows already loaded (excluded set comes from cached statuses, fetched once).
-- No snapshot fetch, no risk computation on this page.
+Current token:
+```css
+--primary: oklch(0.546 0.245 262.881);   /* labelled #2563EB */
+```
 
-**Result**: Tarefas page no longer touches the completed-tasks table at all; Histórico no longer touches snapshots. Switching tabs only re-fetches what that tab needs.
+The chroma `0.245` is **out of sRGB gamut** for this hue. Browsers gamut-map it, producing a blue that is not `#2563EB` (closer to a brighter, more saturated blue — which is why it visually reads like `#007bff` / a different shade). The actual oklch for `#2563EB` is approximately:
 
----
+```
+oklch(54.6% 0.215 262.88)
+```
 
-## 2. Performance — finish the gaps
+Same issue for `--ring`, `--chart-1`, `--sidebar-primary`, `--sidebar-ring` (all use the same overinflated chroma).
 
-**a. Memoize remaining risk computations**
-The dashboard, clubs list, at-risk and CS rows already wrap `computeRisk*` in `useMemo`. The one straggler is `scoreChangeEvents()` in `src/routes/clubs.tsx` (used by the per-row `ClubHistoryPanel`): it walks history and calls `computeRiskWithCS` once per snapshot, called at render, not memoized.
+The status colors have the same issue but to a lesser degree:
+- `--danger` for `#DC2626` ≈ `oklch(57.7% 0.214 27.3)` (not `0.245`)
+- `--success` for `#16A34A` ≈ `oklch(62.7% 0.184 149.2)` (not `0.194`)
+- `--warning` for `#D97706` ≈ `oklch(68.1% 0.156 51.6)` (hue was also wrong: `75.834` is amber-500-ish, `#D97706` is closer to hue `51.6`)
 
-Fix:
-- Wrap in `useMemo(() => scoreChangeEvents(row), [row.history, row.statuses])` inside `ClubHistoryPanel`.
-- Only call when the row is actually expanded (already gated by `expandedTenant`, but the panel currently computes eagerly on mount; the memo + lazy mount keeps it cheap).
+## Fix
 
-**b. Paginate clubs table 50/page** — already wired (`pageSize={50}` on the DataTable in `clubs.tsx`). Verify the footer renders for >50 rows; no code change expected.
+### Edit `src/styles.css`
 
-**c. Dashboard load order KPIs → charts → radar/activity**
-`src/routes/index.tsx` already uses three phases. I'll make the order explicit and prevent the heavy sections from rendering before their data exists:
-- Phase 0: `fetchPeriods()` + `fetchAllCSStatuses()` → KPI shell + period selector.
-- Phase 1 (after Phase 0): `fetchAllSnapshots()` → charts (Tendência mensal, Distribuição saúde) + KPI numbers that need GMV/revenue.
-- Phase 2 (after Phase 1): `fetchAllCSTasks()` → "Evolução positiva", "Atividade CS recente".
-- KPI cards that depend on snapshots (GMV mês, Receita mês, Em risco alto) show a small spinner/skeleton until Phase 1 finishes, instead of showing 0.
+**A. Replace `@apply btn-base` / `@apply badge-base` with the underlying utilities (no nested custom classes).**
 
-**d. Debounce search inputs 300ms**
-- `at-risk.tsx` already debounced (`useDebouncedValue`).
-- `DataTable.tsx` uses an explicit "Procurar" button (commit-on-Enter), so no live filter — no debounce needed.
-- Add the same `useDebouncedValue` to the new Histórico's optional client-side filter (if added — currently planned to keep it simple, no live search box, just paginate).
+Rewrite the `@layer components` block so `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.badge-risk-*`, `.badge-info`, `.badge-neutral` each inline the shared utilities directly. Keep `.btn-sm`, `.card-surface`, `.bottom-nav-item` as-is. Remove the now-unused `.btn-base` and `.badge-base` declarations (or, if we want to keep them as documentation, define them as plain CSS with raw properties — not via `@apply` of a non-utility).
 
-**e. Audit useEffect dependency arrays**
-- `src/routes/cs.tsx` (becoming layout): no effects.
-- `src/routes/cs.tasks.tsx` and `cs.history.tsx`: written fresh, deps are explicit.
-- `src/routes/index.tsx`: phase-1 effect depends on `loading`; phase-2 on `snapshotsLoaded`; period-default effect on `[periods, selectedPeriod]` ✅.
-- `src/routes/clubs.tsx`: mount-only `loadAll()` is fine; the search-param sync depends on `[search.tenant]` ✅.
-- `src/routes/at-risk.tsx`: mount-only ✅.
+Concretely, each button becomes:
+```css
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium
+         transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-ring
+         disabled:opacity-50 disabled:pointer-events-none
+         px-4 py-2 text-sm bg-primary text-primary-foreground hover:opacity-90;
+}
+```
+…and likewise for `.btn-secondary`, `.btn-danger`, `.badge-risk-high`, etc.
 
-No infinite-loop suspects. Will keep the existing `// eslint-disable-next-line react-hooks/exhaustive-deps` only on the intentional mount-only effects.
+This resolves the Tailwind v4 build failure.
 
----
+**B. Correct the oklch values so they actually equal the requested hex.**
 
-## 3. Accuracy — never cap snapshot history
+In `:root`:
+```css
+--primary: oklch(0.546 0.215 262.88);     /* #2563EB */
+--ring:    oklch(0.546 0.215 262.88);
+--danger:  oklch(0.577 0.214 27.3);       /* #DC2626 */
+--success: oklch(0.627 0.184 149.2);      /* #16A34A */
+--warning: oklch(0.681 0.156 51.6);       /* #D97706 */
+--chart-1: oklch(0.546 0.215 262.88);
+--sidebar-primary: oklch(0.546 0.215 262.88);
+--sidebar-ring:    oklch(0.546 0.215 262.88);
+```
 
-Confirmed by reading `src/lib/data.ts`: `fetchAllSnapshots` and `fetchSnapshotsForTenant` both use full pagination via `fetchAllPaged`, no `.limit()`. The risk engine (`computeRiskWithCS` and `riskWithDelta`) operates on the full passed-in history.
+Leave `.dark` overrides as-is (they're a designed-darker variant, not a hex match).
 
-Guardrails I will add:
-- Code comment at the top of `data.ts` and inside `riskWithDelta` saying "do NOT add `.limit()` on `tenant_snapshots` — risk depends on full history".
-- The Cronologia chart's "last 24 months" cap stays — it's a display cap on the **already-computed** series, not on the data fetch.
-- The Dashboard's `healthByMonth` 12-month cap also stays — same story, display only.
+### Vite cache
 
----
+Tailwind v4's Vite plugin recompiles on file save and the error above is a parse-time failure, not a stale-cache issue — once `styles.css` parses cleanly, the preview recovers on its own. No manual cache wipe needed. If the preview still shows stale CSS after the fix, a single restart of the dev server is enough; we won't delete `node_modules/.vite` unless the error persists after the edit.
 
-## Files I'll touch
+## Verification
 
-- `src/lib/cs.ts` — add `fetchPendingCSTasks`, `fetchCompletedCSTasksPage`. Keep `fetchAllCSTasks` (still used by Dashboard for "Atividade CS recente" / "positives").
-- `src/lib/data.ts` — add a comment guard, no behavior change.
-- `src/routes/cs.tsx` — slim down to layout-only (`<CSSubNav /> + <Outlet />`), keep redirect.
-- `src/routes/cs.tasks.tsx` — own page: pending tasks + cronologia + weekly-task generator.
-- `src/routes/cs.history.tsx` — own page: server-paginated completed tasks with "Carregar mais".
-- `src/routes/clubs.tsx` — memoize `scoreChangeEvents` inside `ClubHistoryPanel`.
-- `src/routes/index.tsx` — make KPI cards skeleton until Phase 1 data lands; tighten phase comments.
-
-No DB migrations. No schema changes.
-
----
+After the edit:
+1. `tail` the dev-server log and confirm no `Cannot apply unknown utility class` errors.
+2. Inspect `--primary` in the preview's computed styles — `oklch(0.546 0.215 262.88)` should resolve to `rgb(37, 99, 235)` (= `#2563EB`).
+3. Spot-check a `.btn-primary` and a `.badge-risk-high` render with the correct colors.
 
 ## Out of scope
 
-- Reworking the risk engine itself.
-- Adding a cs_tasks index — Postgres already handles `status='pending'` and `completed_at desc` efficiently for the volumes here.
-- Changing the Cronologia chart's data shape.
+No changes to data, routes, queries, risk calculations, or any component file. CSS-only fix in `src/styles.css`.
