@@ -339,6 +339,8 @@ function ClubsPage() {
             {
               key: "score",
               header: "Saúde",
+              mobileSecondary: true,
+              mobileLabel: "Saúde",
               align: "center",
               sortValue: (r) => r.score,
               filter: { kind: "select", options: [
