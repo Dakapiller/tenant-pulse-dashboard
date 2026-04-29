@@ -705,8 +705,31 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
   }));
   const events = [...taskEvents, ...statusEvents, ...scoreEvents].sort((a, b) => b.at.localeCompare(a.at));
 
+  const pendingTasks = row.tasks.filter((t) => t.status === "pending");
+
   return (
-    <div className="rounded-md border border-border bg-background p-3">
+    <div className="rounded-md border border-border bg-background p-3 space-y-3">
+      {pendingTasks.length > 0 && (
+        <div className="rounded-md border border-warning/40 bg-warning/5 p-3">
+          <div className="text-[11px] uppercase tracking-wide text-warning font-semibold mb-2">
+            Tarefas pendentes · {pendingTasks.length}
+          </div>
+          <ul className="space-y-2">
+            {pendingTasks.map((t) => {
+              const isOverdue = t.week_start < (row.tasks[0] ? "" : "") || false;
+              return (
+                <li key={t.id} className="text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{t.reason}</span>
+                    <span className="text-muted-foreground tabular-nums shrink-0">{t.week_start}</span>
+                  </div>
+                  <div className="text-muted-foreground mt-0.5">CTA: {t.cta}</div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
       {events.length === 0 ? (
         <div className="text-xs text-muted-foreground">Sem histórico registado.</div>
       ) : (
