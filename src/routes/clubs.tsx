@@ -303,7 +303,7 @@ function ClubsPage() {
           containerClassName="max-h-[700px]"
           rowClassName={(r) => expandedTenant === r.name ? "bg-surface/40" : r.isNew ? "bg-success/5" : r.missingFromLatest ? "bg-warning/5" : ""}
           onRowClick={(r) => setExpandedTenant(expandedTenant === r.name ? null : r.name)}
-          expandedRow={(r) => expandedTenant === r.name ? <ClubHistoryPanel row={r} /> : null}
+          expandedRow={(r) => expandedTenant === r.name ? <ClubHistoryPanel row={r} onChanged={loadAll} /> : null}
           emptyMessage="Sem clubes."
           selectable
           selectedKeys={selectedKeys}
