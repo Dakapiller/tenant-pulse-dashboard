@@ -317,7 +317,7 @@ export function DataTable<T>({
                         >
                           <button
                             onClick={() => setOpenFilter(openFilter === col.key ? null : col.key)}
-                            className={`p-0.5 rounded hover:bg-background ${filterActive ? "text-foreground" : "opacity-40 hover:opacity-100"}`}
+                            className={`p-0.5 rounded transition-colors duration-150 hover:bg-muted ${filterActive ? "text-primary" : "opacity-40 hover:opacity-100"}`}
                             type="button"
                             aria-label="Filtrar"
                           >
