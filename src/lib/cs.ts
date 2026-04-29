@@ -216,6 +216,33 @@ export async function insertCSTasks(tasks: Omit<CSTask, "id" | "created_at" | "c
   if (error) throw error;
 }
 
+/** Insert a single manually-created CS task. Tagged with flag 'manual' to
+ *  distinguish from auto-generated tasks. */
+export async function insertManualCSTask(input: {
+  tenant: string;
+  reason: string;
+  cta: string;
+  priority: number;
+  weekStart: string;
+}): Promise<void> {
+  const reason = input.reason.trim();
+  const cta = input.cta.trim();
+  if (!input.tenant) throw new Error("Clube obrigatório.");
+  if (reason.length === 0 || reason.length > 500) throw new Error("Razão entre 1 e 500 caracteres.");
+  if (cta.length === 0 || cta.length > 200) throw new Error("CTA entre 1 e 200 caracteres.");
+  if (![30, 60, 90].includes(input.priority)) throw new Error("Prioridade inválida.");
+  const { error } = await supabase.from("cs_tasks").insert({
+    tenant_name: input.tenant,
+    reason,
+    cta,
+    priority: input.priority,
+    flags: ["manual"],
+    week_start: input.weekStart,
+    status: "pending",
+  } as never);
+  if (error) throw error;
+}
+
 export async function completeCSTask(taskId: string, tenant: string, outcome: string, note: string | null): Promise<void> {
   const { error: e1 } = await supabase
     .from("cs_tasks")
