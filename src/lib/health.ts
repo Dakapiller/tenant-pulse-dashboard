@@ -295,17 +295,34 @@ export async function applyUploadScoreChanges(
       isNew: d.isNew,
     });
 
-    // Rule 2 → also auto-generate a CS task (Rule 1 doesn't generate one).
+    // Rule 2 → also auto-generate / merge a CS task (Rule 1 doesn't generate one).
     if (!d.isNew && d.taskCta && d.taskPriority !== null && d.reason) {
-      // Skip if an identical task already exists for this week.
+      // Look for ANY existing pending task for this club + week — we merge into
+      // it rather than ever creating a duplicate.
       const { data: existing } = await supabase
         .from("cs_tasks")
-        .select("id")
+        .select("id, reason, cta, flags, priority")
         .eq("tenant_name", tenant)
         .eq("week_start", weekStart)
-        .eq("reason", d.reason)
+        .eq("status", "pending")
+        .order("created_at", { ascending: true })
         .limit(1);
-      if (!existing || existing.length === 0) {
+      const existingRow = (existing as { id: string; reason: string; cta: string; flags: string[] | null; priority: number }[] | null)?.[0];
+      if (existingRow) {
+        const existingReasons = (existingRow.reason ?? "").split("\n").filter((s) => s.trim().length > 0);
+        if (!existingReasons.includes(d.reason)) {
+          const mergedReason = [...existingReasons, d.reason].join("\n");
+          const existingCtas = (existingRow.cta ?? "").split("\n").filter((s) => s.trim().length > 0);
+          const mergedCta = [...existingCtas, d.taskCta].join("\n");
+          const mergedFlags = [...(existingRow.flags ?? []), `upload_delta:${d.reason}`];
+          const mergedPriority = Math.max(existingRow.priority, d.taskPriority);
+          await supabase
+            .from("cs_tasks")
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .update({ reason: mergedReason, cta: mergedCta, flags: mergedFlags, priority: mergedPriority } as any)
+            .eq("id", existingRow.id);
+        }
+      } else {
         await supabase.from("cs_tasks").insert({
           tenant_name: tenant,
           reason: d.reason,
