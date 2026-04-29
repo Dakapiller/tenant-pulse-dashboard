@@ -95,6 +95,7 @@ export type Database = {
           club_status: string | null
           health_score: number | null
           id: string
+          is_priority: boolean
           note: string | null
           recorded_at: string | null
           relationship_status: string
@@ -105,6 +106,7 @@ export type Database = {
           club_status?: string | null
           health_score?: number | null
           id?: string
+          is_priority?: boolean
           note?: string | null
           recorded_at?: string | null
           relationship_status: string
@@ -115,6 +117,7 @@ export type Database = {
           club_status?: string | null
           health_score?: number | null
           id?: string
+          is_priority?: boolean
           note?: string | null
           recorded_at?: string | null
           relationship_status?: string
