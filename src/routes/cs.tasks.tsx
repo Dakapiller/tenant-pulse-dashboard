@@ -554,9 +554,16 @@ function ExpandedClubPanel({
                 const meta = flag ? FLAG_META[flag] : undefined;
                 return (
                   <li key={i} className="flex items-start gap-2 text-sm">
-                    <span className="text-muted-foreground mt-1">•</span>
+                    <span className={b.isOverdue ? "text-danger mt-1" : "text-muted-foreground mt-1"}>•</span>
                     <div className="min-w-0">
-                      <div className="font-medium">{meta?.label ?? b.reason}</div>
+                      <div className="font-medium flex items-center gap-2 flex-wrap">
+                        <span>{meta?.label ?? b.reason}</span>
+                        {b.isOverdue && (
+                          <span className="inline-flex items-center text-[10px] uppercase font-semibold text-danger bg-danger/10 px-1.5 py-0.5 rounded-full">
+                            Atrasada
+                          </span>
+                        )}
+                      </div>
                       {meta && b.reason && (
                         <div className="text-xs text-muted-foreground mt-0.5">{b.reason}</div>
                       )}
