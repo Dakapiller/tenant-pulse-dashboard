@@ -557,7 +557,7 @@ function scoreChangeEvents(row: ClubRow): ScoreChangeEvent[] {
       // Flags resolved
       const curFlags = new Set(r.flagDetails.map((d) => d.flag));
       prevFlagSet.forEach((f) => {
-        if (!curFlags.has(f)) reasons.push(`Recuperado: ${FLAG_META[f as RiskFlag]?.label ?? f}`);
+        if (!curFlags.has(f as RiskFlag)) reasons.push(`Recuperado: ${FLAG_META[f as RiskFlag]?.label ?? f}`);
       });
       // CS modifier change
       const csMod = r.csModifier ?? 0;
