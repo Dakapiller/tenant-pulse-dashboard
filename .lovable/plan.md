@@ -1,90 +1,52 @@
-## Problem
+## Redesign /cs/history
 
-Two issues, both in `src/styles.css`.
+Rebuild the page to match the original spec while keeping safe server-paginated loading (50/page, completed_at desc, never fetch all at once).
 
-### 1. Build error (blocking)
+### Layout (top → bottom)
 
-Vite log:
-```
-[vite] Internal server error: Cannot apply unknown utility class `btn-base`
-  Plugin: @tailwindcss/vite:generate:serve
-  File: /dev-server/src/styles.css?direct
-```
+1. **Header** — title "Histórico CS" + subtítulo.
+2. **Filters bar** (sticky-ish card):
+   - Date range picker (default: 1º dia do mês atual → hoje). Uses shadcn `Calendar` in `Popover`, range mode, PT-PT locale.
+   - Search input — pesquisar clube (debounced 300ms via `useDebouncedValue`).
+   - Outcome `<Select>` — Todos / Má relação / Boa recetividade / Cliente satisfeito.
+   - Toggle "Mostrar inativos" (mantém comportamento atual).
+3. **Summary cards** (3 cards, grid `md:grid-cols-3`) calculados sobre as tarefas visíveis no período selecionado:
+   - **Total ações** — contagem de tarefas concluídas.
+   - **Clubes contactados** — clubes únicos.
+   - **Resultado mais comum** — outcome com maior contagem (label PT + nº).
+4. **Resultados agrupados por clube**:
+   - Lista de clubes ordenados pela atividade mais recente (último `completed_at` desc).
+   - Cada clube = linha colapsável (`Collapsible` shadcn) mostrando:
+     - Nome do clube (`ClubLink`)
+     - Total de ações no período (`badge`)
+     - Último resultado (badge color-coded: vermelho=Má relação, azul=Boa recetividade, verde=Cliente satisfeito)
+     - Chevron rotativo
+   - Expandido: tabela com colunas **Data · Flag(s) · Resultado · Comentário** (cronológica desc).
+5. **Carregar mais** — botão no fim, só aparece se `hasMore` E não há filtro de data restritivo a período já totalmente carregado. Mensagem informativa quando o range selecionado pode incluir registos ainda não carregados ("Carregar mais para ver registos anteriores a {data}").
 
-Tailwind v4 does not allow `@apply` to reference another **custom component class** defined in `@layer components`. `.btn-primary`, `.btn-secondary`, `.btn-danger` all do `@apply btn-base ...`, which Tailwind v4 rejects because `btn-base` is not a real utility — only true Tailwind utilities (or `@theme` tokens) are valid inside `@apply`.
+### Data flow
 
-Same pattern in the badges: `.badge-risk-high` etc. do `@apply badge-base ...`.
+- Mantém `fetchCompletedCSTasksPage(offset, 50)` — server-side pagination intacto, sem `limit()` em `tenant_snapshots`.
+- Estado: `tasks`, `hasMore`, `loadingMore`, `dateRange`, `search`, `outcome`, `showInactive`.
+- `useMemo` para:
+  - `filtered` (date + search + outcome + inactive)
+  - `groupedByClub` (Map<tenant, tasks[]> ordenado por última atividade)
+  - `summary` (counts derivados de `filtered`)
+- `useDebouncedValue(search, 300)`.
 
-This makes the whole stylesheet fail to compile, so the preview shows an unstyled / broken page.
+### Color-coded outcome badges
 
-### 2. Primary color wrong (#2563EB rendering as a different blue)
+- `bad_relationship` → `bg-danger/10 text-danger` "Má relação"
+- `good_receptivity` → `bg-primary/10 text-primary` "Boa recetividade"
+- `very_satisfied` → `bg-success/10 text-success` "Cliente satisfeito"
 
-Current token:
-```css
---primary: oklch(0.546 0.245 262.881);   /* labelled #2563EB */
-```
+### Files to edit
 
-The chroma `0.245` is **out of sRGB gamut** for this hue. Browsers gamut-map it, producing a blue that is not `#2563EB` (closer to a brighter, more saturated blue — which is why it visually reads like `#007bff` / a different shade). The actual oklch for `#2563EB` is approximately:
+- `src/routes/cs.history.tsx` — rebuild completo conforme acima.
+- (Opcional) pequeno helper em `src/lib/cs.ts` para mapping de cor por outcome — fica inline no ficheiro da rota para evitar churn.
 
-```
-oklch(54.6% 0.215 262.88)
-```
+### Não muda
 
-Same issue for `--ring`, `--chart-1`, `--sidebar-primary`, `--sidebar-ring` (all use the same overinflated chroma).
-
-The status colors have the same issue but to a lesser degree:
-- `--danger` for `#DC2626` ≈ `oklch(57.7% 0.214 27.3)` (not `0.245`)
-- `--success` for `#16A34A` ≈ `oklch(62.7% 0.184 149.2)` (not `0.194`)
-- `--warning` for `#D97706` ≈ `oklch(68.1% 0.156 51.6)` (hue was also wrong: `75.834` is amber-500-ish, `#D97706` is closer to hue `51.6`)
-
-## Fix
-
-### Edit `src/styles.css`
-
-**A. Replace `@apply btn-base` / `@apply badge-base` with the underlying utilities (no nested custom classes).**
-
-Rewrite the `@layer components` block so `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.badge-risk-*`, `.badge-info`, `.badge-neutral` each inline the shared utilities directly. Keep `.btn-sm`, `.card-surface`, `.bottom-nav-item` as-is. Remove the now-unused `.btn-base` and `.badge-base` declarations (or, if we want to keep them as documentation, define them as plain CSS with raw properties — not via `@apply` of a non-utility).
-
-Concretely, each button becomes:
-```css
-.btn-primary {
-  @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium
-         transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-ring
-         disabled:opacity-50 disabled:pointer-events-none
-         px-4 py-2 text-sm bg-primary text-primary-foreground hover:opacity-90;
-}
-```
-…and likewise for `.btn-secondary`, `.btn-danger`, `.badge-risk-high`, etc.
-
-This resolves the Tailwind v4 build failure.
-
-**B. Correct the oklch values so they actually equal the requested hex.**
-
-In `:root`:
-```css
---primary: oklch(0.546 0.215 262.88);     /* #2563EB */
---ring:    oklch(0.546 0.215 262.88);
---danger:  oklch(0.577 0.214 27.3);       /* #DC2626 */
---success: oklch(0.627 0.184 149.2);      /* #16A34A */
---warning: oklch(0.681 0.156 51.6);       /* #D97706 */
---chart-1: oklch(0.546 0.215 262.88);
---sidebar-primary: oklch(0.546 0.215 262.88);
---sidebar-ring:    oklch(0.546 0.215 262.88);
-```
-
-Leave `.dark` overrides as-is (they're a designed-darker variant, not a hex match).
-
-### Vite cache
-
-Tailwind v4's Vite plugin recompiles on file save and the error above is a parse-time failure, not a stale-cache issue — once `styles.css` parses cleanly, the preview recovers on its own. No manual cache wipe needed. If the preview still shows stale CSS after the fix, a single restart of the dev server is enough; we won't delete `node_modules/.vite` unless the error persists after the edit.
-
-## Verification
-
-After the edit:
-1. `tail` the dev-server log and confirm no `Cannot apply unknown utility class` errors.
-2. Inspect `--primary` in the preview's computed styles — `oklch(0.546 0.215 262.88)` should resolve to `rgb(37, 99, 235)` (= `#2563EB`).
-3. Spot-check a `.btn-primary` and a `.badge-risk-high` render with the correct colors.
-
-## Out of scope
-
-No changes to data, routes, queries, risk calculations, or any component file. CSS-only fix in `src/styles.css`.
+- Lógica de queries / risk / `tenant_snapshots`.
+- Pagination contract (50/page server-side).
+- Resto da app.
