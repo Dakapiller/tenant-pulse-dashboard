@@ -165,10 +165,11 @@ function ClubsPage() {
         isNew, firstSeen,
         flagsCurrent: rd.flags.current, flagsAdded: rd.flags.added, flagsResolved: rd.flags.resolved,
         csOutcome: csOut,
+        isPriority: priorityMap.get(name) ?? false,
       });
     }
     return result;
-  }, [snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod, healthScores]);
+  }, [snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod, healthScores, priorityMap]);
 
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
   const newCount = rows.filter((r) => r.isNew).length;
