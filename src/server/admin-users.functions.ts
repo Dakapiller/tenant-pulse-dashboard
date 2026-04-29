@@ -3,8 +3,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
 
-async function assertSuperuser(supabase: ReturnType<typeof supabaseAdmin.from> extends never ? never : any, userId: string) {
-  const { data, error } = await supabase
+async function assertSuperuser(userId: string) {
+  const { data, error } = await supabaseAdmin
     .from("user_profiles")
     .select("role")
     .eq("id", userId)
