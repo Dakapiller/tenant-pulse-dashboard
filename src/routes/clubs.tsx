@@ -33,6 +33,7 @@ import {
   type ClubStatusLog,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META, type RiskFlag } from "@/lib/risk";
+import { fetchHealthScores } from "@/lib/health";
 import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/format";
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 
