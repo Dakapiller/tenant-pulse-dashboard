@@ -12,7 +12,7 @@ import {
   fetchAllCSTasks,
   fetchPriorityMap,
   insertCSTasks,
-  completeCSTask,
+  
   completeCSTasksBatch,
   postponeCSTask,
   currentWeekStart,
