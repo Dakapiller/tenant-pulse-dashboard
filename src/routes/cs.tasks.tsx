@@ -117,7 +117,7 @@ function CSTasksPage() {
         : (cb) => window.setTimeout(cb, 250);
     idle(async () => {
       try {
-        await generateWeeklyTasks(snapshots, statuses, weekStart);
+        await generateWeeklyTasks(snapshots, statuses, healthScores, priorityMap, lastContactMap, weekStart);
         if (!cancelled) {
           const refreshed = await fetchPendingCSTasks();
           if (!cancelled) setPendingTasks(refreshed);
@@ -127,7 +127,7 @@ function CSTasksPage() {
       }
     });
     return () => { cancelled = true; };
-  }, [snapshotsLoaded, snapshots, statuses, pendingTasks, weekStart]);
+  }, [snapshotsLoaded, snapshots, statuses, healthScores, priorityMap, lastContactMap, pendingTasks, weekStart]);
 
   // Per-tenant indices (sorted ascending so downstream skips re-sorting).
   const tenantHistory = useMemo(() => {
