@@ -164,7 +164,7 @@ function ClubsPage() {
       });
     }
     return result;
-  }, [snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod]);
+  }, [snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod, healthScores]);
 
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
   const newCount = rows.filter((r) => r.isNew).length;
