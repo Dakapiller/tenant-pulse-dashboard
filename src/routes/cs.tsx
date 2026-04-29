@@ -51,6 +51,7 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
   const [showInactive, setShowInactive] = useState(false);
 
   const weekStart = useMemo(() => currentWeekStart(), []);
+  const didGenerateRef = useRef(false);
 
   async function loadAll() {
     const [snaps, sts, at] = await Promise.all([
@@ -64,20 +65,41 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
     return { snaps, sts, at };
   }
 
+  async function reloadTasks() {
+    const at = await fetchAllCSTasks();
+    setAllTasks(at);
+    return at;
+  }
+
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const { snaps, sts, at } = await loadAll();
-        // Generate this week's tasks if none yet
-        const wk = at.filter((t) => t.week_start === weekStart);
-        if (wk.length === 0) {
-          await generateWeeklyTasks(snaps, sts, weekStart);
-          await loadAll();
+        if (cancelled) return;
+        // Defer the (potentially heavy) weekly-task generation until after first paint
+        // so the page becomes interactive immediately.
+        const wkExists = at.some((t) => t.week_start === weekStart);
+        if (!wkExists && !didGenerateRef.current) {
+          didGenerateRef.current = true;
+          const idle: (cb: () => void) => void =
+            typeof (window as any).requestIdleCallback === "function"
+              ? (cb) => (window as any).requestIdleCallback(cb, { timeout: 2000 })
+              : (cb) => window.setTimeout(cb, 250);
+          idle(async () => {
+            try {
+              await generateWeeklyTasks(snaps, sts, weekStart);
+              if (!cancelled) await reloadTasks();
+            } catch (err) {
+              console.error("[cs] weekly task generation failed", err);
+            }
+          });
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
