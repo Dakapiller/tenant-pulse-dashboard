@@ -365,19 +365,23 @@ function DashboardPage() {
     });
   }, [includedSnapshots, tenantHistory, tenantStatuses, latestPeriod, healthScores]);
 
-  // Positive metrics
+  // Positive metrics — anchored to the CURRENT calendar month, not the
+  // selected snapshot period. "Improved" means the health score went UP vs
+  // its value at the start of this month (higher score = healthier club).
   const positives = useMemo(() => {
     if (!latestPeriod) return { improved: 0, leftHighRisk: 0, revenueGrew: 0, csImpacted: 0 };
     let improved = 0, leftHighRisk = 0, revenueGrew = 0, csImpacted = 0;
-    const monthStart = new Date(`${latestPeriod}T00:00:00Z`).toISOString();
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
     for (const c of clubs) {
       if (excluded.has(c.name)) continue;
-      if (c.scoreDelta !== null && c.scoreDelta < 0) improved++;
+      if (c.scoreDelta !== null && c.scoreDelta > 0) improved++;
+      // "Saíram de risco alto" = estavam em risco (level "high" = health < 30) e já não estão.
       if (c.prevLevel === "high" && c.level !== "high") leftHighRisk++;
       if (c.latest && c.prevSnapshot && Number(c.latest.revenue ?? 0) > Number(c.prevSnapshot.revenue ?? 0)) revenueGrew++;
       const tks = tasksByTenant.get(c.name) ?? [];
       const completedThisMonth = tks.some((t) => t.status === "completed" && t.completed_at && t.completed_at >= monthStart);
-      if (completedThisMonth && c.scoreDelta !== null && c.scoreDelta < 0) csImpacted++;
+      if (completedThisMonth && c.scoreDelta !== null && c.scoreDelta > 0) csImpacted++;
     }
     return { improved, leftHighRisk, revenueGrew, csImpacted };
   }, [clubs, latestPeriod, tasksByTenant, excluded]);
