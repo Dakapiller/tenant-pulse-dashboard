@@ -84,12 +84,14 @@
   --sidebar-bg: oklch(1 0 0);                 /* white sidebar */
   --foreground: oklch(0.21 0.034 264);        /* slate-900 */
 
-  /* Brand & status — mapped to requested hex values */
-  --primary: oklch(0.546 0.245 262.881);      /* #2563EB blue-600 (Tailwind) */
-  --primary-foreground: oklch(1 0 0);
-  --danger: oklch(0.577 0.232 27.5);          /* #DC2626 red-600 */
-  --success: oklch(0.605 0.165 149.6);        /* #16A34A green-600 */
-  --warning: oklch(0.659 0.169 50.8);         /* #D97706 amber-600 */
+  /* Brand & status — mapped to requested hex values.
+     Using rgb() instead of oklch() to avoid any third-party CSS overriding
+     these tokens with legacy hex/rgb values (observed: #007bff). */
+  --primary: rgb(37, 99, 235);                /* #2563EB blue-600 */
+  --primary-foreground: rgb(255, 255, 255);
+  --danger: rgb(220, 38, 38);                 /* #DC2626 red-600 */
+  --success: rgb(22, 163, 74);                /* #16A34A green-600 */
+  --warning: rgb(217, 119, 6);                /* #D97706 amber-600 */
 
   /* Neutrals */
   --border: oklch(0.929 0.013 255);           /* #E2E8F0 slate-200 */
