@@ -484,7 +484,7 @@ function DashboardPage() {
               {recentActivity.map((t) => (
                 <tr key={t.id} className="border-t border-border hover:bg-surface">
                   <td className="px-4 py-2 text-xs text-muted-foreground">{t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : "—"}</td>
-                  <td className="px-4 py-2 font-medium">{t.tenant_name}</td>
+                  <td className="px-4 py-2 font-medium"><ClubLink name={t.tenant_name} /></td>
                   <td className="px-4 py-2"><OutcomeBadge outcome={t.outcome} /></td>
                   <td className="px-4 py-2 text-xs text-muted-foreground truncate max-w-md">{t.reason}</td>
                 </tr>
