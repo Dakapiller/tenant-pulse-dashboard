@@ -40,6 +40,7 @@ function DashboardPage() {
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
@@ -57,8 +58,17 @@ function DashboardPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const latestPeriod = periods[0];
-  const previousPeriod = periods[1] ?? null;
+  // Default selected period to the latest available, but allow the user to change it.
+  useEffect(() => {
+    if (periods.length > 0 && !selectedPeriod) setSelectedPeriod(periods[0]);
+  }, [periods, selectedPeriod]);
+
+  const latestPeriod = selectedPeriod || periods[0];
+  const previousPeriod = useMemo(() => {
+    if (!latestPeriod) return null;
+    const idx = periods.indexOf(latestPeriod);
+    return idx >= 0 && idx + 1 < periods.length ? periods[idx + 1] : null;
+  }, [periods, latestPeriod]);
   const weekStart = useMemo(() => currentWeekStart(), []);
 
   const tenantHistory = useMemo(() => {
