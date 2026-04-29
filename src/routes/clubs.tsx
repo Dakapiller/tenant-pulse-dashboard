@@ -266,6 +266,7 @@ function ClubsPage() {
           rowKey={(r) => r.name}
           defaultSort={{ key: "name", dir: "asc" }}
           stickyHeader
+          pageSize={50}
           containerClassName="max-h-[700px]"
           rowClassName={(r) => expandedTenant === r.name ? "bg-surface/40" : r.isNew ? "bg-success/5" : r.missingFromLatest ? "bg-warning/5" : ""}
           onRowClick={(r) => setExpandedTenant(expandedTenant === r.name ? null : r.name)}
