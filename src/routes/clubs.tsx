@@ -915,8 +915,34 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
             </div>
           </section>
 
+          {pendingTasks.length > 0 && (
+            <section className="rounded-lg border border-warning/40 bg-warning/5 overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-warning/30 text-sm font-medium text-warning flex items-center justify-between">
+                <span>Tarefas pendentes</span>
+                <span className="text-xs font-normal">{pendingTasks.length}</span>
+              </div>
+              <ul className="divide-y divide-warning/20">
+                {pendingTasks
+                  .slice()
+                  .sort((a, b) => a.week_start.localeCompare(b.week_start))
+                  .map((t) => (
+                    <li key={t.id} className="px-4 py-3 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground tabular-nums">Semana de {t.week_start}</span>
+                        <span className={`text-[10px] uppercase font-semibold rounded-full px-1.5 py-0.5 ${t.priority >= 80 ? "bg-danger/15 text-danger" : t.priority >= 50 ? "bg-warning/15 text-warning" : "bg-surface text-muted-foreground"}`}>
+                          {t.priority >= 80 ? "Alta" : t.priority >= 50 ? "Média" : "Baixa"}
+                        </span>
+                      </div>
+                      <div className="mt-1 font-medium whitespace-pre-line">{t.reason}</div>
+                      <div className="text-muted-foreground mt-0.5 whitespace-pre-line">CTA: {t.cta}</div>
+                    </li>
+                  ))}
+              </ul>
+            </section>
+          )}
+
           <section className="rounded-lg border border-border overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico CS — Tarefas</div>
+            <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico CS — Tarefas concluídas</div>
             {completedTasks.length === 0 ? (
               <div className="p-4 text-xs text-muted-foreground">Sem tarefas registadas.</div>
             ) : (
