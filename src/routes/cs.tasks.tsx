@@ -58,11 +58,27 @@ function CSTasksPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [sts, pending, sc] = await Promise.all([fetchAllCSStatuses(), fetchPendingCSTasks(), fetchHealthScores()]);
+        const [sts, pending, sc, prio, allTasks] = await Promise.all([
+          fetchAllCSStatuses(),
+          fetchPendingCSTasks(),
+          fetchHealthScores(),
+          fetchPriorityMap(),
+          fetchAllCSTasks(),
+        ]);
         if (cancelled) return;
         setStatuses(sts);
         setPendingTasks(pending);
         setHealthScores(sc);
+        setPriorityMap(prio);
+        // Build per-tenant last-contact map from completed tasks.
+        const byTenant = new Map<string, CSTask[]>();
+        allTasks.forEach((t) => {
+          if (!byTenant.has(t.tenant_name)) byTenant.set(t.tenant_name, []);
+          byTenant.get(t.tenant_name)!.push(t);
+        });
+        const lc = new Map<string, string | null>();
+        for (const [name, ts] of byTenant) lc.set(name, lastCompletedActivityAt(ts));
+        setLastContactMap(lc);
       } finally {
         if (!cancelled) setLoading(false);
       }
