@@ -105,19 +105,57 @@ function AtRiskPage() {
         pending: pendingByTenant.get(name) ?? 0,
       });
     }
-    return list.sort((a, b) => a.score - b.score);
+    return list.sort((a, b) => {
+      if (a.score !== b.score) return a.score - b.score;
+      // Tiebreaker: more flags first.
+      return b.flags.length - a.flags.length;
+    });
   }, [tenantHistory, latest, statusByTenant, pendingByTenant, excluded, healthScores]);
+
+  // All currently-active club names (for the manual task dialog picker — not used here, dialog is always pre-filled).
+  const activeClubs = useMemo(() => {
+    const out: string[] = [];
+    for (const [name] of tenantHistory) {
+      if (!excluded.has(name)) out.push(name);
+    }
+    return out.sort();
+  }, [tenantHistory, excluded]);
+
+  const filteredCards = useMemo(
+    () => cards.filter((c) => !debouncedSearch || c.name.toLowerCase().includes(debouncedSearch.toLowerCase())),
+    [cards, debouncedSearch],
+  );
+  const visibleCards = filteredCards.slice(0, TOP_LIMIT);
+  const truncated = filteredCards.length > TOP_LIMIT;
 
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 max-w-[1400px] mx-auto">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Em Risco</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Clubes com health score abaixo de 30, ordenados por gravidade. Os badges abaixo são indicadores informativos e não influenciam o score.
+          Os {TOP_LIMIT} clubes mais críticos com health score abaixo de 30.{" "}
+          {cards.length > TOP_LIMIT && (
+            <>A lista completa fica em <Link to="/clubs" search={{ level: "high" } as never} className="underline hover:text-foreground">Clubes</Link>.</>
+          )}
         </p>
       </header>
+
+      {cards.length > TOP_LIMIT && (
+        <div className="mb-4 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 flex items-start sm:items-center justify-between gap-3 flex-col sm:flex-row">
+          <div className="text-sm">
+            A mostrar <strong>{TOP_LIMIT}</strong> de <strong>{cards.length}</strong> clubes em risco — os mais críticos primeiro.
+          </div>
+          <Link
+            to="/clubs"
+            search={{ level: "high" } as never}
+            className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-3 min-h-9 text-xs font-medium hover:opacity-90 shrink-0"
+          >
+            Ver todos os {cards.length} <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      )}
 
       {cards.length > 0 && (
         <div className="mb-4 relative max-w-md">
@@ -148,12 +186,18 @@ function AtRiskPage() {
           <div className="text-lg font-medium">Nenhum clube em risco</div>
           <div className="text-sm text-muted-foreground mt-1">Todos os clubes têm health score igual ou superior a 30.</div>
         </div>
+      ) : visibleCards.length === 0 ? (
+        <div className="rounded-xl border border-border p-12 text-center">
+          <div className="text-sm text-muted-foreground">
+            Sem resultados nos {TOP_LIMIT} cards visíveis.
+            {cards.length > TOP_LIMIT && (
+              <> Tenta <Link to="/clubs" search={{ q: debouncedSearch } as never} className="underline hover:text-foreground">pesquisar em todos os clubes</Link>.</>
+            )}
+          </div>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {cards
-            .filter((c) => !debouncedSearch || c.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
-            .map((c) => {
-            // All cards here have health < 30 → red tone.
+          {visibleCards.map((c) => {
             const tone = { bar: "bg-danger", text: "text-danger", bg: "bg-danger/5", border: "border-danger/30" };
             return (
               <div key={c.name} className={`rounded-xl border ${tone.border} ${tone.bg} p-5 flex flex-col`}>
@@ -181,7 +225,6 @@ function AtRiskPage() {
                   </span>
                 </div>
 
-                {/* Why */}
                 <div className="mt-4">
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">Porquê</div>
                   <ul className="space-y-1 text-xs">
@@ -194,7 +237,6 @@ function AtRiskPage() {
                   </ul>
                 </div>
 
-                {/* Suggestions */}
                 <div className="mt-3">
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">Sugestões</div>
                   <ul className="space-y-1 text-xs text-muted-foreground">
@@ -217,14 +259,39 @@ function AtRiskPage() {
                 </div>
                 <div className="text-[10px] text-muted-foreground -mt-1 mb-3">Jogos online · últimos 6 meses</div>
 
-                <Link to="/clubs" search={{ tenant: c.name }} className="mt-auto inline-flex items-center justify-between rounded-md bg-foreground text-background px-3 py-2 text-sm font-medium hover:opacity-90">
-                  Ver detalhe <ArrowRight className="h-4 w-4" />
-                </Link>
+                <div className="mt-auto flex gap-2">
+                  <button
+                    onClick={() => setNewTaskTenant(c.name)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-surface"
+                  >
+                    <Plus className="h-4 w-4" /> Tarefa
+                  </button>
+                  <Link
+                    to="/clubs"
+                    search={{ tenant: c.name }}
+                    className="flex-1 inline-flex items-center justify-between rounded-md bg-foreground text-background px-3 py-2 text-sm font-medium hover:opacity-90"
+                  >
+                    Ver detalhe <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
               </div>
             );
           })}
         </div>
       )}
+
+      <NewTaskDialog
+        open={!!newTaskTenant}
+        onClose={() => setNewTaskTenant(null)}
+        tenant={newTaskTenant ?? undefined}
+        activeClubs={activeClubs}
+        onCreated={loadAll}
+      />
     </div>
   );
 }
+
+export const Route = createFileRoute("/at-risk")({
+  component: AtRiskPage,
+});
+
