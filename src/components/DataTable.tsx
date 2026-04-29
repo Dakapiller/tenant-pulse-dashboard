@@ -213,7 +213,7 @@ export function DataTable<T>({
   return (
     <div className="flex flex-col">
       {(searchable || toolbar) && (
-        <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-border bg-background flex-wrap">
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-border bg-surface flex-wrap">
           {searchable && (
             <form
               className="flex items-center gap-2 flex-1 min-w-[220px]"
