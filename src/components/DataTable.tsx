@@ -69,6 +69,9 @@ export function DataTable<T>({
   );
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
+  // Two-state search: `searchInput` is what's typed, `search` is what's actually applied
+  // (committed by clicking "Procurar" or pressing Enter). Matches the rest of the app.
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const filterRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -183,26 +186,44 @@ export function DataTable<T>({
       {(searchable || toolbar) && (
         <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-border bg-background flex-wrap">
           {searchable && (
-            <div className="relative flex-1 min-w-[180px]">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={searchPlaceholder}
-                className="w-full pl-8 pr-8 py-2 text-base sm:text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-foreground/20"
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-surface text-muted-foreground"
-                  aria-label="Limpar pesquisa"
-                  type="button"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
+            <form
+              className="flex items-center gap-2 flex-1 min-w-[220px]"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setSearch(searchInput);
+              }}
+            >
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <input
+                  type="search"
+                  value={searchInput}
+                  onChange={(e) => {
+                    setSearchInput(e.target.value);
+                    if (e.target.value === "") setSearch("");
+                  }}
+                  placeholder={searchPlaceholder}
+                  className="w-full pl-8 pr-8 py-2 text-base sm:text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-foreground/20"
+                />
+                {searchInput && (
+                  <button
+                    onClick={() => { setSearchInput(""); setSearch(""); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-surface text-muted-foreground"
+                    aria-label="Limpar pesquisa"
+                    type="button"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                type="submit"
+                className="shrink-0 inline-flex items-center gap-1.5 px-3.5 h-9 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90"
+              >
+                <Search className="h-3.5 w-3.5" />
+                Procurar
+              </button>
+            </form>
           )}
           {activeFilterCount > 0 && (
             <button

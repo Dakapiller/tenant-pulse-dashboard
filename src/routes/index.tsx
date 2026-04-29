@@ -154,7 +154,16 @@ function DashboardPage() {
 
   // KPIs
   const kpis = useMemo(() => {
-    const activeClubs = clubs.filter((c) => c.status === "active" || c.status === "possible_churn").length;
+    // "Active club" = reported a snapshot in the selected period AND not churned/closed/changed_owner.
+    // Defaulting unmapped tenants to "active" was inflating this number (e.g. 324 vs ~270 real).
+    const activeClubs = clubs.filter((c) => {
+      if (c.status === "churned" || c.status === "closed" || c.status === "changed_owner") return false;
+      if (!c.latest || c.latest.period !== latestPeriod) return false;
+      const games = Number(c.latest.games_online ?? 0);
+      const gmv = Number(c.latest.gmv_all ?? 0);
+      const rev = Number(c.latest.revenue ?? 0);
+      return games > 0 || gmv > 0 || rev > 0;
+    }).length;
     const churnedThisYear = (() => {
       const year = new Date().getUTCFullYear();
       const set = new Set<string>();
@@ -176,6 +185,7 @@ function DashboardPage() {
     })();
     return { activeClubs, churnedThisYear, highRisk, monthGmv, monthRevenue };
   }, [clubs, statuses, includedSnapshots, latestPeriod]);
+  // (latestPeriod intentionally referenced inside activeClubs filter above)
 
   // Monthly trend series — current and prior-year overlay
   const monthlySeries = useMemo(() => {
@@ -346,7 +356,9 @@ function DashboardPage() {
         <KpiCard icon={<Euro className="h-4 w-4" />} label="GMV mês" value={formatEuro(kpis.monthGmv)} />
         <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita mês" value={formatEuro(kpis.monthRevenue)} />
       </section>
-      <p className="text-[11px] text-muted-foreground -mt-3 mb-6">Clubes em churn e fechados excluídos dos cálculos.</p>
+      <p className="text-[11px] text-muted-foreground -mt-3 mb-6">
+        Clubes ativos = clubes com atividade reportada no período selecionado, excluindo churned, fechados e mudança de proprietário.
+      </p>
 
       {/* Row 2 — Charts */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">

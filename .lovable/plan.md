@@ -1,97 +1,80 @@
-## 1. Deep-link to the club profile from any club name
+## Problem with "324 Clubes ativos"
 
-Today the club "profile" lives inside `/clubs` as a side drawer opened by local React state (`setDrawerTenant`). We'll make it deep-linkable so every club name across the app can route to it.
+The KPI counts every tenant that exists in `tenant_snapshots` and is not explicitly marked `churned` or `closed`. Today:
 
-- `/clubs` will read a `?tenant=<name>` search param and, when present, auto-open the existing drawer for that tenant.
-- Add a small helper component `<ClubLink name="…">` that renders a `<Link to="/clubs" search={{ tenant: name }}>`. Closing the drawer clears the search param.
-- Replace every clickable club name across the app with `<ClubLink>`:
-  - `src/routes/index.tsx` — Radar de Risco (will be removed in step 2, but Atividade CS recente keeps a club name → make it a link too).
-  - `src/routes/cs.tsx` — Tasks list, History list, club selector references.
-  - `src/routes/at-risk.tsx` — card title + "Ver detalhe" button now go to `/clubs?tenant=…` instead of `/tenant/$name`.
-  - `src/routes/clubs.tsx` — keep the in-page click but also sync the URL.
-- The standalone `/tenant/$name` route stays in place as a fallback (no broken links), but is no longer linked from the UI.
+- 324 distinct tenants in snapshots
+- Only 146 have any row in `cs_tenant_status` (89 active, 11 possible_churn, 34 churned, 10 closed, 2 changed_owner)
+- The other ~178 have **no status record** → `currentClubStatus()` defaults to `"active"` → inflated KPI
 
-## 2. Remove "Radar de Risco" from Visão Geral
+Last snapshot period (2026-03) only has **281 tenants reporting**, and **269 had real activity** (games / GMV / revenue > 0). So 324 is clearly wrong.
 
-Delete the Row 4 "Radar de risco" section in `src/routes/index.tsx` (header + `DataTable` + the `radarColumns` definition + `topRisk` memo). The full at-risk view already lives at `/at-risk` and the full club table at `/clubs`.
+### Fix (Step 1 — before items 4 & 6)
 
-## 3. Period selector on Visão Geral
+Redefine "active club" for the KPI to mean: **tenant has a snapshot in the selected period AND is not marked churned / closed / changed_owner**.
 
-Add a period dropdown in the dashboard header (defaults to the latest uploaded month, listing every period from `fetchPeriods()` in descending order).
+Change in `src/routes/index.tsx` `kpis` memo:
 
-All "current month" computations are reworked to use the **selected** period instead of `latestPeriod`:
-- KPIs `monthGmv` / `monthRevenue` filter by selected period.
-- "Em risco alto", "Clubes ativos" and the status donut compute risk using snapshots up to the selected period (slice `hist` by `period <= selected`, filter statuses by `recorded_at <= selected month-end`).
-- "Evolução positiva este mês" compares selected period vs the period immediately before it.
-- "Tendência mensal" and "Distribuição de saúde" charts truncate the X-axis at the selected period (everything ≤ selected) so the user sees the historical view ending at that month.
-- Header subtitle updates to `periodLabel(selectedPeriod)`.
+```ts
+const activeClubs = clubs.filter((c) => {
+  if (c.status === "churned" || c.status === "closed" || c.status === "changed_owner") return false;
+  // must have reported activity in the selected period
+  return c.latest?.period === latestPeriod;
+}).length;
+```
 
-## 4. Standardize tables, filters, headers and buttons
+Optionally tighten further to require `games_online > 0 || gmv_all > 0 || revenue > 0` in the latest snapshot — I'll include that as the active definition (consistent with how a club is operationally "live").
 
-Goal: every table behaves the same — search + filters live in a toolbar **above** the table, every column is sortable, and primary actions use one shared button style.
+Add a small tooltip on the KPI: "Clubes com atividade reportada no período selecionado, excluindo churned / closed / changed owner."
 
-- Extend `src/components/DataTable.tsx`:
-  - Move the search input and any active per-column filters into a sticky **toolbar above** the table (current implementation puts the search in a `toolbar` slot but per-column filter chips live in headers — we'll surface active filter chips in the toolbar with a "Limpar" affordance).
-  - Add `size="md"` search input by default (h-10, rounded-md, leading magnifier icon, trailing clear button) and accept a `searchSize` prop.
-  - Default `sortable` to `true` for **every** column unless explicitly `sortable: false`. When a column has no `sortValue`, fall back to the rendered text.
-  - Keep the existing per-column filter dropdown but always render the funnel icon next to sortable arrows for visual consistency.
-- Create `src/components/ui/page-header.tsx` with `<PageHeader title subtitle actions>` and use it on `/`, `/clubs`, `/cs`, `/at-risk`, `/upload` so headers look identical (font size, spacing, action alignment).
-- Create `src/components/ui/primary-button.tsx` (and `secondary-button.tsx`) wrapping the existing button primitive with the standard sizes used today (`h-9 px-3 text-sm` primary, `h-8 px-2.5 text-xs` secondary). Replace ad-hoc `<button class="...">` instances on the four main pages.
-- Apply the new `DataTable` toolbar + sortable defaults to:
-  - `/clubs` Risk table
-  - `/cs` Tasks + History tables
-  - `/at-risk` cards stay as cards, but its standalone search input is replaced by the shared `<SearchInput>` for consistency.
-  - Atividade CS recente on `/` is upgraded from a hand-rolled `<table>` to `DataTable` (so it gets the shared search + sort).
+Expected new value for March 2026: ~269.
 
-## 5. Review and amend dashboards & charts
+I'll also audit the same logic in `clubs.tsx` and `at-risk.tsx` to keep counts consistent.
 
-- **Tendência mensal** (line chart on `/`): tighten the legend (drop the duplicated "ano anterior" lines if no prior year data exists), align Y-axis tick formatting, add a short caption noting the selected period range. Respect the new period selector.
-- **Distribuição de saúde** (stacked bar on `/`): switch to absolute counts AND a small "% Alto" annotation per month so users see both volume and proportion. Cut the chart at the selected period.
-- **Distribuição por estado** (donut on `/`): show centre total ("N clubes") and percentages in the tooltip; ensure colours match the legend chips already shown (Ativo / Em churn / Fechado / Possível churn).
-- **Evolução positiva**: keep the four positive cards but add a tiny delta arrow next to each value vs the previous month for context.
-- **Sparklines** on `/at-risk`: standardize colour to match the risk tone, add `aria-label` for accessibility, and align the "últimos 6 meses" caption styling.
-- **Risk-score variation list** in the club drawer (already added in a previous step): no behaviour change, just the new shared `<ScoreDelta>` styling.
-- Audit Recharts containers to use a consistent margin (`{ top: 6, right: 16, bottom: 0, left: 4 }`) and `CartesianGrid` colour token.
+---
 
-## 6. Customer Success → sub-menu with Tasks and History
+## Item 4 — Standardized tables
 
-The existing `/cs` route uses an in-page tab to switch between "Contactos" and "Histórico". We'll surface them as proper sub-pages:
+Create a single `<DataTable>` toolbar pattern reused everywhere:
 
-- Convert `/cs` into a layout route: `src/routes/cs.tsx` becomes a thin wrapper with a header + a sub-nav (Tasks · História) + `<Outlet />`.
-- Move the contacts/tasks view into `src/routes/cs.tasks.tsx` (path `/cs/tasks`) and the history view into `src/routes/cs.history.tsx` (path `/cs/history`).
-- `/cs` redirects to `/cs/tasks` (default landing).
-- Sidebar item "Customer Success" stays pointing to `/cs`; when on a CS sub-route it stays highlighted. The sub-nav lives inside the page (pill-style, same look as a small tabs row).
-- The History page gets a more prominent header and the standardized DataTable toolbar (search + per-column filters + sortable everywhere), so it no longer feels hidden.
+- **Toolbar above the table** (outside the scroll area) with:
+  - Search input + medium **"Procurar"** button (submits on click / Enter)
+  - Filter chips / dropdowns specific to each table (status, level, owner…)
+  - Right-aligned action buttons (export, etc.) when relevant
+- **All columns sortable** by default (click header to toggle asc/desc/none, with an arrow indicator)
+- Consistent pagination footer + row count
 
-## Technical details
+Refactor `src/components/DataTable.tsx` to accept:
+- `searchableKeys: string[]`
+- `filters: Array<{ key, label, options }>`
+- `defaultSort` and `columns[].sortable` (default true)
 
-- New search-param schema on `/clubs`:
-  ```ts
-  validateSearch: (s) => ({ tenant: typeof s.tenant === "string" ? s.tenant : undefined })
-  ```
-  Drawer effect: `useEffect(() => { if (search.tenant) setDrawerTenant(search.tenant); }, [search.tenant])`. Closing the drawer calls `navigate({ to: "/clubs", search: {} })`.
-- `<ClubLink>` lives in `src/components/ClubLink.tsx` and is the single source of truth for in-app navigation to a club profile.
-- The CS route split requires:
-  - keeping `src/routes/cs.tsx` as the layout (renders sub-nav + `<Outlet />`).
-  - extracting the current tasks state/handlers into `cs.tasks.tsx` and history rendering into `cs.history.tsx`. Shared helpers (loaders, generators, type defs) move to `src/lib/cs-page.ts` so both children import from one place.
-  - `Route.beforeLoad` on `/cs` redirects to `/cs/tasks` when no child path is matched.
-- DataTable changes are backwards-compatible: existing call sites keep working; the toolbar prop is opt-in but defaulted on for the four main tables.
-- Period selector state lives in `src/routes/index.tsx` local state (default = `periods[0]`); no URL persistence needed.
+Apply to all current tables:
+- `/` Visão Geral — clubs table
+- `/clubs` — main list
+- `/cs` (and the new sub-pages) — tasks & history tables
+- `/at-risk` — at-risk list
 
-## Files to add
-- `src/components/ClubLink.tsx`
-- `src/components/ui/page-header.tsx`
-- `src/lib/cs-page.ts` (shared helpers extracted from current `cs.tsx`)
-- `src/routes/cs.tasks.tsx`
-- `src/routes/cs.history.tsx`
+## Item 6 — Customer Success sub-menu
 
-## Files to edit
-- `src/components/DataTable.tsx` (toolbar, sortable default)
-- `src/routes/index.tsx` (period selector, remove Radar, club links, chart polish, Atividade CS as DataTable)
-- `src/routes/clubs.tsx` (read `?tenant=`, sync drawer to URL)
-- `src/routes/cs.tsx` (becomes layout + sub-nav, redirect to `/cs/tasks`)
-- `src/routes/at-risk.tsx` (card link → `/clubs?tenant=`, shared search input)
+Convert `/cs` into a layout route with two tabs:
 
-## Out of scope
-- No DB schema changes.
-- The standalone `/tenant/$name` route stays as a fallback URL but is no longer linked from the UI.
+```
+src/routes/cs.tsx              → layout with sub-nav (Tasks | History) + <Outlet/>
+src/routes/cs.tasks.tsx        → existing tasks UI (default redirect target)
+src/routes/cs.history.tsx      → activity history (currently buried), promoted as a first-class page with the standardized table + filters (tenant, outcome, date range)
+```
+
+Update top nav label "Customer Success" to keep pointing at `/cs/tasks`. The sub-nav uses the same pill style as existing tabs.
+
+---
+
+## Files to edit / create
+
+- `src/routes/index.tsx` — fix `activeClubs` KPI + tooltip
+- `src/routes/clubs.tsx`, `src/routes/at-risk.tsx` — align "active" definition where relevant
+- `src/components/DataTable.tsx` — toolbar, search button, sortable columns
+- `src/routes/cs.tsx` — convert to layout with sub-nav
+- `src/routes/cs.tasks.tsx` (new) — move current tasks view
+- `src/routes/cs.history.tsx` (new) — promoted history view
+
+Item 5 (charts review) stays deferred unless you want it bundled in.

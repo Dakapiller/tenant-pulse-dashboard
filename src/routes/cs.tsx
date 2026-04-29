@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RiskBadge } from "./index";
 import { ClubLink } from "@/components/ClubLink";
@@ -27,17 +27,21 @@ import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 import { ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Eye, EyeOff, ListChecks } from "lucide-react";
 
 export const Route = createFileRoute("/cs")({
-  component: CSPage,
+  // /cs alone redirects to the Tasks sub-page (sub-nav is rendered there).
+  beforeLoad: () => {
+    throw redirect({ to: "/cs/tasks" });
+  },
 });
 
 type RangeKey = "week" | "month" | "year";
 
-function CSPage() {
+export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | "history" } = {}) {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [allTasks, setAllTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"contacts" | "history">("contacts");
+  // Tab is forced by the parent route — kept as state for backward-compat with internal references.
+  const [tab] = useState<"contacts" | "history">(initialTab);
   const [range, setRange] = useState<RangeKey>("week");
 
   const [chartMode, setChartMode] = useState<"aggregate" | "tenant">("aggregate");
@@ -343,10 +347,7 @@ function CSPage() {
                 {showInactive ? "Ocultar inativos" : `Mostrar inativos (${inactiveRowsCount})`}
               </button>
             )}
-            <div className="inline-flex rounded-md border border-border p-0.5 bg-background">
-              <button onClick={() => setTab("contacts")} className={`px-3 py-1.5 text-xs rounded ${tab === "contacts" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>Contactos</button>
-              <button onClick={() => setTab("history")} className={`px-3 py-1.5 text-xs rounded ${tab === "history" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>Histórico</button>
-            </div>
+            {/* Tabs moved to route-level sub-nav (CSPageWrapper) — kept removed here */}
             {tab === "contacts" && (
               <div className="inline-flex rounded-md border border-border p-0.5 bg-background">
                 {(["week", "month", "year"] as RangeKey[]).map((k) => (

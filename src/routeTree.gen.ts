@@ -15,6 +15,8 @@ import { Route as ClubsRouteImport } from './routes/clubs'
 import { Route as AtRiskRouteImport } from './routes/at-risk'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TenantNameRouteImport } from './routes/tenant.$name'
+import { Route as CsTasksRouteImport } from './routes/cs.tasks'
+import { Route as CsHistoryRouteImport } from './routes/cs.history'
 
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
@@ -46,21 +48,35 @@ const TenantNameRoute = TenantNameRouteImport.update({
   path: '/tenant/$name',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CsTasksRoute = CsTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => CsRoute,
+} as any)
+const CsHistoryRoute = CsHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => CsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
-  '/cs': typeof CsRoute
+  '/cs': typeof CsRouteWithChildren
   '/upload': typeof UploadRoute
+  '/cs/history': typeof CsHistoryRoute
+  '/cs/tasks': typeof CsTasksRoute
   '/tenant/$name': typeof TenantNameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
-  '/cs': typeof CsRoute
+  '/cs': typeof CsRouteWithChildren
   '/upload': typeof UploadRoute
+  '/cs/history': typeof CsHistoryRoute
+  '/cs/tasks': typeof CsTasksRoute
   '/tenant/$name': typeof TenantNameRoute
 }
 export interface FileRoutesById {
@@ -68,15 +84,33 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
-  '/cs': typeof CsRoute
+  '/cs': typeof CsRouteWithChildren
   '/upload': typeof UploadRoute
+  '/cs/history': typeof CsHistoryRoute
+  '/cs/tasks': typeof CsTasksRoute
   '/tenant/$name': typeof TenantNameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/at-risk' | '/clubs' | '/cs' | '/upload' | '/tenant/$name'
+  fullPaths:
+    | '/'
+    | '/at-risk'
+    | '/clubs'
+    | '/cs'
+    | '/upload'
+    | '/cs/history'
+    | '/cs/tasks'
+    | '/tenant/$name'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/at-risk' | '/clubs' | '/cs' | '/upload' | '/tenant/$name'
+  to:
+    | '/'
+    | '/at-risk'
+    | '/clubs'
+    | '/cs'
+    | '/upload'
+    | '/cs/history'
+    | '/cs/tasks'
+    | '/tenant/$name'
   id:
     | '__root__'
     | '/'
@@ -84,6 +118,8 @@ export interface FileRouteTypes {
     | '/clubs'
     | '/cs'
     | '/upload'
+    | '/cs/history'
+    | '/cs/tasks'
     | '/tenant/$name'
   fileRoutesById: FileRoutesById
 }
@@ -91,7 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AtRiskRoute: typeof AtRiskRoute
   ClubsRoute: typeof ClubsRoute
-  CsRoute: typeof CsRoute
+  CsRoute: typeof CsRouteWithChildren
   UploadRoute: typeof UploadRoute
   TenantNameRoute: typeof TenantNameRoute
 }
@@ -140,14 +176,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TenantNameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cs/tasks': {
+      id: '/cs/tasks'
+      path: '/tasks'
+      fullPath: '/cs/tasks'
+      preLoaderRoute: typeof CsTasksRouteImport
+      parentRoute: typeof CsRoute
+    }
+    '/cs/history': {
+      id: '/cs/history'
+      path: '/history'
+      fullPath: '/cs/history'
+      preLoaderRoute: typeof CsHistoryRouteImport
+      parentRoute: typeof CsRoute
+    }
   }
 }
+
+interface CsRouteChildren {
+  CsHistoryRoute: typeof CsHistoryRoute
+  CsTasksRoute: typeof CsTasksRoute
+}
+
+const CsRouteChildren: CsRouteChildren = {
+  CsHistoryRoute: CsHistoryRoute,
+  CsTasksRoute: CsTasksRoute,
+}
+
+const CsRouteWithChildren = CsRoute._addFileChildren(CsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AtRiskRoute: AtRiskRoute,
   ClubsRoute: ClubsRoute,
-  CsRoute: CsRoute,
+  CsRoute: CsRouteWithChildren,
   UploadRoute: UploadRoute,
   TenantNameRoute: TenantNameRoute,
 }
