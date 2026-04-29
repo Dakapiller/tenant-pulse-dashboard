@@ -245,7 +245,7 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
           level: sd.level,
           pending: [],
           completed: [],
-          lastContact: lastCompletedActivityAt(allTasks.filter((t) => t.tenant_name === name)),
+          lastContact: lastCompletedActivityAt(tasksByTenant.get(name) ?? []),
         };
         map.set(name, r);
       }
