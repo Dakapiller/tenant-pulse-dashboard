@@ -448,12 +448,12 @@ function DashboardPage() {
             Centro de comando para prevenção de churn — {periodLabel(latestPeriod)}
           </p>
         </div>
-        <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-          Período
+        <label className="flex sm:inline-flex items-center gap-2 text-xs text-muted-foreground w-full sm:w-auto">
+          <span className="shrink-0">Período</span>
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="px-3 h-9 rounded-md border border-border bg-background text-sm min-w-[160px]"
+            className="flex-1 sm:flex-none px-3 h-11 sm:h-9 rounded-md border border-border bg-background text-base sm:text-sm sm:min-w-[160px]"
           >
             {periods.map((p) => (
               <option key={p} value={p}>{periodLabel(p)}</option>
