@@ -195,7 +195,7 @@ function ClubsPage() {
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1500px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 max-w-[1500px] mx-auto">
       <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
@@ -205,7 +205,7 @@ function ClubsPage() {
         </div>
         <button
           onClick={() => setExportOpen(true)}
-          className="inline-flex items-center gap-2 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-foreground text-background px-4 min-h-11 sm:min-h-9 text-sm font-medium hover:opacity-90 w-full sm:w-auto"
         >
           <Download className="h-4 w-4" /> Exportar
         </button>
@@ -316,6 +316,7 @@ function ClubsPage() {
             {
               key: "name",
               header: "Clube",
+              mobilePrimary: true,
               sortValue: (r) => r.name,
               filterValue: (r) => r.name,
               filter: { kind: "text" },
@@ -338,6 +339,8 @@ function ClubsPage() {
             {
               key: "score",
               header: "Saúde",
+              mobileSecondary: true,
+              mobileLabel: "Saúde",
               align: "center",
               sortValue: (r) => r.score,
               filter: { kind: "select", options: [
@@ -390,6 +393,8 @@ function ClubsPage() {
             {
               key: "status",
               header: "Estado",
+              mobileSecondary: true,
+              mobileLabel: "Estado",
               sortValue: (r) => CLUB_STATUS_LABEL[r.status],
               filter: { kind: "select", options: CLUB_STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label })) },
               filterValue: (r) => r.status,
@@ -751,23 +756,23 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
   const MODS: Record<string, number> = { bad_relationship: 25, good_receptivity: -15, very_satisfied: -30 };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 flex md:justify-end" onMouseDown={onClose}>
       <div className="absolute inset-0 bg-black/40" />
       <div
-        className="relative w-full max-w-3xl h-full bg-background border-l border-border shadow-xl overflow-y-auto"
+        className="relative w-full md:max-w-3xl h-full bg-background md:border-l border-border shadow-xl overflow-y-auto animate-in slide-in-from-bottom md:slide-in-from-right duration-200"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-background border-b border-border px-6 py-4 flex items-center justify-between z-10">
-          <div>
-            <h2 className="text-lg font-semibold">{tenant}</h2>
-            <div className="flex items-center gap-2 mt-1">
+        <div className="sticky top-0 bg-background border-b border-border px-4 sm:px-6 py-4 flex items-center justify-between z-10">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold truncate">{tenant}</h2>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <ClubStatusBadge status={row.status} competitor={row.competitor} />
               <Link to="/tenant/$name" params={{ name: tenant }} className="text-xs text-muted-foreground hover:text-foreground underline">
                 Abrir página completa
               </Link>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded hover:bg-surface" aria-label="Fechar"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="shrink-0 ml-2 inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface" aria-label="Fechar"><X className="h-5 w-5" /></button>
         </div>
 
         <div className="p-6 space-y-6">
@@ -1144,16 +1149,17 @@ function BulkStatusBar({
   const [busy, setBusy] = useState(false);
   return (
     <div
-      className="fixed left-0 right-0 bottom-0 z-40 lg:left-60 border-t border-border bg-background/95 backdrop-blur shadow-lg"
+      className="fixed left-0 right-0 z-40 lg:left-60 border-t border-border bg-background/95 backdrop-blur shadow-lg
+                 bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="mx-auto max-w-[1500px] px-4 py-3 flex items-center gap-3 flex-wrap">
+      <div className="mx-auto max-w-[1500px] px-4 py-3 flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
         <span className="text-sm font-medium">{count} {count === 1 ? "clube selecionado" : "clubes selecionados"}</span>
-        <div className="flex items-center gap-2 flex-wrap ml-auto">
+        <div className="flex flex-col md:flex-row md:items-center gap-2 md:ml-auto w-full md:w-auto">
           <select
             value={next}
             onChange={(e) => setNext(e.target.value as ClubStatus)}
-            className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background"
+            className="w-full md:w-auto px-3 h-11 md:h-9 text-base md:text-sm rounded-md border border-border bg-background"
           >
             {CLUB_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -1163,30 +1169,32 @@ function BulkStatusBar({
             <select
               value={comp}
               onChange={(e) => setComp(e.target.value)}
-              className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background"
+              className="w-full md:w-auto px-3 h-11 md:h-9 text-base md:text-sm rounded-md border border-border bg-background"
             >
               {COMPETITOR_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
           )}
-          <button
-            onClick={async () => {
-              setBusy(true);
-              try { await onApply(next, next === "churned" ? comp : null); }
-              finally { setBusy(false); }
-            }}
-            disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
-          >
-            <Check className="h-4 w-4" /> {busy ? "A aplicar…" : "Aplicar"}
-          </button>
-          <button
-            onClick={onCancel}
-            className="text-sm text-muted-foreground hover:text-foreground px-2 py-2"
-          >
-            Cancelar
-          </button>
+          <div className="flex gap-2 w-full md:w-auto">
+            <button
+              onClick={async () => {
+                setBusy(true);
+                try { await onApply(next, next === "churned" ? comp : null); }
+                finally { setBusy(false); }
+              }}
+              disabled={busy}
+              className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 rounded-md bg-foreground text-background px-4 min-h-11 md:min-h-9 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              <Check className="h-4 w-4" /> {busy ? "A aplicar…" : "Aplicar"}
+            </button>
+            <button
+              onClick={onCancel}
+              className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 md:min-h-9"
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       </div>
     </div>
