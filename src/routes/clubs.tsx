@@ -976,9 +976,9 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
           </section>
 
           <section className="rounded-lg border border-border overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de estado</div>
+            <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de mudanças de estado (ciclo de vida)</div>
             {statusLogs.length === 0 ? (
-              <div className="p-4 text-xs text-muted-foreground">Sem alterações de estado registadas.</div>
+              <div className="p-4 text-xs text-muted-foreground">Sem alterações registadas. Esta secção mostra quando o clube transitou entre Ativo, Possível churn, Em churn, Fechado, etc.</div>
             ) : (
               <ul className="divide-y divide-border text-xs">
                 {statusLogs.map((l) => (
