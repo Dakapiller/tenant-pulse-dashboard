@@ -43,6 +43,8 @@ export interface DataTableProps<T> {
   selectedKeys?: Set<string>;
   onSelectionChange?: (next: Set<string>) => void;
   isRowSelectable?: (row: T) => boolean;
+  /** When set, paginate the table client-side. Set to undefined for "show all". */
+  pageSize?: number;
 }
 
 export function DataTable<T>({
