@@ -216,9 +216,10 @@ function CSTasksPage() {
     setPendingTasks(p);
   }
 
-  async function handleSingleComplete(tenant: string, taskId: string, outcome: string, note: string | null) {
-    await completeCSTask(taskId, tenant, outcome, note);
+  async function handleClubComplete(tenant: string, taskIds: string[], outcome: string, note: string | null) {
+    await completeCSTasksBatch(tenant, taskIds, outcome, note);
     await reloadPending();
+    setExpanded(null);
   }
 
   if (loading) return (
