@@ -175,39 +175,58 @@ function CSTasksPage() {
     return all.length > 24 ? all.slice(-24) : all;
   }, [snapshots, chartMode, selectedTenant, excluded]);
 
-  // Build per-club rows from pending tasks only.
+  // Build per-club rows from pending tasks. Split pending into "this week" and
+  // "overdue" (week_start < current week_start).
   type Row = {
     name: string;
     score: number;
     prevScore: number | null;
     scoreDelta: number | null;
     level: "high" | "medium" | "healthy";
-    pending: CSTask[];
+    pending: CSTask[];   // this week's tasks
+    overdue: CSTask[];   // earlier weeks still pending
   };
 
   const rows: Row[] = useMemo(() => {
     const list: Row[] = [];
-    for (const [name, pending] of pendingByTenant) {
+    for (const [name, all] of pendingByTenant) {
       const hist = tenantHistory.get(name) ?? [];
       const sts = tenantStatuses.get(name) ?? [];
       const sd = scoreWithDelta(hist, sts, healthScores.get(name) ?? null, null);
+      const thisWeek = all.filter((t) => t.week_start === weekStart);
+      const overdue = all.filter((t) => t.week_start < weekStart);
       list.push({
         name,
         score: sd.score,
         prevScore: sd.prevScore,
         scoreDelta: sd.delta,
         level: sd.level,
-        pending,
+        pending: thisWeek,
+        overdue,
       });
     }
     return list.sort((a, b) => a.score - b.score);
-  }, [pendingByTenant, tenantHistory, tenantStatuses, healthScores]);
+  }, [pendingByTenant, tenantHistory, tenantStatuses, healthScores, weekStart]);
+
+  // Rows shown in the main "this week" table — anyone with at least one task
+  // for this week. Clubs that only have overdue tasks live in the overdue panel.
+  const thisWeekRows = useMemo(() => rows.filter((r) => r.pending.length > 0), [rows]);
+  const overdueOnlyRows = useMemo(
+    () => rows.filter((r) => r.pending.length === 0 && r.overdue.length > 0),
+    [rows],
+  );
 
   const visibleRows = useMemo(
-    () => showInactive ? rows : rows.filter((r) => !excluded.has(r.name)),
-    [rows, excluded, showInactive],
+    () => showInactive ? thisWeekRows : thisWeekRows.filter((r) => !excluded.has(r.name)),
+    [thisWeekRows, excluded, showInactive],
   );
-  const inactiveRowsCount = rows.filter((r) => excluded.has(r.name)).length;
+  const visibleOverdueOnly = useMemo(
+    () => showInactive ? overdueOnlyRows : overdueOnlyRows.filter((r) => !excluded.has(r.name)),
+    [overdueOnlyRows, excluded, showInactive],
+  );
+  const inactiveRowsCount = thisWeekRows.filter((r) => excluded.has(r.name)).length;
+
+  const [overdueOpen, setOverdueOpen] = useState(true);
 
   const [expanded, setExpanded] = useState<string | null>(null);
 
