@@ -40,6 +40,7 @@ function DashboardPage() {
   const [periods, setPeriods] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
+  const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
   const [tasksLoaded, setTasksLoaded] = useState(false);
