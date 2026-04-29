@@ -566,8 +566,8 @@ function DashboardPage() {
           </div>
           {tasksLoaded ? (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <PositiveCard value={positives.improved} title="Clubes melhorados" subtitle="Score de saúde diminuiu vs mês anterior" />
-              <PositiveCard value={positives.leftHighRisk} title="Saíram de risco alto" subtitle="Estavam ≥60 e baixaram para médio ou saudável" />
+              <PositiveCard value={positives.improved} title="Clubes melhorados" subtitle="Health score subiu desde o início do mês" />
+              <PositiveCard value={positives.leftHighRisk} title="Saíram de risco" subtitle="Estavam abaixo de 30 e já estão acima" />
               <PositiveCard value={positives.revenueGrew} title="Receita cresceu" subtitle="Receita mensal superior à do mês anterior" />
               <PositiveCard value={positives.csImpacted} title="Impacto CS" subtitle="Tarefa CS concluída este mês e score melhorou" />
             </div>
