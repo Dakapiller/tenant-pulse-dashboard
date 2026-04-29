@@ -51,6 +51,7 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
   const [showInactive, setShowInactive] = useState(false);
 
   const weekStart = useMemo(() => currentWeekStart(), []);
+  const didGenerateRef = useRef(false);
 
   async function loadAll() {
     const [snaps, sts, at] = await Promise.all([
@@ -64,30 +65,54 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
     return { snaps, sts, at };
   }
 
+  async function reloadTasks() {
+    const at = await fetchAllCSTasks();
+    setAllTasks(at);
+    return at;
+  }
+
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const { snaps, sts, at } = await loadAll();
-        // Generate this week's tasks if none yet
-        const wk = at.filter((t) => t.week_start === weekStart);
-        if (wk.length === 0) {
-          await generateWeeklyTasks(snaps, sts, weekStart);
-          await loadAll();
+        if (cancelled) return;
+        // Defer the (potentially heavy) weekly-task generation until after first paint
+        // so the page becomes interactive immediately.
+        const wkExists = at.some((t) => t.week_start === weekStart);
+        if (!wkExists && !didGenerateRef.current) {
+          didGenerateRef.current = true;
+          const idle: (cb: () => void) => void =
+            typeof (window as any).requestIdleCallback === "function"
+              ? (cb) => (window as any).requestIdleCallback(cb, { timeout: 2000 })
+              : (cb) => window.setTimeout(cb, 250);
+          idle(async () => {
+            try {
+              await generateWeeklyTasks(snaps, sts, weekStart);
+              if (!cancelled) await reloadTasks();
+            } catch (err) {
+              console.error("[cs] weekly task generation failed", err);
+            }
+          });
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Per-tenant data
+  // Per-tenant data — pre-sorted ascending so downstream computations don't re-sort.
   const tenantHistory = useMemo(() => {
     const m = new Map<string, Snapshot[]>();
     snapshots.forEach((s) => {
       if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
       m.get(s.tenant_name)!.push(s);
     });
+    for (const arr of m.values()) {
+      arr.sort((a, b) => a.period.localeCompare(b.period));
+    }
     return m;
   }, [snapshots]);
 
@@ -97,8 +122,21 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
       if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
       m.get(s.tenant_name)!.push(s);
     });
+    for (const arr of m.values()) {
+      arr.sort((a, b) => (a.recorded_at ?? "").localeCompare(b.recorded_at ?? ""));
+    }
     return m;
   }, [statuses]);
+
+  // Index tasks by tenant once so per-row work stays O(1) instead of O(N×M).
+  const tasksByTenant = useMemo(() => {
+    const m = new Map<string, CSTask[]>();
+    allTasks.forEach((t) => {
+      if (!m.has(t.tenant_name)) m.set(t.tenant_name, []);
+      m.get(t.tenant_name)!.push(t);
+    });
+    return m;
+  }, [allTasks]);
 
   const tenantNames = useMemo(
     () => Array.from(tenantHistory.keys()).sort((a, b) => a.localeCompare(b)),
@@ -129,7 +167,7 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
       if (Number(s.gmv_all ?? 0) > 0) cur.activeClubs.add(s.tenant_name);
       byPeriod.set(s.period, cur);
     });
-    return Array.from(byPeriod.entries())
+    const all = Array.from(byPeriod.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([period, v]) => ({
         period,
@@ -139,6 +177,8 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
         revenue: Math.round(v.revenue),
         activeClubs: v.activeClubs.size,
       }));
+    // Cap to last 24 months so SVG paths and x-axis stay light.
+    return all.length > 24 ? all.slice(-24) : all;
   }, [snapshots, chartMode, selectedTenant, excluded]);
 
   const yoyPairs = useMemo(() => {
@@ -207,7 +247,7 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
           level: sd.level,
           pending: [],
           completed: [],
-          lastContact: lastCompletedActivityAt(allTasks.filter((t) => t.tenant_name === name)),
+          lastContact: lastCompletedActivityAt(tasksByTenant.get(name) ?? []),
         };
         map.set(name, r);
       }
@@ -222,7 +262,7 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
       }
       return b.score - a.score;
     });
-  }, [pendingTasks, completedInRange, tenantHistory, tenantStatuses, allTasks]);
+  }, [pendingTasks, completedInRange, tenantHistory, tenantStatuses, tasksByTenant]);
 
   const historyTasks = useMemo(
     () => allTasks.filter((t) => t.status === "completed").sort((a, b) =>
@@ -241,10 +281,12 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
   const inactiveRowsCount = rows.filter((r) => excluded.has(r.name)).length;
 
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [historyLimit, setHistoryLimit] = useState(50);
+  useEffect(() => { setHistoryLimit(50); }, [showInactive]);
 
   async function handleSingleComplete(tenant: string, taskId: string, outcome: string, note: string | null) {
     await completeCSTask(taskId, tenant, outcome, note);
-    await loadAll();
+    await reloadTasks();
   }
 
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
@@ -450,24 +492,36 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
             {visibleHistory.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-8">Sem tarefas concluídas.</div>
             ) : (
-              <ul className="divide-y divide-border">
-                {visibleHistory.map((t) => (
-                  <li key={t.id} className="py-3 flex items-start justify-between gap-3 text-sm">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <ClubLink name={t.tenant_name} />
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-surface">{formatFlagsLabel(t.flags)}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : ""} · Semana de {periodLabel(t.week_start)}
-                        </span>
+              <>
+                <ul className="divide-y divide-border">
+                  {visibleHistory.slice(0, historyLimit).map((t) => (
+                    <li key={t.id} className="py-3 flex items-start justify-between gap-3 text-sm">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <ClubLink name={t.tenant_name} />
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-surface">{formatFlagsLabel(t.flags)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : ""} · Semana de {periodLabel(t.week_start)}
+                          </span>
+                        </div>
+                        {t.reason && <div className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">{t.reason}</div>}
+                        {t.note && <div className="text-xs text-muted-foreground mt-1 italic">Comentário: “{t.note}”</div>}
                       </div>
-                      {t.reason && <div className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">{t.reason}</div>}
-                      {t.note && <div className="text-xs text-muted-foreground mt-1 italic">Comentário: “{t.note}”</div>}
-                    </div>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-surface shrink-0">{outcomeLabel(t.outcome)}</span>
-                  </li>
-                ))}
-              </ul>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-surface shrink-0">{outcomeLabel(t.outcome)}</span>
+                    </li>
+                  ))}
+                </ul>
+                {visibleHistory.length > historyLimit && (
+                  <div className="pt-4 flex items-center justify-center">
+                    <button
+                      onClick={() => setHistoryLimit((n) => n + 50)}
+                      className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-surface"
+                    >
+                      Mostrar mais ({visibleHistory.length - historyLimit} restantes)
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -486,7 +540,7 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
               }
             }
             setSelectedKeys(new Set());
-            await loadAll();
+            await reloadTasks();
           }}
           onCancel={() => setSelectedKeys(new Set())}
         />
