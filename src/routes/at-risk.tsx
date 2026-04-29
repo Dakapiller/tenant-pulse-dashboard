@@ -143,7 +143,7 @@ function AtRiskPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {cards
-            .filter((c) => !search || c.name.toLowerCase().includes(search.toLowerCase()))
+            .filter((c) => !debouncedSearch || c.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
             .map((c) => {
             const tone = c.level === "high"
               ? { bar: "bg-danger", text: "text-danger", bg: "bg-danger/5", border: "border-danger/30" }
