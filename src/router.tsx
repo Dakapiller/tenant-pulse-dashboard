@@ -60,6 +60,10 @@ export const getRouter = () => {
     context: {},
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
+    // Don't re-run loaders / refetch when the tab regains focus or reconnects.
+    // Avoids the "page reloads itself after a couple of minutes" annoyance.
+    defaultStaleTime: Infinity,
+    defaultGcTime: Infinity,
     defaultErrorComponent: DefaultErrorComponent,
   });
 
