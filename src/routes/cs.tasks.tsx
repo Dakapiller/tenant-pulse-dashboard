@@ -11,6 +11,7 @@ import {
   fetchPendingCSTasks,
   insertCSTasks,
   completeCSTask,
+  completeCSTasksBatch,
   currentWeekStart,
   scoreWithDelta,
   excludedTenants,
