@@ -33,6 +33,7 @@ import {
   type ClubStatusLog,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META, type RiskFlag } from "@/lib/risk";
+import { fetchHealthScores } from "@/lib/health";
 import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/format";
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 
@@ -65,7 +66,7 @@ interface ClubRow {
   flagsCurrent: string[];
   flagsAdded: string[];
   flagsResolved: string[];
-  csOutcome: { outcome: string; impact: number; recordedAt: string } | null;
+  csOutcome: { outcome: string; recordedAt: string } | null;
 }
 
 function ClubsPage() {
@@ -74,6 +75,7 @@ function ClubsPage() {
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [statusLogs, setStatusLogs] = useState<ClubStatusLog[]>([]);
+  const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
@@ -99,10 +101,10 @@ function ClubsPage() {
   const [filterNewOnly, setFilterNewOnly] = useState(false);
 
   async function loadAll() {
-    const [s, p, sts, tks, logs] = await Promise.all([
-      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchClubStatusLogs(),
+    const [s, p, sts, tks, logs, scores] = await Promise.all([
+      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchClubStatusLogs(), fetchHealthScores(),
     ]);
-    setSnapshots(s); setPeriods(p); setStatuses(sts); setTasks(tks); setStatusLogs(logs);
+    setSnapshots(s); setPeriods(p); setStatuses(sts); setTasks(tks); setStatusLogs(logs); setHealthScores(scores);
   }
 
   useEffect(() => {
@@ -142,7 +144,7 @@ function ClubsPage() {
       const latest = sorted[sorted.length - 1] ?? null;
       const sts = stsByTenant.get(name) ?? [];
       const tks = tasksByTenant.get(name) ?? [];
-      const rd = riskWithDelta(sorted, sts);
+      const rd = riskWithDelta(sorted, sts, healthScores.get(name) ?? null, null);
       const status = currentClubStatus(sts);
       const competitor = currentChurnCompetitor(sts);
       const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
@@ -162,7 +164,7 @@ function ClubsPage() {
       });
     }
     return result;
-  }, [snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod]);
+  }, [snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod, healthScores]);
 
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
   const newCount = rows.filter((r) => r.isNew).length;
@@ -308,7 +310,7 @@ function ClubsPage() {
               ]},
               filterValue: (r) => r.level,
               render: (r) => {
-                const healthColor = r.score >= 60 ? "text-danger bg-danger/10" : r.score >= 30 ? "text-warning bg-warning/15" : "text-success bg-success/10";
+                const healthColor = r.score < 30 ? "text-danger bg-danger/10" : r.score < 60 ? "text-warning bg-warning/15" : "text-success bg-success/10";
                 return (
                   <ScoreTooltip row={r}>
                     <span className="inline-flex items-center gap-1.5 cursor-help">
@@ -737,9 +739,9 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
           <section className="rounded-lg border border-border p-4">
             <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Score de saúde</div>
             <div className="flex items-end gap-4 mb-3">
-              <div className="text-3xl font-bold tabular-nums">{risk.score}</div>
+              <div className="text-3xl font-bold tabular-nums">{row.score}</div>
               <div className="text-xs text-muted-foreground pb-1">
-                Base: {risk.dataScore} · CS: {risk.csModifier && risk.csModifier > 0 ? `+${risk.csModifier}` : risk.csModifier}
+                {row.score < 30 ? "Em risco" : row.score < 60 ? "A monitorizar" : "Saudável"}
               </div>
             </div>
             {risk.flags.length > 0 ? (
@@ -1261,7 +1263,7 @@ function MissingClubsModal({
                   align: "center",
                   sortValue: (r) => r.score,
                   render: (r) => {
-                    const healthColor = r.score >= 60 ? "text-danger bg-danger/10" : r.score >= 30 ? "text-warning bg-warning/15" : "text-success bg-success/10";
+                    const healthColor = r.score < 30 ? "text-danger bg-danger/10" : r.score < 60 ? "text-warning bg-warning/15" : "text-success bg-success/10";
                     return <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${healthColor}`}>{r.score}</span>;
                   },
                 },

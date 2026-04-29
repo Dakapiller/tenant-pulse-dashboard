@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import { fetchAllCSStatuses, fetchAllCSTasks, currentWeekStart, riskWithDelta, excludedTenants, type CSTenantStatus, type CSTask } from "@/lib/cs";
+import { fetchHealthScores } from "@/lib/health";
 import { FLAG_META, FLAG_CTA, type RiskFlag } from "@/lib/risk";
 import { ScoreDelta } from "@/components/DataTable";
 import { ArrowRight, ListChecks, Search, ShieldCheck, X } from "lucide-react";
@@ -17,6 +18,7 @@ function AtRiskPage() {
   const [periods, setPeriods] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
+  const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
@@ -24,10 +26,10 @@ function AtRiskPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [s, p, st, tk] = await Promise.all([
-          fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(),
+        const [s, p, st, tk, sc] = await Promise.all([
+          fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchHealthScores(),
         ]);
-        setSnapshots(s); setPeriods(p); setStatuses(st); setTasks(tk);
+        setSnapshots(s); setPeriods(p); setStatuses(st); setTasks(tk); setHealthScores(sc);
       } finally {
         setLoading(false);
       }
@@ -84,10 +86,10 @@ function AtRiskPage() {
       const sorted = [...hist].sort((a, b) => a.period.localeCompare(b.period));
       const hasLatest = sorted.some((s) => s.period === latest);
       if (!hasLatest) continue;
+      const score = healthScores.get(name);
+      if (score === undefined || score >= 30) continue;
       const sts = statusByTenant.get(name) ?? [];
-      // Single pass: gives us score, level, delta and current flags.
-      const rd = riskWithDelta(sorted, sts);
-      if (rd.flags.current.length === 0) continue;
+      const rd = riskWithDelta(sorted, sts, score, null);
       const spark = sorted.slice(-6).map((s) => ({ period: s.period, games: s.games_online }));
       list.push({
         name,
@@ -99,8 +101,8 @@ function AtRiskPage() {
         pending: pendingByTenant.get(name) ?? 0,
       });
     }
-    return list.sort((a, b) => b.score - a.score);
-  }, [tenantHistory, latest, statusByTenant, pendingByTenant, excluded]);
+    return list.sort((a, b) => a.score - b.score);
+  }, [tenantHistory, latest, statusByTenant, pendingByTenant, excluded, healthScores]);
 
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 

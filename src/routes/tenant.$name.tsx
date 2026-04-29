@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import { fetchSnapshotsForTenant, type Snapshot } from "@/lib/data";
 import { computeRiskWithCS, riskHistory, FLAG_META } from "@/lib/risk";
+import { fetchHealthScoreForTenant, healthLevel } from "@/lib/health";
 import { fetchCSStatusesForTenant, fetchCSTasksForTenant, outcomeLabel, type CSTenantStatus, type CSTask } from "@/lib/cs";
 import { formatEuro, formatNumber, formatPercent, periodLabel, periodShort } from "@/lib/format";
 import { ArrowLeft, MessageSquare } from "lucide-react";
@@ -19,6 +20,7 @@ function TenantDetail() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [csStatuses, setCsStatuses] = useState<CSTenantStatus[]>([]);
   const [csTasks, setCsTasks] = useState<CSTask[]>([]);
+  const [healthScore, setHealthScore] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<string>("");
@@ -28,15 +30,17 @@ function TenantDetail() {
     setLoading(true);
     (async () => {
       try {
-        const [data, sts, tks] = await Promise.all([
+        const [data, sts, tks, hs] = await Promise.all([
           fetchSnapshotsForTenant(name),
           fetchCSStatusesForTenant(name),
           fetchCSTasksForTenant(name),
+          fetchHealthScoreForTenant(name),
         ]);
         if (cancelled) return;
         setSnapshots(data);
         setCsStatuses(sts);
         setCsTasks(tks);
+        setHealthScore(hs);
         if (data.length > 0) setPeriod(data[data.length - 1].period);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed");
@@ -105,7 +109,12 @@ function TenantDetail() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{name}</h1>
           <div className="mt-2 flex items-center gap-3">
-            <RiskBadge level={risk.level} score={risk.score} />
+            {(() => {
+              const s = healthScore ?? 100;
+              const lvl = healthLevel(s);
+              const badgeLevel = lvl === "risk" ? "high" : lvl === "monitor" ? "medium" : "healthy";
+              return <RiskBadge level={badgeLevel} score={s} />;
+            })()}
             <span className="text-sm text-muted-foreground">{sorted.length} meses de dados</span>
           </div>
         </div>

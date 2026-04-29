@@ -10,6 +10,7 @@ import {
   outcomeLabel, excludedTenants, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
+import { fetchHealthScores, healthLevel } from "@/lib/health";
 import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 import { ClubLink } from "@/components/ClubLink";
@@ -39,6 +40,7 @@ function DashboardPage() {
   const [periods, setPeriods] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
+  const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
   const [tasksLoaded, setTasksLoaded] = useState(false);
@@ -49,10 +51,11 @@ function DashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [p, st] = await Promise.all([fetchPeriods(), fetchAllCSStatuses()]);
+        const [p, st, sc] = await Promise.all([fetchPeriods(), fetchAllCSStatuses(), fetchHealthScores()]);
         if (cancelled) return;
         setPeriods(p);
         setStatuses(st);
+        setHealthScores(sc);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -169,29 +172,24 @@ function DashboardPage() {
       const status = currentClubStatus(sts);
       const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
       const latest = sorted[sorted.length - 1] ?? null;
-      let prevScore: number | null = null;
-      let prevLevel: "high" | "medium" | "healthy" | null = null;
       let prevSnapshot: Snapshot | null = null;
       if (latest && sorted.length >= 2) {
-        const prevSlice = sorted.slice(0, -1);
-        prevSnapshot = prevSlice[prevSlice.length - 1] ?? null;
-        const prevCutoff = `${prevSnapshot?.period.slice(0, 7) ?? ""}-31T23:59:59Z`;
-        let pEnd = sts.length;
-        for (let i = 0; i < sts.length; i++) {
-          if ((sts[i].recorded_at ?? "") > prevCutoff) { pEnd = i; break; }
-        }
-        const filteredSts = pEnd === sts.length ? sts : sts.slice(0, pEnd);
-        const prevRisk = computeRiskWithCS(prevSlice, filteredSts);
-        prevScore = prevRisk.score;
-        prevLevel = prevRisk.level;
+        prevSnapshot = sorted[sorted.length - 2] ?? null;
       }
+      // Real health score from DB (current value). Historical per-period scores
+      // would require querying health_score_log, so prevScore stays null here.
+      const isLatestPeriod = !!latest && latest.period === latestPeriod;
+      const realScore = isLatestPeriod ? healthScores.get(name) : undefined;
+      const score = realScore ?? 100;
+      const lvlMap = { risk: "high", monitor: "medium", healthy: "healthy" } as const;
+      const level = lvlMap[healthLevel(score)];
       list.push({
         name,
-        score: risk.score,
-        prevScore,
-        scoreDelta: prevScore !== null ? risk.score - prevScore : null,
-        level: risk.level,
-        prevLevel,
+        score,
+        prevScore: null,
+        scoreDelta: null,
+        level,
+        prevLevel: null,
         flags: risk.flags,
         status,
         lastContact: lastCompletedActivityAt(tks),
@@ -201,7 +199,7 @@ function DashboardPage() {
       });
     }
     return list;
-  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart, latestPeriod]);
+  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart, latestPeriod, healthScores]);
 
   // KPIs
   const kpis = useMemo(() => {
@@ -225,7 +223,7 @@ function DashboardPage() {
       });
       return set.size;
     })();
-    const highRisk = clubs.filter((c) => c.score >= 60 && c.status !== "churned" && c.status !== "closed").length;
+    const highRisk = clubs.filter((c) => c.score < 30 && c.status !== "churned" && c.status !== "closed").length;
     const monthGmv = (() => {
       if (!latestPeriod) return 0;
       return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.gmv_all ?? 0), 0);
@@ -306,10 +304,21 @@ function DashboardPage() {
       const tenantsThatMonth = tenantsByPeriod.get(p)!;
       const cutoffSts = `${p.slice(0, 7)}-31T23:59:59Z`;
       let healthy = 0, medium = 0, high = 0;
+      const isLatestColumn = p === latestPeriod;
       for (const name of tenantsThatMonth) {
+        if (isLatestColumn) {
+          // Latest column: use the real DB health score.
+          const score = healthScores.get(name);
+          if (score === undefined) { healthy++; continue; }
+          const lvl = healthLevel(score);
+          if (lvl === "risk") high++;
+          else if (lvl === "monitor") medium++;
+          else healthy++;
+          continue;
+        }
+        // Prior months: legacy per-period computation (no historical health score available).
         const fullHist = tenantHistory.get(name);
         if (!fullHist || fullHist.length === 0) { healthy++; continue; }
-        // sorted ascending: find slice end <= p
         let endIdx = -1;
         for (let i = fullHist.length - 1; i >= 0; i--) {
           if (fullHist[i].period <= p) { endIdx = i; break; }
@@ -336,7 +345,7 @@ function DashboardPage() {
         total: healthy + medium + high,
       };
     });
-  }, [includedSnapshots, tenantHistory, tenantStatuses, latestPeriod]);
+  }, [includedSnapshots, tenantHistory, tenantStatuses, latestPeriod, healthScores]);
 
   // Positive metrics
   const positives = useMemo(() => {

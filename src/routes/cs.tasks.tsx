@@ -19,6 +19,7 @@ import {
   type CSTask,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_CTA, FLAG_META, type RiskFlag } from "@/lib/risk";
+import { fetchHealthScores } from "@/lib/health";
 import { formatEuro, formatNumber, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta } from "@/components/DataTable";
 import { ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Eye, EyeOff, ListChecks } from "lucide-react";
@@ -32,6 +33,7 @@ function CSTasksPage() {
   const [pendingTasks, setPendingTasks] = useState<CSTask[]>([]);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
+  const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const [chartMode, setChartMode] = useState<"aggregate" | "tenant">("aggregate");
@@ -47,10 +49,11 @@ function CSTasksPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [sts, pending] = await Promise.all([fetchAllCSStatuses(), fetchPendingCSTasks()]);
+        const [sts, pending, sc] = await Promise.all([fetchAllCSStatuses(), fetchPendingCSTasks(), fetchHealthScores()]);
         if (cancelled) return;
         setStatuses(sts);
         setPendingTasks(pending);
+        setHealthScores(sc);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -186,7 +189,7 @@ function CSTasksPage() {
     for (const [name, pending] of pendingByTenant) {
       const hist = tenantHistory.get(name) ?? [];
       const sts = tenantStatuses.get(name) ?? [];
-      const sd = scoreWithDelta(hist, sts);
+      const sd = scoreWithDelta(hist, sts, healthScores.get(name) ?? null, null);
       list.push({
         name,
         score: sd.score,
@@ -196,8 +199,8 @@ function CSTasksPage() {
         pending,
       });
     }
-    return list.sort((a, b) => b.score - a.score);
-  }, [pendingByTenant, tenantHistory, tenantStatuses]);
+    return list.sort((a, b) => a.score - b.score);
+  }, [pendingByTenant, tenantHistory, tenantStatuses, healthScores]);
 
   const visibleRows = useMemo(
     () => showInactive ? rows : rows.filter((r) => !excluded.has(r.name)),
