@@ -431,7 +431,13 @@ function DashboardPage() {
         Clubes ativos = clubes com atividade reportada no período selecionado, excluindo churned, fechados e mudança de proprietário.
       </p>
 
-      {/* Row 2 — Charts */}
+      {/* Row 2 — Charts (deferred until snapshots load) */}
+      {!snapshotsLoaded ? (
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          <ChartSkeleton />
+          <ChartSkeleton />
+        </section>
+      ) : (
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <div className="rounded-xl border border-border bg-background p-5">
           <h2 className="text-sm font-semibold mb-1">Tendência mensal</h2>
