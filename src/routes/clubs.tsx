@@ -271,16 +271,28 @@ function ClubsPage() {
               </span>
             )}
           </span>
-          {inactiveCount > 0 && (
-            <button
-              onClick={() => setShowInactive((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-surface"
-              title={showInactive ? "Ocultar clubes em churn e fechados" : "Mostrar clubes em churn e fechados"}
-            >
-              {showInactive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              {showInactive ? "Ocultar inativos" : "Mostrar inativos"}
-            </button>
-          )}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {pendingCount > 0 && (
+              <button
+                onClick={() => setFilterPendingOnly((v) => !v)}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${filterPendingOnly ? "border-warning bg-warning/15 text-warning" : "border-border hover:bg-surface"}`}
+                title="Mostrar apenas clubes com tarefas pendentes (incluindo atrasadas)"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {filterPendingOnly ? "A filtrar pendentes" : `Apenas com pendentes (${pendingCount})`}
+              </button>
+            )}
+            {inactiveCount > 0 && (
+              <button
+                onClick={() => setShowInactive((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-surface"
+                title={showInactive ? "Ocultar clubes em churn e fechados" : "Mostrar clubes em churn e fechados"}
+              >
+                {showInactive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {showInactive ? "Ocultar inativos" : "Mostrar inativos"}
+              </button>
+            )}
+          </div>
         </div>
         <DataTable<ClubRow>
           rows={visibleRows}
