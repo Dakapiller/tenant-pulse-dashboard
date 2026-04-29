@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
-import { CSSubNav } from "@/components/CSSubNav";
 import { ClubLink } from "@/components/ClubLink";
 import {
   fetchAllCSStatuses,
