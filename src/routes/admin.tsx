@@ -30,7 +30,7 @@ function AdminPage() {
   useEffect(() => {
     void (async () => {
       const { data, error } = await supabase
-        .from("user_profiles" as never)
+        .from("user_profiles")
         .select("*")
         .order("created_at", { ascending: false });
       if (error) {

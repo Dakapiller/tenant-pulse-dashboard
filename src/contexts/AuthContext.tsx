@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadProfile = async (uid: string) => {
     const { data, error } = await supabase
-      .from("user_profiles" as never)
+      .from("user_profiles")
       .select("*")
       .eq("id", uid)
       .maybeSingle();
