@@ -71,12 +71,14 @@ function DashboardPage() {
   }, [periods, latestPeriod]);
   const weekStart = useMemo(() => currentWeekStart(), []);
 
+  // Pre-sort once per tenant so downstream consumers don't re-sort on every period change.
   const tenantHistory = useMemo(() => {
     const m = new Map<string, Snapshot[]>();
     snapshots.forEach((s) => {
       if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
       m.get(s.tenant_name)!.push(s);
     });
+    for (const arr of m.values()) arr.sort((a, b) => a.period.localeCompare(b.period));
     return m;
   }, [snapshots]);
 
@@ -86,6 +88,8 @@ function DashboardPage() {
       if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
       m.get(s.tenant_name)!.push(s);
     });
+    // sort ascending by recorded_at so slicing by cutoff is a simple linear scan
+    for (const arr of m.values()) arr.sort((a, b) => (a.recorded_at ?? "").localeCompare(b.recorded_at ?? ""));
     return m;
   }, [statuses]);
 
