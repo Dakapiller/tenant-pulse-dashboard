@@ -508,13 +508,17 @@ function CSTasksPage() {
             count={selectedKeys.size}
             onApply={async (outcome, note) => {
               const names = Array.from(selectedKeys);
-              for (const name of names) {
-                const r = rows.find((x) => x.name === name);
-                if (!r) continue;
-                for (const t of r.pending) {
-                  await completeCSTask(t.id, t.tenant_name, outcome, note.trim() || null);
-                }
-              }
+              const trimmed = note.trim() || null;
+              // One batch call per club (groups all pending + overdue tasks for that club).
+              await Promise.all(
+                names.map((name) => {
+                  const r = rows.find((x) => x.name === name);
+                  if (!r) return Promise.resolve();
+                  const ids = [...r.pending, ...r.overdue].map((t) => t.id);
+                  if (ids.length === 0) return Promise.resolve();
+                  return completeCSTasksBatch(name, ids, outcome, trimmed);
+                }),
+              );
               setSelectedKeys(new Set());
               await reloadPending();
             }}
