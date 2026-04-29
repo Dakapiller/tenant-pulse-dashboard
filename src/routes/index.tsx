@@ -7,7 +7,7 @@ import {
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
   fetchAllCSStatuses, fetchAllCSTasks, currentClubStatus, currentWeekStart, lastCompletedActivityAt,
-  outcomeLabel, excludedTenants, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
+  outcomeLabel, excludedTenants, isActiveStatus, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
 import { fetchHealthScores, fetchHealthScoresAt, healthLevel } from "@/lib/health";
