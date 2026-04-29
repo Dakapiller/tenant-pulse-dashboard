@@ -30,15 +30,17 @@ function TenantDetail() {
     setLoading(true);
     (async () => {
       try {
-        const [data, sts, tks] = await Promise.all([
+        const [data, sts, tks, hs] = await Promise.all([
           fetchSnapshotsForTenant(name),
           fetchCSStatusesForTenant(name),
           fetchCSTasksForTenant(name),
+          fetchHealthScoreForTenant(name),
         ]);
         if (cancelled) return;
         setSnapshots(data);
         setCsStatuses(sts);
         setCsTasks(tks);
+        setHealthScore(hs);
         if (data.length > 0) setPeriod(data[data.length - 1].period);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed");
