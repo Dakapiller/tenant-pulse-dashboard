@@ -490,24 +490,36 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
             {visibleHistory.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-8">Sem tarefas concluídas.</div>
             ) : (
-              <ul className="divide-y divide-border">
-                {visibleHistory.map((t) => (
-                  <li key={t.id} className="py-3 flex items-start justify-between gap-3 text-sm">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <ClubLink name={t.tenant_name} />
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-surface">{formatFlagsLabel(t.flags)}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : ""} · Semana de {periodLabel(t.week_start)}
-                        </span>
+              <>
+                <ul className="divide-y divide-border">
+                  {visibleHistory.slice(0, historyLimit).map((t) => (
+                    <li key={t.id} className="py-3 flex items-start justify-between gap-3 text-sm">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <ClubLink name={t.tenant_name} />
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-surface">{formatFlagsLabel(t.flags)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : ""} · Semana de {periodLabel(t.week_start)}
+                          </span>
+                        </div>
+                        {t.reason && <div className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">{t.reason}</div>}
+                        {t.note && <div className="text-xs text-muted-foreground mt-1 italic">Comentário: “{t.note}”</div>}
                       </div>
-                      {t.reason && <div className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">{t.reason}</div>}
-                      {t.note && <div className="text-xs text-muted-foreground mt-1 italic">Comentário: “{t.note}”</div>}
-                    </div>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-surface shrink-0">{outcomeLabel(t.outcome)}</span>
-                  </li>
-                ))}
-              </ul>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-surface shrink-0">{outcomeLabel(t.outcome)}</span>
+                    </li>
+                  ))}
+                </ul>
+                {visibleHistory.length > historyLimit && (
+                  <div className="pt-4 flex items-center justify-center">
+                    <button
+                      onClick={() => setHistoryLimit((n) => n + 50)}
+                      className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-surface"
+                    >
+                      Mostrar mais ({visibleHistory.length - historyLimit} restantes)
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
