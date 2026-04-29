@@ -101,10 +101,10 @@ function ClubsPage() {
   const [filterNewOnly, setFilterNewOnly] = useState(false);
 
   async function loadAll() {
-    const [s, p, sts, tks, logs] = await Promise.all([
-      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchClubStatusLogs(),
+    const [s, p, sts, tks, logs, scores] = await Promise.all([
+      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchClubStatusLogs(), fetchHealthScores(),
     ]);
-    setSnapshots(s); setPeriods(p); setStatuses(sts); setTasks(tks); setStatusLogs(logs);
+    setSnapshots(s); setPeriods(p); setStatuses(sts); setTasks(tks); setStatusLogs(logs); setHealthScores(scores);
   }
 
   useEffect(() => {
