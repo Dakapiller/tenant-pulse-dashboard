@@ -495,9 +495,21 @@ function ClubsPage() {
             setSelectedKeys(new Set());
             await loadAll();
           }}
+          onAdjustScore={() => setBulkScoreOpen(true)}
           onCancel={() => setSelectedKeys(new Set())}
         />
       )}
+
+      <AdjustScoreDialog
+        open={bulkScoreOpen}
+        mode="bulk"
+        tenants={Array.from(selectedKeys).map((name) => {
+          const r = rows.find((x) => x.name === name);
+          return { name, score: r?.score ?? 0 };
+        })}
+        onClose={() => setBulkScoreOpen(false)}
+        onApplied={async () => { setSelectedKeys(new Set()); await loadAll(); }}
+      />
     </div>
   );
 }
