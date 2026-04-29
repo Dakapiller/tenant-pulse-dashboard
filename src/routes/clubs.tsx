@@ -285,7 +285,7 @@ function ClubsPage() {
               filter: { kind: "text" },
               render: (r) => (
                 <>
-                  <button onClick={(e) => { e.stopPropagation(); setDrawerTenant(r.name); }} className="font-medium hover:underline text-left">{r.name}</button>
+                  <ClubLink name={r.name} />
                   {r.isNew && (
                     <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase font-semibold text-success bg-success/10 px-1.5 py-0.5 rounded-full">
                       <Sparkles className="h-2.5 w-2.5" /> Novo
@@ -385,7 +385,7 @@ function ClubsPage() {
         <ClubDrawer
           tenant={drawerTenant}
           row={rows.find((r) => r.name === drawerTenant)!}
-          onClose={() => setDrawerTenant(null)}
+          onClose={closeDrawer}
           onChanged={loadAll}
         />
       )}
