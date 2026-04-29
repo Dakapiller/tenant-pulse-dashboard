@@ -1,80 +1,75 @@
-## Problem with "324 Clubes ativos"
+## Goal
 
-The KPI counts every tenant that exists in `tenant_snapshots` and is not explicitly marked `churned` or `closed`. Today:
+Stop the main thread from freezing. Three concrete causes:
 
-- 324 distinct tenants in snapshots
-- Only 146 have any row in `cs_tenant_status` (89 active, 11 possible_churn, 34 churned, 10 closed, 2 changed_owner)
-- The other ~178 have **no status record** → `currentClubStatus()` defaults to `"active"` → inflated KPI
+1. `clubs.tsx` builds rows for ~293 tenants and runs **two** `computeRiskWithCS` calls per tenant (`scoreWithDelta` + `flagsWithDelta`) → ~600 risk passes on every render where any of `snapshots/statuses/tasks/statusLogs` change.
+2. `DataTable` renders **every** row in the DOM (no pagination) — 293 rows × ~12 columns of badges/links is the biggest paint cost.
+3. Dashboard `index.tsx` builds KPIs, charts, YoY, status donut and the activity table all in one synchronous pass before first paint.
 
-Last snapshot period (2026-03) only has **281 tenants reporting**, and **269 had real activity** (games / GMV / revenue > 0). So 324 is clearly wrong.
+Memos are mostly already in place — the wins come from **doing less work** and **rendering fewer DOM nodes**, plus splitting the dashboard into tiers so the first paint is fast.
 
-### Fix (Step 1 — before items 4 & 6)
+## Changes
 
-Redefine "active club" for the KPI to mean: **tenant has a snapshot in the selected period AND is not marked churned / closed / changed_owner**.
+### 1. Single risk pass per tenant (clubs + at-risk)
 
-Change in `src/routes/index.tsx` `kpis` memo:
+In `src/routes/clubs.tsx` and `src/routes/at-risk.tsx`, replace the two-call pattern (`scoreWithDelta` + `flagsWithDelta`) with **one** helper `riskWithDelta(history, statuses)` in `src/lib/cs.ts` that returns `{ score, prevScore, delta, level, prevLevel, flags: { current, added, resolved } }` from a single current + single previous `computeRiskWithCS`. Halves the work for the heaviest table.
 
-```ts
-const activeClubs = clubs.filter((c) => {
-  if (c.status === "churned" || c.status === "closed" || c.status === "changed_owner") return false;
-  // must have reported activity in the selected period
-  return c.latest?.period === latestPeriod;
-}).length;
+Keep memo dep arrays minimal and stable (already `[snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod]`).
+
+### 2. Paginate the clubs table (50 / page)
+
+Add lightweight pagination to `src/components/DataTable.tsx`:
+
+- New optional prop `pageSize?: number` (default `undefined` = no pagination, current behavior).
+- Internal `page` state, reset to 0 whenever the post-filter/sort `filtered` length or search/filters change.
+- Slice `filtered` to `pageRows = filtered.slice(page*pageSize, (page+1)*pageSize)`; render only `pageRows` in `<tbody>`.
+- Footer with `« Anterior`, page X/N, `Próximo »`, total count.
+- Scroll table container to top on page change.
+
+Apply `pageSize={50}` to the main table in `clubs.tsx` (line 267 `rows={visibleRows}`) and the duplicate clubs/missing tables (lines 395/402). Smaller tables (CS tasks, history, recent activity) stay unpaginated.
+
+Note on requirement #2 ("only compute risk for the visible page"): we keep risk computation at the rows level because sort/filter/search must operate on full data — the row objects must already carry score/level. After change #1 the cost is ~293 single risk passes on data load only, which is fast; the real saving is rendering 50 rows instead of 293.
+
+### 3. Tier the dashboard load
+
+Split `DashboardPage` into 3 phases driven by separate state:
+
+```text
+phase 0  fetch periods + statuses        → render KPI cards + period selector
+phase 1  fetch all snapshots             → render trend & status charts
+phase 2  fetch tasks + compute clubs[]   → render positives + recent activity
 ```
 
-Optionally tighten further to require `games_online > 0 || gmv_all > 0 || revenue > 0` in the latest snapshot — I'll include that as the active definition (consistent with how a club is operationally "live").
+Implementation:
 
-Add a small tooltip on the KPI: "Clubes com atividade reportada no período selecionado, excluindo churned / closed / changed owner."
+- Replace the single `Promise.all` with three sequential `useEffect`s, each gated on the previous phase's data being present.
+- Each chart/section guards with `{snapshotsLoaded ? <Chart/> : <Skeleton/>}` so React paints KPIs immediately.
+- `clubs[]`, `positives`, `recentActivity` only build once tasks arrive (phase 2).
+- `healthByMonth` is already capped at 12 months from the previous fix — keep it.
 
-Expected new value for March 2026: ~269.
+### 4. Debounce search
 
-I'll also audit the same logic in `clubs.tsx` and `at-risk.tsx` to keep counts consistent.
+In `DataTable.tsx` the search is already commit-on-Enter/click (no live filtering), so no debounce needed there. Audit other live-filter inputs in `cs.tsx` history view, `clubs.tsx` toolbar inputs, and the `at-risk.tsx` filter — wrap any `onChange` that triggers heavy filtering with a 300 ms `useDebouncedValue` hook (`src/hooks/use-debounced-value.ts`, new file).
 
----
+### 5. useEffect audit
 
-## Item 4 — Standardized tables
+Walk every `useEffect` in `index.tsx`, `clubs.tsx`, `cs.tsx`:
 
-Create a single `<DataTable>` toolbar pattern reused everywhere:
+- Confirm dependency arrays are correct and minimal.
+- Watch for the known TanStack pattern `useEffect(() => { … setDrawerTenant(search.tenant) }, [search.tenant])` — fine.
+- The CS page has `useEffect(() => { setStatuses(...) }, [tenantNames])` (line 108) — verify it doesn't loop by checking `tenantNames` is properly memoized.
+- Add no new effects; only fix any found loops.
 
-- **Toolbar above the table** (outside the scroll area) with:
-  - Search input + medium **"Procurar"** button (submits on click / Enter)
-  - Filter chips / dropdowns specific to each table (status, level, owner…)
-  - Right-aligned action buttons (export, etc.) when relevant
-- **All columns sortable** by default (click header to toggle asc/desc/none, with an arrow indicator)
-- Consistent pagination footer + row count
+## Files
 
-Refactor `src/components/DataTable.tsx` to accept:
-- `searchableKeys: string[]`
-- `filters: Array<{ key, label, options }>`
-- `defaultSort` and `columns[].sortable` (default true)
+- `src/lib/cs.ts` — add `riskWithDelta` helper combining score + flags in one pass.
+- `src/components/DataTable.tsx` — `pageSize` prop, page state, footer pager.
+- `src/routes/clubs.tsx` — use `riskWithDelta`; pass `pageSize={50}` to main table.
+- `src/routes/at-risk.tsx` — use `riskWithDelta`.
+- `src/routes/index.tsx` — split fetch into 3 phases with skeleton fallbacks.
+- `src/hooks/use-debounced-value.ts` — new tiny hook.
+- `src/routes/cs.tsx` — debounce history search input if present; verify effects.
 
-Apply to all current tables:
-- `/` Visão Geral — clubs table
-- `/clubs` — main list
-- `/cs` (and the new sub-pages) — tasks & history tables
-- `/at-risk` — at-risk list
+## Out of scope
 
-## Item 6 — Customer Success sub-menu
-
-Convert `/cs` into a layout route with two tabs:
-
-```
-src/routes/cs.tsx              → layout with sub-nav (Tasks | History) + <Outlet/>
-src/routes/cs.tasks.tsx        → existing tasks UI (default redirect target)
-src/routes/cs.history.tsx      → activity history (currently buried), promoted as a first-class page with the standardized table + filters (tenant, outcome, date range)
-```
-
-Update top nav label "Customer Success" to keep pointing at `/cs/tasks`. The sub-nav uses the same pill style as existing tabs.
-
----
-
-## Files to edit / create
-
-- `src/routes/index.tsx` — fix `activeClubs` KPI + tooltip
-- `src/routes/clubs.tsx`, `src/routes/at-risk.tsx` — align "active" definition where relevant
-- `src/components/DataTable.tsx` — toolbar, search button, sortable columns
-- `src/routes/cs.tsx` — convert to layout with sub-nav
-- `src/routes/cs.tasks.tsx` (new) — move current tasks view
-- `src/routes/cs.history.tsx` (new) — promoted history view
-
-Item 5 (charts review) stays deferred unless you want it bundled in.
+Row virtualization (react-window) — pagination is enough at 293 rows. Web Workers for risk — not needed once duplicate passes are removed.
