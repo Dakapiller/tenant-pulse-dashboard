@@ -67,20 +67,37 @@ function AtRiskPage() {
 
   const cards = useMemo(() => {
     if (!latest) return [];
-    const list: { name: string; risk: ReturnType<typeof computeRiskWithCS>; scoreDelta: number | null; spark: { period: string; games: number }[]; pending: number }[] = [];
+    type Card = {
+      name: string;
+      score: number;
+      level: "high" | "medium" | "healthy";
+      flags: RiskFlag[];
+      scoreDelta: number | null;
+      spark: { period: string; games: number }[];
+      pending: number;
+    };
+    const list: Card[] = [];
     for (const [name, hist] of tenantHistory) {
       if (excluded.has(name)) continue;
       const sorted = [...hist].sort((a, b) => a.period.localeCompare(b.period));
       const hasLatest = sorted.some((s) => s.period === latest);
       if (!hasLatest) continue;
       const sts = statusByTenant.get(name) ?? [];
-      const risk = computeRiskWithCS(sorted, sts);
-      if (risk.flags.length === 0) continue;
-      const sd = scoreWithDelta(sorted, sts);
+      // Single pass: gives us score, level, delta and current flags.
+      const rd = riskWithDelta(sorted, sts);
+      if (rd.flags.current.length === 0) continue;
       const spark = sorted.slice(-6).map((s) => ({ period: s.period, games: s.games_online }));
-      list.push({ name, risk, scoreDelta: sd.delta, spark, pending: pendingByTenant.get(name) ?? 0 });
+      list.push({
+        name,
+        score: rd.score,
+        level: rd.level,
+        flags: rd.flags.current as RiskFlag[],
+        scoreDelta: rd.delta,
+        spark,
+        pending: pendingByTenant.get(name) ?? 0,
+      });
     }
-    return list.sort((a, b) => b.risk.score - a.risk.score);
+    return list.sort((a, b) => b.score - a.score);
   }, [tenantHistory, latest, statusByTenant, pendingByTenant, excluded]);
 
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
