@@ -9,6 +9,8 @@ import { fetchAllSnapshots, type Snapshot } from "@/lib/data";
 import {
   fetchAllCSStatuses,
   fetchPendingCSTasks,
+  fetchAllCSTasks,
+  fetchPriorityMap,
   insertCSTasks,
   completeCSTask,
   completeCSTasksBatch,
@@ -16,6 +18,7 @@ import {
   currentWeekStart,
   scoreWithDelta,
   excludedTenants,
+  lastCompletedActivityAt,
   OUTCOME_OPTIONS,
   type CSTenantStatus,
   type CSTask,
