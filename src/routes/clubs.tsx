@@ -69,6 +69,7 @@ interface ClubRow {
   flagsAdded: string[];
   flagsResolved: string[];
   csOutcome: { outcome: string; recordedAt: string } | null;
+  isPriority: boolean;
 }
 
 function ClubsPage() {
