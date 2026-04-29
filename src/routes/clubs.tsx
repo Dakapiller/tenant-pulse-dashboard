@@ -144,7 +144,7 @@ function ClubsPage() {
       const latest = sorted[sorted.length - 1] ?? null;
       const sts = stsByTenant.get(name) ?? [];
       const tks = tasksByTenant.get(name) ?? [];
-      const rd = riskWithDelta(sorted, sts);
+      const rd = riskWithDelta(sorted, sts, healthScores.get(name) ?? null, null);
       const status = currentClubStatus(sts);
       const competitor = currentChurnCompetitor(sts);
       const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
