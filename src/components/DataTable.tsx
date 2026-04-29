@@ -65,6 +65,7 @@ export function DataTable<T>({
   selectedKeys,
   onSelectionChange,
   isRowSelectable,
+  pageSize,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>(
     defaultSort ?? { key: "", dir: null },
