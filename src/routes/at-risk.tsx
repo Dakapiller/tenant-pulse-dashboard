@@ -86,10 +86,10 @@ function AtRiskPage() {
       const sorted = [...hist].sort((a, b) => a.period.localeCompare(b.period));
       const hasLatest = sorted.some((s) => s.period === latest);
       if (!hasLatest) continue;
+      const score = healthScores.get(name);
+      if (score === undefined || score >= 30) continue;
       const sts = statusByTenant.get(name) ?? [];
-      // Single pass: gives us score, level, delta and current flags.
-      const rd = riskWithDelta(sorted, sts);
-      if (rd.flags.current.length === 0) continue;
+      const rd = riskWithDelta(sorted, sts, score, null);
       const spark = sorted.slice(-6).map((s) => ({ period: s.period, games: s.games_online }));
       list.push({
         name,
@@ -101,8 +101,8 @@ function AtRiskPage() {
         pending: pendingByTenant.get(name) ?? 0,
       });
     }
-    return list.sort((a, b) => b.score - a.score);
-  }, [tenantHistory, latest, statusByTenant, pendingByTenant, excluded]);
+    return list.sort((a, b) => a.score - b.score);
+  }, [tenantHistory, latest, statusByTenant, pendingByTenant, excluded, healthScores]);
 
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
