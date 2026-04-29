@@ -396,9 +396,15 @@ function ClubsPage() {
               header: "Pendentes",
               align: "center",
               sortValue: (r) => r.pending,
-              render: (r) => r.pending > 0
-                ? <span className="inline-flex items-center justify-center rounded-full bg-warning/15 text-warning px-2 py-0.5 text-xs font-medium">{r.pending}</span>
-                : <span className="text-success">✓</span>,
+              render: (r) => r.pending > 0 ? (
+                <span
+                  title={`${r.pendingThisWeek} desta semana${r.overdue > 0 ? `, ${r.overdue} atrasada${r.overdue === 1 ? "" : "s"}` : ""}`}
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${r.overdue > 0 ? "bg-danger/15 text-danger" : "bg-warning/15 text-warning"}`}
+                >
+                  {r.pending}
+                  {r.overdue > 0 && <span className="text-[10px]">⚠</span>}
+                </span>
+              ) : <span className="text-success">✓</span>,
             },
             {
               key: "status",
