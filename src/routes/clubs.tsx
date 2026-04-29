@@ -1251,6 +1251,13 @@ function BulkStatusBar({
               <Check className="h-4 w-4" /> {busy ? "A aplicar…" : "Aplicar"}
             </button>
             <button
+              onClick={onAdjustScore}
+              className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 min-h-11 md:min-h-9 text-sm font-medium hover:bg-surface"
+              title="Ajustar manualmente o health score dos clubes selecionados"
+            >
+              <SlidersHorizontal className="h-4 w-4" /> Ajustar score
+            </button>
+            <button
               onClick={onCancel}
               className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 md:min-h-9"
             >
