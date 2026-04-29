@@ -596,6 +596,7 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
       title: t.reason,
       meta: `${outcomeLabel(t.outcome)}${t.note ? ` · “${t.note}”` : ""}`,
       score: null as { oldScore: number; newScore: number; delta: number } | null,
+      reasons: [] as string[],
     }));
   const statusEvents = row.statusLogs.map((l) => ({
     at: l.changed_at,
@@ -603,6 +604,7 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
     title: `${CLUB_STATUS_LABEL[l.previous_status as ClubStatus] ?? l.previous_status} → ${CLUB_STATUS_LABEL[l.new_status as ClubStatus] ?? l.new_status}`,
     meta: l.note ? `“${l.note}”` : "",
     score: null as { oldScore: number; newScore: number; delta: number } | null,
+    reasons: [] as string[],
   }));
   const scoreEvents = scoreChangeEvents(row).map((s) => ({
     at: s.period === "Atual" ? new Date().toISOString() : periodEndIso(s.period),
@@ -610,6 +612,7 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
     title: s.period === "Atual" ? "Variação atual do score" : `Variação em ${periodLabel(s.period)}`,
     meta: "",
     score: { oldScore: s.oldScore, newScore: s.newScore, delta: s.delta },
+    reasons: s.reasons,
   }));
   const events = [...taskEvents, ...statusEvents, ...scoreEvents].sort((a, b) => b.at.localeCompare(a.at));
 
@@ -627,7 +630,16 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
                   <span className="font-medium">{event.title}</span>
                 </div>
                 {event.score ? (
-                  <div className="mt-1"><ScoreChangeLine {...event.score} /></div>
+                  <div className="mt-1 space-y-1">
+                    <ScoreChangeLine {...event.score} />
+                    {event.reasons.length > 0 && (
+                      <ul className="ml-1 mt-1 space-y-0.5 text-muted-foreground">
+                        {event.reasons.map((r, i) => (
+                          <li key={i} className="flex gap-1.5"><span>•</span><span>{r}</span></li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 ) : event.meta ? (
                   <div className="mt-1 text-muted-foreground">{event.meta}</div>
                 ) : null}
