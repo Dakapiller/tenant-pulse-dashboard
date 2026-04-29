@@ -803,6 +803,7 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
   }, [row.history]);
 
   const completedTasks = tenantTasks.filter((t) => t.status === "completed");
+  const pendingTasks = tenantTasks.filter((t) => t.status === "pending");
   const MODS: Record<string, number> = { bad_relationship: 25, good_receptivity: -15, very_satisfied: -30 };
 
   return (
@@ -817,6 +818,11 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
             <h2 className="text-lg font-semibold truncate">{tenant}</h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <ClubStatusBadge status={row.status} competitor={row.competitor} />
+              {pendingTasks.length > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 text-warning text-[11px] font-semibold px-2 py-0.5">
+                  {pendingTasks.length} {pendingTasks.length === 1 ? "tarefa pendente" : "tarefas pendentes"}
+                </span>
+              )}
               <Link to="/tenant/$name" params={{ name: tenant }} className="text-xs text-muted-foreground hover:text-foreground underline">
                 Abrir página completa
               </Link>
