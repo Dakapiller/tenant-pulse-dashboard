@@ -341,24 +341,14 @@ function DashboardPage() {
           else healthy++;
           continue;
         }
-        // Prior months: legacy per-period computation (no historical health score available).
-        const fullHist = tenantHistory.get(name);
-        if (!fullHist || fullHist.length === 0) { healthy++; continue; }
-        let endIdx = -1;
-        for (let i = fullHist.length - 1; i >= 0; i--) {
-          if (fullHist[i].period <= p) { endIdx = i; break; }
-        }
-        if (endIdx < 0) { healthy++; continue; }
-        const hist = endIdx === fullHist.length - 1 ? fullHist : fullHist.slice(0, endIdx + 1);
-        const stsAll = tenantStatuses.get(name) ?? [];
-        let stsEnd = stsAll.length;
-        for (let i = 0; i < stsAll.length; i++) {
-          if ((stsAll[i].recorded_at ?? "") > cutoffSts) { stsEnd = i; break; }
-        }
-        const sts = stsEnd === stsAll.length ? stsAll : stsAll.slice(0, stsEnd);
-        const r = computeRiskWithCS(hist, sts);
-        if (r.level === "high") high++;
-        else if (r.level === "medium") medium++;
+        // Prior months: we no longer derive levels from flags. Without a
+        // historical health score for that period we fall back to the current
+        // DB score (best available proxy); tenants with no score count as healthy.
+        const score = healthScores.get(name);
+        if (score === undefined) { healthy++; continue; }
+        const lvl = healthLevel(score);
+        if (lvl === "risk") high++;
+        else if (lvl === "monitor") medium++;
         else healthy++;
       }
       return {
