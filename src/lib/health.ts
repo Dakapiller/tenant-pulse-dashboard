@@ -277,6 +277,61 @@ export async function applyTaskOutcome(tenant: string, outcome: string): Promise
 }
 
 /**
+ * Manual override of a tenant's health_score by a CS user. Bypasses the
+ * dynamic floor (Rule 4) — manual is deliberate. Logs to health_score_log
+ * with source 'manual' or 'manual_bulk' and writes the user's comment into
+ * the reason field so it shows in the existing history UI.
+ */
+export async function applyManualScoreChange(
+  tenant: string,
+  newScore: number,
+  comment: string,
+  source: "manual" | "manual_bulk" = "manual",
+  changedBy: string = "cs",
+): Promise<number> {
+  const clean = comment.trim();
+  if (clean.length < 5) throw new Error("Comentário obrigatório (mín. 5 caracteres).");
+  const clamped = clampScore(newScore);
+  const prev = (await fetchHealthScoreForTenant(tenant)) ?? 100;
+  if (clamped === prev) return prev;
+
+  await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from("health_score_log" as any)
+    .insert({
+      tenant_name: tenant,
+      previous_score: prev,
+      new_score: clamped,
+      delta: clamped - prev,
+      reason: `Ajuste manual: ${clean}`,
+      source,
+      changed_by: changedBy,
+    } as never);
+
+  // Update or insert latest cs_tenant_status row.
+  const { data: latest } = await supabase
+    .from("cs_tenant_status")
+    .select("id")
+    .eq("tenant_name", tenant)
+    .order("recorded_at", { ascending: false })
+    .limit(1);
+  const latestId = (latest as { id: string }[] | null)?.[0]?.id;
+  if (latestId) {
+    await supabase
+      .from("cs_tenant_status")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ health_score: clamped } as any)
+      .eq("id", latestId);
+  } else {
+    await supabase
+      .from("cs_tenant_status")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .insert({ tenant_name: tenant, relationship_status: "status_active", club_status: "active", health_score: clamped } as any);
+  }
+  return clamped;
+}
+
+/**
  * Rule 1 + Rule 2 — given the previous and current snapshot for a tenant, apply
  * any score change. Returns metadata describing what (if anything) happened so
  * the caller can also create the matching CS task.
