@@ -107,6 +107,7 @@ function ClubsPage() {
   const [missingOpen, setMissingOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [filterNewOnly, setFilterNewOnly] = useState(false);
+  const [bulkScoreOpen, setBulkScoreOpen] = useState(false);
 
   async function loadAll() {
     const [s, p, sts, tks, logs, scores, prio] = await Promise.all([
