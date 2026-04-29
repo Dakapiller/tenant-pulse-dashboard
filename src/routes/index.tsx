@@ -356,7 +356,9 @@ function DashboardPage() {
         <KpiCard icon={<Euro className="h-4 w-4" />} label="GMV mês" value={formatEuro(kpis.monthGmv)} />
         <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita mês" value={formatEuro(kpis.monthRevenue)} />
       </section>
-      <p className="text-[11px] text-muted-foreground -mt-3 mb-6">Clubes em churn e fechados excluídos dos cálculos.</p>
+      <p className="text-[11px] text-muted-foreground -mt-3 mb-6">
+        Clubes ativos = clubes com atividade reportada no período selecionado, excluindo churned, fechados e mudança de proprietário.
+      </p>
 
       {/* Row 2 — Charts */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
