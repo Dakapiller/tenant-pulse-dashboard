@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import { computeRiskWithCS } from "@/lib/risk";
+import { computeRisk, type RiskFlag } from "@/lib/risk";
+import { applyTaskOutcome } from "@/lib/health";
 import { fetchAllPaged, type Snapshot } from "@/lib/data";
 
 export interface CSTask {
@@ -25,6 +26,7 @@ export interface CSTenantStatus {
   recorded_at: string;
   club_status?: string | null;
   churn_competitor?: string | null;
+  health_score?: number | null;
 }
 
 export type ClubStatus = "active" | "possible_churn" | "churned" | "closed" | "changed_owner";
@@ -182,6 +184,8 @@ export async function completeCSTask(taskId: string, tenant: string, outcome: st
     .from("cs_tenant_status")
     .insert({ tenant_name: tenant, relationship_status: outcome, note });
   if (e2) throw e2;
+  // Rule 3 — apply task outcome to the health score.
+  await applyTaskOutcome(tenant, outcome);
 }
 
 /** Complete multiple tasks for a single tenant in one batch with shared outcome+note,
@@ -203,6 +207,8 @@ export async function completeCSTasksBatch(
     .from("cs_tenant_status")
     .insert({ tenant_name: tenant, relationship_status: outcome, note });
   if (e2) throw e2;
+  // Rule 3 — apply once per batch (the outcome is the same for all tasks).
+  await applyTaskOutcome(tenant, outcome);
 }
 
 // --------- Club status helpers ---------
@@ -305,17 +311,6 @@ export async function setClubStatus(
   if (e2) throw e2;
 }
 
-// Sum of CS modifiers across all relationship statuses ever recorded for a tenant.
-export function sumCSImpact(statuses: CSTenantStatus[]): number {
-  // mirror CS_MODIFIER from risk.ts (kept inline to avoid import cycle)
-  const MODS: Record<string, number> = {
-    bad_relationship: 25,
-    good_receptivity: -15,
-    very_satisfied: -30,
-  };
-  return statuses.reduce((acc, s) => acc + (MODS[s.relationship_status] ?? 0), 0);
-}
-
 export function lastCompletedActivityAt(tasks: CSTask[]): string | null {
   let best: string | null = null;
   for (const t of tasks) {
@@ -327,84 +322,16 @@ export function lastCompletedActivityAt(tasks: CSTask[]): string | null {
 }
 
 /**
- * Compute current vs previous-month risk score AND flag delta in a single pass.
- * Replaces the old `scoreWithDelta` + `flagsWithDelta` pair so we only run
- * computeRiskWithCS twice (current + prev) instead of four times per tenant.
+ * Compute current informational flags (NOT a score) plus which were added /
+ * resolved vs the previous month. Flags are descriptive only — they do not
+ * affect the health score (see src/lib/health.ts for scoring rules).
  */
-export function riskWithDelta(
-  history: Snapshot[],
-  statuses: CSTenantStatus[],
-): {
-  score: number;
-  prevScore: number | null;
-  delta: number | null;
-  level: "high" | "medium" | "healthy";
-  prevLevel: "high" | "medium" | "healthy" | null;
-  flags: { current: string[]; added: string[]; resolved: string[]; prev: string[] };
-} {
-  const sorted = [...history].sort((a, b) => a.period.localeCompare(b.period));
-  if (sorted.length === 0) {
-    return {
-      score: 0, prevScore: null, delta: null, level: "healthy", prevLevel: null,
-      flags: { current: [], added: [], resolved: [], prev: [] },
-    };
-  }
-  const cur = computeRiskWithCS(sorted, statuses);
-  if (sorted.length < 2) {
-    return {
-      score: cur.score, prevScore: null, delta: null, level: cur.level, prevLevel: null,
-      flags: { current: cur.flags, added: cur.flags, resolved: [], prev: [] },
-    };
-  }
-  const prevSlice = sorted.slice(0, -1);
-  const prevPeriod = prevSlice[prevSlice.length - 1].period;
-  const cutoff = `${prevPeriod.slice(0, 7)}-31T23:59:59Z`;
-  // statuses come in sorted ascending in most callers; do a linear scan to find the cutoff.
-  const filtered: CSTenantStatus[] = [];
-  for (const s of statuses) {
-    if (!s.recorded_at || s.recorded_at <= cutoff) filtered.push(s);
-  }
-  const prev = computeRiskWithCS(prevSlice, filtered);
-  const prevSet = new Set(prev.flags);
-  const curSet = new Set(cur.flags);
-  return {
-    score: cur.score,
-    prevScore: prev.score,
-    delta: cur.score - prev.score,
-    level: cur.level,
-    prevLevel: prev.level,
-    flags: {
-      current: cur.flags,
-      added: cur.flags.filter((f) => !prevSet.has(f)),
-      resolved: prev.flags.filter((f) => !curSet.has(f)),
-      prev: prev.flags,
-    },
-  };
-}
-
-/** @deprecated Use `riskWithDelta` instead — runs twice as much risk computation. */
-export function scoreWithDelta(
-  history: Snapshot[],
-  statuses: CSTenantStatus[],
-): { score: number; prevScore: number | null; delta: number | null; level: "high" | "medium" | "healthy"; prevLevel: "high" | "medium" | "healthy" | null } {
-  const r = riskWithDelta(history, statuses);
-  return { score: r.score, prevScore: r.prevScore, delta: r.delta, level: r.level, prevLevel: r.prevLevel };
-}
-
-/** Compute current flags, plus which were added/resolved vs previous month. */
-export function flagsWithDelta(
-  history: Snapshot[],
-  statuses: CSTenantStatus[],
-): { current: string[]; added: string[]; resolved: string[]; prev: string[] } {
+export function flagsWithDelta(history: Snapshot[]): { current: RiskFlag[]; added: RiskFlag[]; resolved: RiskFlag[]; prev: RiskFlag[] } {
   const sorted = [...history].sort((a, b) => a.period.localeCompare(b.period));
   if (sorted.length === 0) return { current: [], added: [], resolved: [], prev: [] };
-  const cur = computeRiskWithCS(sorted, statuses);
+  const cur = computeRisk(sorted);
   if (sorted.length < 2) return { current: cur.flags, added: cur.flags, resolved: [], prev: [] };
-  const prevSlice = sorted.slice(0, -1);
-  const prevPeriod = prevSlice[prevSlice.length - 1].period;
-  const cutoff = `${prevPeriod.slice(0, 7)}-31T23:59:59Z`;
-  const filtered = statuses.filter((s) => !s.recorded_at || s.recorded_at <= cutoff);
-  const prev = computeRiskWithCS(prevSlice, filtered);
+  const prev = computeRisk(sorted.slice(0, -1));
   const prevSet = new Set(prev.flags);
   const curSet = new Set(cur.flags);
   return {
@@ -415,17 +342,50 @@ export function flagsWithDelta(
   };
 }
 
-/** Most-recent CS outcome (non-status_*) and its score impact. */
-export function latestCSOutcome(statuses: CSTenantStatus[]): { outcome: string; impact: number; recordedAt: string } | null {
-  const MODS: Record<string, number> = { bad_relationship: 25, good_receptivity: -15, very_satisfied: -30 };
+/** Most-recent CS outcome (non-status_*). Used to display CS context. */
+export function latestCSOutcome(statuses: CSTenantStatus[]): { outcome: string; recordedAt: string } | null {
   const sorted = [...statuses]
     .filter((s) => !s.relationship_status.startsWith("status_"))
     .sort((a, b) => (b.recorded_at ?? "").localeCompare(a.recorded_at ?? ""));
   const latest = sorted[0];
   if (!latest) return null;
+  return { outcome: latest.relationship_status, recordedAt: latest.recorded_at };
+}
+
+// ---- Backward-compat shims ----
+// The old score+flag bundle is now derived from health_score (passed in)
+// and the informational flags. These keep existing UI call sites compiling
+// while the screens are progressively migrated to read health_score directly.
+export function riskWithDelta(
+  history: Snapshot[],
+  _statuses: CSTenantStatus[],
+  currentScore: number | null = null,
+  prevScore: number | null = null,
+): {
+  score: number;
+  prevScore: number | null;
+  delta: number | null;
+  level: "high" | "medium" | "healthy";
+  prevLevel: "high" | "medium" | "healthy" | null;
+  flags: { current: RiskFlag[]; added: RiskFlag[]; resolved: RiskFlag[]; prev: RiskFlag[] };
+} {
+  const f = flagsWithDelta(history);
+  const score = currentScore ?? 100;
+  // Map health score → legacy "high/medium/healthy" levels (inverted: low health = high risk).
+  const toLevel = (s: number): "high" | "medium" | "healthy" =>
+    s < 30 ? "high" : s < 60 ? "medium" : "healthy";
   return {
-    outcome: latest.relationship_status,
-    impact: MODS[latest.relationship_status] ?? 0,
-    recordedAt: latest.recorded_at,
+    score,
+    prevScore,
+    delta: prevScore !== null ? score - prevScore : null,
+    level: toLevel(score),
+    prevLevel: prevScore !== null ? toLevel(prevScore) : null,
+    flags: f,
   };
 }
+
+/** @deprecated kept for old callers — returns 0 (no longer used in scoring). */
+export function sumCSImpact(_statuses: CSTenantStatus[]): number { return 0; }
+
+/** @deprecated alias for riskWithDelta. */
+export const scoreWithDelta = riskWithDelta;

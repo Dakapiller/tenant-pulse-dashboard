@@ -93,6 +93,7 @@ export type Database = {
         Row: {
           churn_competitor: string | null
           club_status: string | null
+          health_score: number | null
           id: string
           note: string | null
           recorded_at: string | null
@@ -102,6 +103,7 @@ export type Database = {
         Insert: {
           churn_competitor?: string | null
           club_status?: string | null
+          health_score?: number | null
           id?: string
           note?: string | null
           recorded_at?: string | null
@@ -111,10 +113,44 @@ export type Database = {
         Update: {
           churn_competitor?: string | null
           club_status?: string | null
+          health_score?: number | null
           id?: string
           note?: string | null
           recorded_at?: string | null
           relationship_status?: string
+          tenant_name?: string
+        }
+        Relationships: []
+      }
+      health_score_log: {
+        Row: {
+          changed_at: string
+          delta: number
+          id: string
+          new_score: number
+          previous_score: number
+          reason: string
+          source: string
+          tenant_name: string
+        }
+        Insert: {
+          changed_at?: string
+          delta: number
+          id?: string
+          new_score: number
+          previous_score: number
+          reason: string
+          source: string
+          tenant_name: string
+        }
+        Update: {
+          changed_at?: string
+          delta?: number
+          id?: string
+          new_score?: number
+          previous_score?: number
+          reason?: string
+          source?: string
           tenant_name?: string
         }
         Relationships: []
