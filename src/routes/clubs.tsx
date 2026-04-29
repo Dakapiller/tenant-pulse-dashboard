@@ -310,7 +310,7 @@ function ClubsPage() {
               ]},
               filterValue: (r) => r.level,
               render: (r) => {
-                const healthColor = r.score >= 60 ? "text-danger bg-danger/10" : r.score >= 30 ? "text-warning bg-warning/15" : "text-success bg-success/10";
+                const healthColor = r.score < 30 ? "text-danger bg-danger/10" : r.score < 60 ? "text-warning bg-warning/15" : "text-success bg-success/10";
                 return (
                   <ScoreTooltip row={r}>
                     <span className="inline-flex items-center gap-1.5 cursor-help">
