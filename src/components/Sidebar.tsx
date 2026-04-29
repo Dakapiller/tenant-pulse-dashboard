@@ -7,14 +7,16 @@ const items = [
   { to: "/clubs", label: "Clubes", icon: Building2 },
   { to: "/upload", label: "Carregar", icon: Upload },
   { to: "/at-risk", label: "Em risco", icon: AlertTriangle },
-  { to: "/cs", label: "Customer Success", icon: Users },
-];
+  { to: "/cs/tasks", label: "Customer Success", icon: Users, matchPrefix: "/cs" },
+] as const;
 
 function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
     <nav className="flex-1 p-3 space-y-1">
       {items.map((item) => {
-        const active = pathname === item.to;
+        const active = ("matchPrefix" in item && item.matchPrefix)
+          ? pathname.startsWith(item.matchPrefix)
+          : pathname === item.to;
         const Icon = item.icon;
         return (
           <Link
