@@ -726,7 +726,24 @@ export function formatFlagsLabel(flags: string[] | null | undefined): string {
   return flags.map((f) => FLAG_META[f as RiskFlag]?.label ?? f).join(" + ");
 }
 
-async function generateWeeklyTasks(snapshots: Snapshot[], statuses: CSTenantStatus[], weekStart: string) {
+/**
+ * Weekly task generation (new rules — flag count is NOT a trigger):
+ *   • health_score < 40           → always generate
+ *   • is_priority = true          → always generate
+ *   • no contact in last 3 months AND health_score in [40, 70]
+ *                                 → generate, capped at 10 clubs/week
+ * Excluded clubs (churned/closed/changed_owner) are skipped. The descriptive
+ * flags (when present) are still embedded in the task body so the CS team has
+ * concrete talking points; they no longer drive the trigger.
+ */
+async function generateWeeklyTasks(
+  snapshots: Snapshot[],
+  statuses: CSTenantStatus[],
+  healthScores: Map<string, number>,
+  priorityMap: Map<string, boolean>,
+  lastContactMap: Map<string, string | null>,
+  weekStart: string,
+) {
   const histByTenant = new Map<string, Snapshot[]>();
   snapshots.forEach((s) => {
     if (!histByTenant.has(s.tenant_name)) histByTenant.set(s.tenant_name, []);
@@ -738,28 +755,93 @@ async function generateWeeklyTasks(snapshots: Snapshot[], statuses: CSTenantStat
     statusByTenant.get(s.tenant_name)!.push(s);
   });
 
+  const excluded = excludedTenants(statuses);
   const latest = snapshots.reduce<string>((acc, s) => (s.period > acc ? s.period : acc), "");
   if (!latest) return;
 
-  const tasks: { tenant_name: string; reason: string; cta: string; priority: number; flags: string[]; week_start: string }[] = [];
-  for (const [name, hist] of histByTenant) {
-    if (!hist.some((s) => s.period === latest)) continue;
+  const threeMonthsAgoIso = new Date(Date.now() - 1000 * 60 * 60 * 24 * 92).toISOString();
+
+  type Candidate = {
+    tenant_name: string;
+    reason: string;
+    cta: string;
+    priority: number;
+    flags: string[];
+    week_start: string;
+    bucket: "low_score" | "priority" | "stale_contact";
+  };
+  const always: Candidate[] = [];
+  const stale: Candidate[] = [];
+
+  // Build the universe of clubs we know about (snapshots OR statuses OR priority).
+  const allTenants = new Set<string>();
+  histByTenant.forEach((_, n) => allTenants.add(n));
+  statuses.forEach((s) => allTenants.add(s.tenant_name));
+  priorityMap.forEach((_, n) => allTenants.add(n));
+
+  for (const name of allTenants) {
+    if (excluded.has(name)) continue;
+
+    const hist = histByTenant.get(name) ?? [];
     const stats = statusByTenant.get(name) ?? [];
+    const score = healthScores.get(name);
+    const isPriority = priorityMap.get(name) === true;
+    const lastContact = lastContactMap.get(name) ?? null;
+    const noRecentContact = !lastContact || lastContact < threeMonthsAgoIso;
+
+    // Decide bucket.
+    let bucket: Candidate["bucket"] | null = null;
+    if (score !== undefined && score < 40) bucket = "low_score";
+    else if (isPriority) bucket = "priority";
+    else if (
+      noRecentContact &&
+      score !== undefined &&
+      score >= 40 &&
+      score <= 70
+    ) bucket = "stale_contact";
+
+    if (!bucket) continue;
+
+    // Build a helpful body. If informational flags exist, list them as bullets;
+    // otherwise fall back to a generic check-in message based on the bucket.
     const risk = computeRiskWithCS(hist, stats);
-    if (risk.suppressed) continue;
-    if (risk.flags.length === 0) continue;
-    const reason = risk.flags.map((f) => FLAG_CTA[f].reason).join("\n");
-    const cta = risk.flags.map((f) => FLAG_CTA[f].cta).join("\n");
-    tasks.push({
+    const reasonLines: string[] = [];
+    const ctaLines: string[] = [];
+    if (bucket === "low_score") {
+      reasonLines.push(`Health score em risco (${score})`);
+      ctaLines.push("Reunião urgente para perceber fricções e desenhar plano de retenção.");
+    } else if (bucket === "priority") {
+      reasonLines.push("Clube prioritário — check-in semanal");
+      ctaLines.push("Acompanhar o cliente, recolher feedback e identificar oportunidades.");
+    } else {
+      reasonLines.push(`Sem contacto há mais de 3 meses (score ${score})`);
+      ctaLines.push("Fazer check-in proativo para reforçar a relação.");
+    }
+    for (const f of risk.flags) {
+      reasonLines.push(FLAG_CTA[f].reason);
+      ctaLines.push(FLAG_CTA[f].cta);
+    }
+
+    const candidate: Candidate = {
       tenant_name: name,
-      reason,
-      cta,
-      priority: risk.score,
+      reason: reasonLines.join("\n"),
+      cta: ctaLines.join("\n"),
+      // Priority used for sorting/UI badges only — not a score input.
+      // Lower health = higher urgency; use 100 - score so it stays in [0,100].
+      priority: score !== undefined ? Math.max(0, Math.min(100, 100 - score)) : 50,
       flags: [...risk.flags],
       week_start: weekStart,
-    });
+      bucket,
+    };
+    if (bucket === "stale_contact") stale.push(candidate);
+    else always.push(candidate);
   }
 
+  // Cap stale-contact bucket at 10 clubs/week (lowest score first).
+  stale.sort((a, b) => b.priority - a.priority);
+  const staleCapped = stale.slice(0, 10);
+
+  const tasks = [...always, ...staleCapped].map(({ bucket: _b, ...rest }) => rest);
   if (tasks.length > 0) await insertCSTasks(tasks);
 }
 
