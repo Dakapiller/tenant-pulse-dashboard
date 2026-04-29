@@ -211,7 +211,7 @@ function DashboardPage() {
         revenuePrev: prior?.revenue ?? null,
       };
     });
-  }, [includedSnapshots]);
+  }, [includedSnapshots, latestPeriod]);
 
   // YoY comparison row
   const yoyRow = useMemo(() => {
@@ -228,7 +228,9 @@ function DashboardPage() {
 
   // Health distribution per month — count ALL clubs in that period
   const healthByMonth = useMemo(() => {
-    const periodsAsc = [...new Set(includedSnapshots.map((s) => s.period))].sort();
+    const periodsAsc = [...new Set(includedSnapshots.map((s) => s.period))]
+      .filter((p) => !latestPeriod || p <= latestPeriod)
+      .sort();
     return periodsAsc.map((p) => {
       // All non-excluded tenants present in this exact month.
       const tenantsThatMonth = new Set(
@@ -253,7 +255,7 @@ function DashboardPage() {
         total: healthy + medium + high,
       };
     });
-  }, [includedSnapshots, tenantHistory, tenantStatuses]);
+  }, [includedSnapshots, tenantHistory, tenantStatuses, latestPeriod]);
 
   // Positive metrics
   const positives = useMemo(() => {
