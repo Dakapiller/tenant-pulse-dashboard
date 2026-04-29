@@ -369,7 +369,7 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {filtered.map((row) => {
+            {pageRows.map((row) => {
               const expandedContent = expandedRow?.(row);
               const k = rowKey(row);
               const isSelected = !!selectedKeys?.has(k);
