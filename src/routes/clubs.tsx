@@ -66,6 +66,8 @@ interface ClubRow {
   csImpact: number;
   lastActivity: string | null;
   pending: number;
+  pendingThisWeek: number;
+  overdue: number;
   missingFromLatest: boolean;
   isNew: boolean;
   firstSeen: string | null;
@@ -156,7 +158,9 @@ function ClubsPage() {
       const rd = riskWithDelta(sorted, sts, healthScores.get(name) ?? null, null);
       const status = currentClubStatus(sts);
       const competitor = currentChurnCompetitor(sts);
-      const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
+      const pendingThisWeek = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
+      const overdue = tks.filter((t) => t.status === "pending" && t.week_start < weekStart).length;
+      const pending = pendingThisWeek + overdue;
       const missing = !!latestPeriod && !sorted.some((s) => s.period === latestPeriod);
       const firstSeen = sorted[0]?.period ?? null;
       const isNew = !!latestPeriod && firstSeen === latestPeriod && sorted.length === 1;
@@ -166,7 +170,7 @@ function ClubsPage() {
         status, competitor, score: rd.score, prevScore: rd.prevScore, scoreDelta: rd.delta, level: rd.level,
         csImpact: sumCSImpact(sts),
         lastActivity: lastCompletedActivityAt(tks),
-        pending, missingFromLatest: missing,
+        pending, pendingThisWeek, overdue, missingFromLatest: missing,
         isNew, firstSeen,
         flagsCurrent: rd.flags.current, flagsAdded: rd.flags.added, flagsResolved: rd.flags.resolved,
         csOutcome: csOut,
@@ -392,9 +396,15 @@ function ClubsPage() {
               header: "Pendentes",
               align: "center",
               sortValue: (r) => r.pending,
-              render: (r) => r.pending > 0
-                ? <span className="inline-flex items-center justify-center rounded-full bg-warning/15 text-warning px-2 py-0.5 text-xs font-medium">{r.pending}</span>
-                : <span className="text-success">✓</span>,
+              render: (r) => r.pending > 0 ? (
+                <span
+                  title={`${r.pendingThisWeek} desta semana${r.overdue > 0 ? `, ${r.overdue} atrasada${r.overdue === 1 ? "" : "s"}` : ""}`}
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${r.overdue > 0 ? "bg-danger/15 text-danger" : "bg-warning/15 text-warning"}`}
+                >
+                  {r.pending}
+                  {r.overdue > 0 && <span className="text-[10px]">⚠</span>}
+                </span>
+              ) : <span className="text-success">✓</span>,
             },
             {
               key: "status",
@@ -695,8 +705,28 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
   }));
   const events = [...taskEvents, ...statusEvents, ...scoreEvents].sort((a, b) => b.at.localeCompare(a.at));
 
+  const pendingTasks = row.tasks.filter((t) => t.status === "pending");
+
   return (
-    <div className="rounded-md border border-border bg-background p-3">
+    <div className="rounded-md border border-border bg-background p-3 space-y-3">
+      {pendingTasks.length > 0 && (
+        <div className="rounded-md border border-warning/40 bg-warning/5 p-3">
+          <div className="text-[11px] uppercase tracking-wide text-warning font-semibold mb-2">
+            Tarefas pendentes · {pendingTasks.length}
+          </div>
+          <ul className="space-y-2">
+            {pendingTasks.map((t) => (
+              <li key={t.id} className="text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{t.reason}</span>
+                  <span className="text-muted-foreground tabular-nums shrink-0">{t.week_start}</span>
+                </div>
+                <div className="text-muted-foreground mt-0.5">CTA: {t.cta}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {events.length === 0 ? (
         <div className="text-xs text-muted-foreground">Sem histórico registado.</div>
       ) : (
@@ -773,6 +803,7 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
   }, [row.history]);
 
   const completedTasks = tenantTasks.filter((t) => t.status === "completed");
+  const pendingTasks = tenantTasks.filter((t) => t.status === "pending");
   const MODS: Record<string, number> = { bad_relationship: 25, good_receptivity: -15, very_satisfied: -30 };
 
   return (
@@ -787,6 +818,11 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
             <h2 className="text-lg font-semibold truncate">{tenant}</h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <ClubStatusBadge status={row.status} competitor={row.competitor} />
+              {pendingTasks.length > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 text-warning text-[11px] font-semibold px-2 py-0.5">
+                  {pendingTasks.length} {pendingTasks.length === 1 ? "tarefa pendente" : "tarefas pendentes"}
+                </span>
+              )}
               <Link to="/tenant/$name" params={{ name: tenant }} className="text-xs text-muted-foreground hover:text-foreground underline">
                 Abrir página completa
               </Link>
@@ -879,8 +915,34 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
             </div>
           </section>
 
+          {pendingTasks.length > 0 && (
+            <section className="rounded-lg border border-warning/40 bg-warning/5 overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-warning/30 text-sm font-medium text-warning flex items-center justify-between">
+                <span>Tarefas pendentes</span>
+                <span className="text-xs font-normal">{pendingTasks.length}</span>
+              </div>
+              <ul className="divide-y divide-warning/20">
+                {pendingTasks
+                  .slice()
+                  .sort((a, b) => a.week_start.localeCompare(b.week_start))
+                  .map((t) => (
+                    <li key={t.id} className="px-4 py-3 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground tabular-nums">Semana de {t.week_start}</span>
+                        <span className={`text-[10px] uppercase font-semibold rounded-full px-1.5 py-0.5 ${t.priority >= 80 ? "bg-danger/15 text-danger" : t.priority >= 50 ? "bg-warning/15 text-warning" : "bg-surface text-muted-foreground"}`}>
+                          {t.priority >= 80 ? "Alta" : t.priority >= 50 ? "Média" : "Baixa"}
+                        </span>
+                      </div>
+                      <div className="mt-1 font-medium whitespace-pre-line">{t.reason}</div>
+                      <div className="text-muted-foreground mt-0.5 whitespace-pre-line">CTA: {t.cta}</div>
+                    </li>
+                  ))}
+              </ul>
+            </section>
+          )}
+
           <section className="rounded-lg border border-border overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico CS — Tarefas</div>
+            <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico CS — Tarefas concluídas</div>
             {completedTasks.length === 0 ? (
               <div className="p-4 text-xs text-muted-foreground">Sem tarefas registadas.</div>
             ) : (
@@ -914,9 +976,9 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
           </section>
 
           <section className="rounded-lg border border-border overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de estado</div>
+            <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de mudanças de estado (ciclo de vida)</div>
             {statusLogs.length === 0 ? (
-              <div className="p-4 text-xs text-muted-foreground">Sem alterações de estado registadas.</div>
+              <div className="p-4 text-xs text-muted-foreground">Sem alterações registadas. Esta secção mostra quando o clube transitou entre Ativo, Possível churn, Em churn, Fechado, etc.</div>
             ) : (
               <ul className="divide-y divide-border text-xs">
                 {statusLogs.map((l) => (

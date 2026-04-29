@@ -215,6 +215,31 @@ function TenantDetail() {
         )}
       </section>
 
+      {csTasks.some((t) => t.status === "pending") && (
+        <section className="rounded-xl border border-warning/40 bg-warning/5 p-5 mt-6">
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-warning">
+            <MessageSquare className="h-4 w-4" /> Tarefas pendentes · {csTasks.filter((t) => t.status === "pending").length}
+          </h3>
+          <ul className="space-y-3">
+            {csTasks
+              .filter((t) => t.status === "pending")
+              .sort((a, b) => a.week_start.localeCompare(b.week_start))
+              .map((t) => (
+                <li key={t.id} className="text-sm rounded-md border border-warning/30 bg-background p-3">
+                  <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                    <span>Semana de {t.week_start}</span>
+                    <span className={`uppercase font-semibold rounded-full px-1.5 py-0.5 text-[10px] ${t.priority >= 80 ? "bg-danger/15 text-danger" : t.priority >= 50 ? "bg-warning/15 text-warning" : "bg-surface"}`}>
+                      {t.priority >= 80 ? "Alta" : t.priority >= 50 ? "Média" : "Baixa"}
+                    </span>
+                  </div>
+                  <div className="mt-1 font-medium whitespace-pre-line">{t.reason}</div>
+                  <div className="text-muted-foreground mt-0.5 whitespace-pre-line">CTA: {t.cta}</div>
+                </li>
+              ))}
+          </ul>
+        </section>
+      )}
+
       <section className="rounded-xl border border-border p-5 mt-6">
         <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
           <MessageSquare className="h-4 w-4" /> Histórico CS
