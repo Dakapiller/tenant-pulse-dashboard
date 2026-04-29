@@ -23,7 +23,7 @@ import { computeRiskWithCS, FLAG_CTA, FLAG_META, type RiskFlag } from "@/lib/ris
 import { fetchHealthScores } from "@/lib/health";
 import { formatEuro, formatNumber, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta } from "@/components/DataTable";
-import { ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Eye, EyeOff, ListChecks } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Eye, EyeOff, ListChecks } from "lucide-react";
 
 export const Route = createFileRoute("/cs/tasks")({
   component: CSTasksPage,
