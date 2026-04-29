@@ -386,6 +386,7 @@ function CSTasksPage() {
                             <ExpandedClubPanel
                               row={{ name: r.name, pending: [], overdue: r.overdue }}
                               onComplete={handleClubComplete}
+                              onPostpone={handleClubPostpone}
                             />
                           </div>
                         )}
