@@ -20,6 +20,7 @@ function TenantDetail() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [csStatuses, setCsStatuses] = useState<CSTenantStatus[]>([]);
   const [csTasks, setCsTasks] = useState<CSTask[]>([]);
+  const [healthScore, setHealthScore] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<string>("");
