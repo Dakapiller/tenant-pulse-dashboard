@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Sparkles, X,
+  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Sparkles, Star, X,
 } from "lucide-react";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
@@ -15,6 +15,8 @@ import {
   fetchClubStatusLogsForTenant,
   fetchCSStatusesForTenant,
   fetchCSTasksForTenant,
+  fetchPriorityMap,
+  setTenantPriority,
   setClubStatus,
   currentClubStatus,
   currentChurnCompetitor,
