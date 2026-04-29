@@ -730,14 +730,15 @@ function ClubHistoryPanel({ row, onChanged }: { row: ClubRow; onChanged?: () => 
           <div className="text-[11px] uppercase tracking-wide text-warning font-semibold mb-2">
             Tarefas pendentes · {pendingTasks.length}
           </div>
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {pendingTasks.map((t) => (
-              <li key={t.id} className="text-xs">
+              <li key={t.id} className="text-xs space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{t.reason}</span>
                   <span className="text-muted-foreground tabular-nums shrink-0">{t.week_start}</span>
                 </div>
-                <div className="text-muted-foreground mt-0.5">CTA: {t.cta}</div>
+                <div className="text-muted-foreground">CTA: {t.cta}</div>
+                <TaskQuickActions task={t} onChanged={onChanged} />
               </li>
             ))}
           </ul>
