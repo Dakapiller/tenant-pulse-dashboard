@@ -118,9 +118,46 @@ export async function fetchHealthLog(tenant?: string, limit = 200): Promise<Heal
 // ---- Writes ----
 
 /**
+ * Dynamic score floor based on recent CS outcomes:
+ *   - very_satisfied  in last 3 months → floor 80
+ *   - good_receptivity in last 2 months → floor 60
+ *   - bad_relationship                  → no floor
+ * Returns 0 if no outcome applies. Multiple → highest floor wins.
+ */
+export async function getScoreFloor(tenant: string): Promise<{ floor: number; outcome: string | null; recordedAt: string | null }> {
+  const now = Date.now();
+  const cutoff3m = new Date(now - 1000 * 60 * 60 * 24 * 92).toISOString();
+  const { data, error } = await supabase
+    .from("cs_tenant_status")
+    .select("relationship_status, recorded_at")
+    .eq("tenant_name", tenant)
+    .in("relationship_status", ["very_satisfied", "good_receptivity"])
+    .gte("recorded_at", cutoff3m)
+    .order("recorded_at", { ascending: false });
+  if (error) return { floor: 0, outcome: null, recordedAt: null };
+  const cutoff2mTs = now - 1000 * 60 * 60 * 24 * 61;
+  let best = { floor: 0, outcome: null as string | null, recordedAt: null as string | null };
+  for (const row of (data ?? []) as { relationship_status: string; recorded_at: string }[]) {
+    const ts = new Date(row.recorded_at).getTime();
+    if (row.relationship_status === "very_satisfied" && ts >= now - 1000 * 60 * 60 * 24 * 92) {
+      if (80 > best.floor) best = { floor: 80, outcome: "very_satisfied", recordedAt: row.recorded_at };
+    } else if (row.relationship_status === "good_receptivity" && ts >= cutoff2mTs) {
+      if (60 > best.floor) best = { floor: 60, outcome: "good_receptivity", recordedAt: row.recorded_at };
+    }
+  }
+  return best;
+}
+
+function floorOutcomeLabel(outcome: string): string {
+  if (outcome === "very_satisfied") return "Cliente muito satisfeito";
+  if (outcome === "good_receptivity") return "Boa recetividade";
+  return outcome;
+}
+
+/**
  * Persist a new score for a tenant: writes the log entry and updates the
  * latest cs_tenant_status row (or creates one if none exists). Returns the
- * new clamped score.
+ * new clamped score. Applies the dynamic floor before persisting.
  */
 async function persistScoreChange(
   tenant: string,
@@ -130,21 +167,51 @@ async function persistScoreChange(
   source: HealthSource,
   changedAt?: string,
 ): Promise<number> {
-  const clamped = clampScore(next);
-  if (clamped === prev) return prev;
+  let clamped = clampScore(next);
 
-  await supabase
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .from("health_score_log" as any)
-    .insert({
-      tenant_name: tenant,
-      previous_score: prev,
-      new_score: clamped,
-      delta: clamped - prev,
-      reason,
-      source,
-      ...(changedAt ? { changed_at: changedAt } : {}),
-    } as never);
+  // Apply dynamic floor (skip floor logic for the very initial Rule 1 baseline of new clubs to avoid noisy log).
+  const floorInfo = await getScoreFloor(tenant);
+  let floorApplied: { floor: number; outcome: string; recordedAt: string } | null = null;
+  if (floorInfo.floor > 0 && clamped < floorInfo.floor) {
+    floorApplied = { floor: floorInfo.floor, outcome: floorInfo.outcome!, recordedAt: floorInfo.recordedAt! };
+    clamped = floorInfo.floor;
+  }
+
+  if (clamped !== prev) {
+    await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from("health_score_log" as any)
+      .insert({
+        tenant_name: tenant,
+        previous_score: prev,
+        new_score: floorApplied ? clampScore(next) : clamped, // log raw computed first
+        delta: (floorApplied ? clampScore(next) : clamped) - prev,
+        reason,
+        source,
+        ...(changedAt ? { changed_at: changedAt } : {}),
+      } as never);
+  }
+
+  // If floor lifted us above the raw computed score, log the clamp as a separate entry.
+  if (floorApplied) {
+    const raw = clampScore(next);
+    if (clamped !== raw) {
+      const dateStr = new Date(floorApplied.recordedAt).toISOString().slice(0, 10);
+      await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from("health_score_log" as any)
+        .insert({
+          tenant_name: tenant,
+          previous_score: raw,
+          new_score: clamped,
+          delta: clamped - raw,
+          reason: `Score mantido acima do mínimo — ${floorOutcomeLabel(floorApplied.outcome)} registado em ${dateStr}`,
+          source: "task" as HealthSource,
+        } as never);
+    }
+  }
+
+  if (clamped === prev) return prev;
 
   // Update the most recent cs_tenant_status row for this tenant; fall back to insert.
   const { data: latest } = await supabase
