@@ -49,10 +49,11 @@ function CSTasksPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [sts, pending] = await Promise.all([fetchAllCSStatuses(), fetchPendingCSTasks()]);
+        const [sts, pending, sc] = await Promise.all([fetchAllCSStatuses(), fetchPendingCSTasks(), fetchHealthScores()]);
         if (cancelled) return;
         setStatuses(sts);
         setPendingTasks(pending);
+        setHealthScores(sc);
       } finally {
         if (!cancelled) setLoading(false);
       }
