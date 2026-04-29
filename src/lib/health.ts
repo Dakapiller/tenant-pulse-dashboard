@@ -102,6 +102,38 @@ export async function fetchHealthScoreForTenant(tenant: string): Promise<number 
   return row?.health_score != null ? Number(row.health_score) : null;
 }
 
+/**
+ * Snapshot of every tenant's health score AS OF `beforeIso` (exclusive).
+ * Reads `health_score_log` and returns the most recent `new_score` per tenant
+ * with `changed_at < beforeIso`. Tenants with no entry before the cutoff are
+ * absent from the map (caller should treat them as "unknown" or default 100).
+ */
+export async function fetchHealthScoresAt(beforeIso: string): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  const pageSize = 1000;
+  let from = 0;
+  // Page through ALL log rows before cutoff, ordered desc; first hit per tenant wins.
+  // Most projects have a few thousand rows total — well within a handful of pages.
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from("health_score_log" as any)
+      .select("tenant_name, new_score, changed_at")
+      .lt("changed_at", beforeIso)
+      .order("changed_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as unknown as { tenant_name: string; new_score: number; changed_at: string }[];
+    for (const r of rows) {
+      if (!map.has(r.tenant_name)) map.set(r.tenant_name, Number(r.new_score));
+    }
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return map;
+}
+
 export async function fetchHealthLog(tenant?: string, limit = 200): Promise<HealthScoreLog[]> {
   let q = supabase
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
