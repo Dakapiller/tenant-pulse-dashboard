@@ -1341,9 +1341,18 @@ function ScoreVariationSection({ row }: { row: ClubRow }) {
         {changes.length > 0 && (
           <ul className="divide-y divide-border rounded-md border border-border">
             {changes.map((c) => (
-              <li key={`${c.period}-${c.oldScore}-${c.newScore}`} className="px-3 py-2 flex items-center justify-between gap-3">
-                <span className="text-muted-foreground">{c.period === "Atual" ? "Atual" : periodLabel(c.period)}</span>
-                <ScoreChangeLine oldScore={c.oldScore} newScore={c.newScore} delta={c.delta} />
+              <li key={`${c.period}-${c.oldScore}-${c.newScore}`} className="px-3 py-2 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">{c.period === "Atual" ? "Atual" : periodLabel(c.period)}</span>
+                  <ScoreChangeLine oldScore={c.oldScore} newScore={c.newScore} delta={c.delta} />
+                </div>
+                {c.reasons.length > 0 && (
+                  <ul className="ml-1 space-y-0.5 text-muted-foreground">
+                    {c.reasons.map((r, i) => (
+                      <li key={i} className="flex gap-1.5"><span>•</span><span>{r}</span></li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>
