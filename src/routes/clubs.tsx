@@ -952,6 +952,9 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
                       </div>
                       <div className="mt-1 font-medium whitespace-pre-line">{t.reason}</div>
                       <div className="text-muted-foreground mt-0.5 whitespace-pre-line">CTA: {t.cta}</div>
+                      <div className="mt-2">
+                        <TaskQuickActions task={t} onChanged={async () => { await reload(); await onChanged?.(); }} />
+                      </div>
                     </li>
                   ))}
               </ul>
