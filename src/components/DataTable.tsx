@@ -497,6 +497,100 @@ export function DataTable<T>({
   );
 }
 
+interface MobileCardListProps<T> {
+  rows: T[];
+  allFilteredRows: T[];
+  columns: ColumnDef<T>[];
+  rowKey: (row: T) => string;
+  onRowClick?: (row: T) => void;
+  expandedRow?: (row: T) => ReactNode | null;
+  selectable: boolean;
+  selectedKeys?: Set<string>;
+  onToggleRow: (row: T) => void;
+  isRowSelectable?: (row: T) => boolean;
+  rowClassName?: (row: T) => string;
+  emptyMessage: string;
+  hasSearchOrFilter: boolean;
+}
+
+function MobileCardList<T>({
+  rows, columns, rowKey, onRowClick, expandedRow,
+  selectable, selectedKeys, onToggleRow, isRowSelectable, rowClassName,
+  emptyMessage, hasSearchOrFilter,
+}: MobileCardListProps<T>) {
+  // Pick mobile columns: explicit `mobilePrimary` wins; else first visible col.
+  // Secondary: explicit `mobileSecondary` (max 2); else next 2 non-hidden.
+  const visible = columns.filter((c) => !c.hideOnMobile);
+  const primary = columns.find((c) => c.mobilePrimary) ?? visible[0];
+  const explicitSecondary = columns.filter((c) => c.mobileSecondary).slice(0, 2);
+  const secondary = explicitSecondary.length > 0
+    ? explicitSecondary
+    : visible.filter((c) => c.key !== primary?.key).slice(0, 2);
+
+  if (rows.length === 0) {
+    return (
+      <div className="md:hidden px-4 py-10 text-center text-muted-foreground text-sm">
+        {hasSearchOrFilter ? "Sem resultados para a pesquisa atual." : emptyMessage}
+      </div>
+    );
+  }
+
+  return (
+    <ul className="md:hidden divide-y divide-border">
+      {rows.map((row) => {
+        const k = rowKey(row);
+        const isSelected = !!selectedKeys?.has(k);
+        const canSelect = selectable && (isRowSelectable ? isRowSelectable(row) : true);
+        const expanded = expandedRow?.(row);
+        return (
+          <li
+            key={k}
+            className={`px-4 py-3 min-h-[68px] ${onRowClick ? "cursor-pointer active:bg-primary/5" : ""} ${isSelected ? "bg-primary/10" : ""} ${rowClassName?.(row) ?? ""}`}
+            onClick={() => onRowClick?.(row)}
+          >
+            <div className="flex items-start gap-3">
+              {selectable && canSelect && (
+                <label
+                  className="flex items-center justify-center h-11 w-11 -ml-2 -mt-1 shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    aria-label="Selecionar linha"
+                    checked={isSelected}
+                    onChange={() => onToggleRow(row)}
+                    className="h-5 w-5 accent-primary cursor-pointer"
+                  />
+                </label>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 font-medium text-sm truncate">
+                    {primary ? primary.render(row) : null}
+                  </div>
+                </div>
+                {secondary.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    {secondary.map((col) => (
+                      <div key={col.key} className="inline-flex items-center gap-1.5 min-w-0">
+                        <span className="uppercase tracking-wide text-[10px] opacity-70">
+                          {col.mobileLabel ?? col.header}
+                        </span>
+                        <span className="text-foreground">{col.render(row)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {expanded && <div className="mt-2">{expanded}</div>}
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /** Small ▲/▼ delta indicator for health-score MoM comparison. Negative = improvement. */
 export function ScoreDelta({ delta, previous, current }: { delta: number | null; previous?: number | null; current?: number | null }) {
   if (delta === null) return <span className="text-muted-foreground text-xs">—</span>;
