@@ -739,9 +739,9 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
           <section className="rounded-lg border border-border p-4">
             <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Score de saúde</div>
             <div className="flex items-end gap-4 mb-3">
-              <div className="text-3xl font-bold tabular-nums">{risk.score}</div>
+              <div className="text-3xl font-bold tabular-nums">{row.score}</div>
               <div className="text-xs text-muted-foreground pb-1">
-                Base: {risk.dataScore} · CS: {risk.csModifier && risk.csModifier > 0 ? `+${risk.csModifier}` : risk.csModifier}
+                {row.score < 30 ? "Em risco" : row.score < 60 ? "A monitorizar" : "Saudável"}
               </div>
             </div>
             {risk.flags.length > 0 ? (
