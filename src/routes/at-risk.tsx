@@ -143,7 +143,7 @@ function AtRiskPage() {
           {cards
             .filter((c) => !search || c.name.toLowerCase().includes(search.toLowerCase()))
             .map((c) => {
-            const tone = c.risk.level === "high"
+            const tone = c.level === "high"
               ? { bar: "bg-danger", text: "text-danger", bg: "bg-danger/5", border: "border-danger/30" }
               : { bar: "bg-warning", text: "text-warning", bg: "bg-warning/5", border: "border-warning/30" };
             return (
@@ -152,18 +152,18 @@ function AtRiskPage() {
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{c.name}</div>
                     <div className={`text-xs mt-0.5 ${tone.text} font-medium`}>
-                      {c.risk.level === "high" ? "Risco alto" : "Risco médio"}
+                      {c.level === "high" ? "Risco alto" : "Risco médio"}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className={`text-3xl font-bold tabular-nums ${tone.text}`}>{c.risk.score}</div>
+                    <div className={`text-3xl font-bold tabular-nums ${tone.text}`}>{c.score}</div>
                     <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Score</div>
                     <div className="mt-1"><ScoreDelta delta={c.scoreDelta} /></div>
                   </div>
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                  {c.risk.flags.map((f) => (
+                  {c.flags.map((f) => (
                     <span key={f} className="rounded-full bg-background border border-border px-2 py-0.5 text-xs">
                       {FLAG_META[f].label}
                     </span>
@@ -178,7 +178,7 @@ function AtRiskPage() {
                 <div className="mt-4">
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">Porquê</div>
                   <ul className="space-y-1 text-xs">
-                    {c.risk.flags.map((f) => (
+                    {c.flags.map((f) => (
                       <li key={f} className="flex gap-2">
                         <span className={`mt-1.5 h-1 w-1 rounded-full ${tone.bar} shrink-0`} />
                         <span>{FLAG_CTA[f as RiskFlag].reason}</span>
@@ -191,7 +191,7 @@ function AtRiskPage() {
                 <div className="mt-3">
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">Sugestões</div>
                   <ul className="space-y-1 text-xs text-muted-foreground">
-                    {c.risk.flags.map((f) => (
+                    {c.flags.map((f) => (
                       <li key={f} className="flex gap-2">
                         <span className="mt-1.5 h-1 w-1 rounded-full bg-foreground/60 shrink-0" />
                         <span>{FLAG_CTA[f as RiskFlag].cta}</span>
