@@ -393,6 +393,8 @@ function ClubsPage() {
             {
               key: "status",
               header: "Estado",
+              mobileSecondary: true,
+              mobileLabel: "Estado",
               sortValue: (r) => CLUB_STATUS_LABEL[r.status],
               filter: { kind: "select", options: CLUB_STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label })) },
               filterValue: (r) => r.status,
