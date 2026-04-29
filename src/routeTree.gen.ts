@@ -10,9 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UploadRouteImport } from './routes/upload'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as CsRouteImport } from './routes/cs'
 import { Route as ClubsRouteImport } from './routes/clubs'
 import { Route as AtRiskRouteImport } from './routes/at-risk'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TenantNameRouteImport } from './routes/tenant.$name'
 import { Route as CsTasksRouteImport } from './routes/cs.tasks'
@@ -22,6 +24,11 @@ import { Route as ApiPublicHooksGenerateWeeklyTasksRouteImport } from './routes/
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
   path: '/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CsRoute = CsRouteImport.update({
@@ -37,6 +44,11 @@ const ClubsRoute = ClubsRouteImport.update({
 const AtRiskRoute = AtRiskRouteImport.update({
   id: '/at-risk',
   path: '/at-risk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -68,9 +80,11 @@ const ApiPublicHooksGenerateWeeklyTasksRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
+  '/login': typeof LoginRoute
   '/upload': typeof UploadRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
@@ -79,9 +93,11 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
+  '/login': typeof LoginRoute
   '/upload': typeof UploadRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
@@ -91,9 +107,11 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
+  '/login': typeof LoginRoute
   '/upload': typeof UploadRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
@@ -104,9 +122,11 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/at-risk'
     | '/clubs'
     | '/cs'
+    | '/login'
     | '/upload'
     | '/cs/history'
     | '/cs/tasks'
@@ -115,9 +135,11 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/at-risk'
     | '/clubs'
     | '/cs'
+    | '/login'
     | '/upload'
     | '/cs/history'
     | '/cs/tasks'
@@ -126,9 +148,11 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/at-risk'
     | '/clubs'
     | '/cs'
+    | '/login'
     | '/upload'
     | '/cs/history'
     | '/cs/tasks'
@@ -138,9 +162,11 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   AtRiskRoute: typeof AtRiskRoute
   ClubsRoute: typeof ClubsRoute
   CsRoute: typeof CsRouteWithChildren
+  LoginRoute: typeof LoginRoute
   UploadRoute: typeof UploadRoute
   TenantNameRoute: typeof TenantNameRoute
   ApiPublicHooksGenerateWeeklyTasksRoute: typeof ApiPublicHooksGenerateWeeklyTasksRoute
@@ -153,6 +179,13 @@ declare module '@tanstack/react-router' {
       path: '/upload'
       fullPath: '/upload'
       preLoaderRoute: typeof UploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cs': {
@@ -174,6 +207,13 @@ declare module '@tanstack/react-router' {
       path: '/at-risk'
       fullPath: '/at-risk'
       preLoaderRoute: typeof AtRiskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -228,9 +268,11 @@ const CsRouteWithChildren = CsRoute._addFileChildren(CsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   AtRiskRoute: AtRiskRoute,
   ClubsRoute: ClubsRoute,
   CsRoute: CsRouteWithChildren,
+  LoginRoute: LoginRoute,
   UploadRoute: UploadRoute,
   TenantNameRoute: TenantNameRoute,
   ApiPublicHooksGenerateWeeklyTasksRoute:
@@ -239,12 +281,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

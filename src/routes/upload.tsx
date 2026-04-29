@@ -1,9 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, FileSpreadsheet, UploadCloud, XCircle } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/upload")({
   component: UploadPage,
@@ -43,6 +45,16 @@ function findKey(row: Record<string, unknown>, target: string): string | undefin
 }
 
 function UploadPage() {
+  const { profile, loading } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (loading) return;
+    if (profile?.role !== "superuser") {
+      toast.error("Acesso restrito a administradores.");
+      void navigate({ to: "/" });
+    }
+  }, [profile, loading, navigate]);
+
   const now = new Date();
   const [year, setYear] = useState(now.getUTCFullYear());
   const [month, setMonth] = useState(now.getUTCMonth() + 1); // 1-12
