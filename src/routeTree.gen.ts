@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UploadRouteImport } from './routes/upload'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as CsRouteImport } from './routes/cs'
 import { Route as ClubsRouteImport } from './routes/clubs'
 import { Route as AtRiskRouteImport } from './routes/at-risk'
@@ -22,6 +23,11 @@ import { Route as ApiPublicHooksGenerateWeeklyTasksRouteImport } from './routes/
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
   path: '/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CsRoute = CsRouteImport.update({
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
+  '/login': typeof LoginRoute
   '/upload': typeof UploadRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
+  '/login': typeof LoginRoute
   '/upload': typeof UploadRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
+  '/login': typeof LoginRoute
   '/upload': typeof UploadRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/at-risk'
     | '/clubs'
     | '/cs'
+    | '/login'
     | '/upload'
     | '/cs/history'
     | '/cs/tasks'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/at-risk'
     | '/clubs'
     | '/cs'
+    | '/login'
     | '/upload'
     | '/cs/history'
     | '/cs/tasks'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/at-risk'
     | '/clubs'
     | '/cs'
+    | '/login'
     | '/upload'
     | '/cs/history'
     | '/cs/tasks'
@@ -141,6 +153,7 @@ export interface RootRouteChildren {
   AtRiskRoute: typeof AtRiskRoute
   ClubsRoute: typeof ClubsRoute
   CsRoute: typeof CsRouteWithChildren
+  LoginRoute: typeof LoginRoute
   UploadRoute: typeof UploadRoute
   TenantNameRoute: typeof TenantNameRoute
   ApiPublicHooksGenerateWeeklyTasksRoute: typeof ApiPublicHooksGenerateWeeklyTasksRoute
@@ -153,6 +166,13 @@ declare module '@tanstack/react-router' {
       path: '/upload'
       fullPath: '/upload'
       preLoaderRoute: typeof UploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cs': {
@@ -231,6 +251,7 @@ const rootRouteChildren: RootRouteChildren = {
   AtRiskRoute: AtRiskRoute,
   ClubsRoute: ClubsRoute,
   CsRoute: CsRouteWithChildren,
+  LoginRoute: LoginRoute,
   UploadRoute: UploadRoute,
   TenantNameRoute: TenantNameRoute,
   ApiPublicHooksGenerateWeeklyTasksRoute:
