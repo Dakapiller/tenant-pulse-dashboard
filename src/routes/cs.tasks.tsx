@@ -189,7 +189,7 @@ function CSTasksPage() {
     for (const [name, pending] of pendingByTenant) {
       const hist = tenantHistory.get(name) ?? [];
       const sts = tenantStatuses.get(name) ?? [];
-      const sd = scoreWithDelta(hist, sts);
+      const sd = scoreWithDelta(hist, sts, healthScores.get(name) ?? null, null);
       list.push({
         name,
         score: sd.score,
@@ -199,8 +199,8 @@ function CSTasksPage() {
         pending,
       });
     }
-    return list.sort((a, b) => b.score - a.score);
-  }, [pendingByTenant, tenantHistory, tenantStatuses]);
+    return list.sort((a, b) => a.score - b.score);
+  }, [pendingByTenant, tenantHistory, tenantStatuses, healthScores]);
 
   const visibleRows = useMemo(
     () => showInactive ? rows : rows.filter((r) => !excluded.has(r.name)),
