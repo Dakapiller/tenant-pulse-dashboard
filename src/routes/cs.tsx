@@ -524,7 +524,7 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
               }
             }
             setSelectedKeys(new Set());
-            await loadAll();
+            await reloadTasks();
           }}
           onCancel={() => setSelectedKeys(new Set())}
         />
