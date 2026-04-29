@@ -475,14 +475,15 @@ function CSTasksPage() {
 function ExpandedClubPanel({
   row, onComplete,
 }: {
-  row: { name: string; pending: CSTask[] };
+  row: { name: string; pending: CSTask[]; overdue?: CSTask[] };
   onComplete: (tenant: string, taskIds: string[], outcome: string, note: string | null) => Promise<void>;
 }) {
   const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const tasks = row.pending;
+  const overdueTasks = row.overdue ?? [];
+  const tasks = [...row.pending, ...overdueTasks];
 
   async function handleComplete() {
     if (tasks.length === 0) return;
@@ -501,23 +502,29 @@ function ExpandedClubPanel({
     }
   }
 
-  // Build a flat list of {reason, cta} bullets across every pending task for this club.
+  // Build a flat list of {reason, cta, isOverdue} bullets across every pending task for this club.
   // Tasks are generated with one line per flag joined by "\n", so split back out.
-  type Bullet = { reason: string; cta: string; flags: string[] };
+  type Bullet = { reason: string; cta: string; flags: string[]; isOverdue: boolean; weekStart: string };
   const bullets: Bullet[] = [];
-  for (const t of tasks) {
-    const reasons = (t.reason ?? "").split("\n").filter((s) => s.trim().length > 0);
-    const ctas = (t.cta ?? "").split("\n").filter((s) => s.trim().length > 0);
-    const flags = t.flags ?? [];
-    const n = Math.max(reasons.length, ctas.length, 1);
-    for (let i = 0; i < n; i++) {
-      bullets.push({
-        reason: reasons[i] ?? reasons[0] ?? "",
-        cta: ctas[i] ?? ctas[0] ?? "",
-        flags: flags[i] ? [flags[i]] : [],
-      });
+  const buildBullets = (taskList: CSTask[], isOverdue: boolean) => {
+    for (const t of taskList) {
+      const reasons = (t.reason ?? "").split("\n").filter((s) => s.trim().length > 0);
+      const ctas = (t.cta ?? "").split("\n").filter((s) => s.trim().length > 0);
+      const flags = t.flags ?? [];
+      const n = Math.max(reasons.length, ctas.length, 1);
+      for (let i = 0; i < n; i++) {
+        bullets.push({
+          reason: reasons[i] ?? reasons[0] ?? "",
+          cta: ctas[i] ?? ctas[0] ?? "",
+          flags: flags[i] ? [flags[i]] : [],
+          isOverdue,
+          weekStart: t.week_start,
+        });
+      }
     }
-  }
+  };
+  buildBullets(row.pending, false);
+  buildBullets(overdueTasks, true);
 
   return (
     <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
@@ -534,6 +541,9 @@ function ExpandedClubPanel({
         <div className="px-4 py-3 border-b border-border">
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
             Tarefas pendentes ({tasks.length})
+            {overdueTasks.length > 0 && (
+              <span className="ml-1 text-danger">· {overdueTasks.length} atrasada{overdueTasks.length === 1 ? "" : "s"}</span>
+            )}
           </div>
           {bullets.length === 0 ? (
             <div className="text-xs text-muted-foreground">Sem detalhes disponíveis.</div>
