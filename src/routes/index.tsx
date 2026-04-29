@@ -40,23 +40,57 @@ function DashboardPage() {
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
 
+  // Phase 0 — fast: periods + CS statuses → renders KPI shell + period selector.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [s, p, st, tk] = await Promise.all([
-          fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(),
-        ]);
+        const [p, st] = await Promise.all([fetchPeriods(), fetchAllCSStatuses()]);
         if (cancelled) return;
-        setSnapshots(s); setPeriods(p); setStatuses(st); setTasks(tk);
+        setPeriods(p);
+        setStatuses(st);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Phase 1 — heavier: all snapshots → drives charts + KPI numbers.
+  // Deferred behind a microtask so the KPI shell paints first.
+  useEffect(() => {
+    if (loading) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const s = await fetchAllSnapshots();
+        if (!cancelled) setSnapshots(s);
+      } finally {
+        if (!cancelled) setSnapshotsLoaded(true);
+      }
+    }, 0);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [loading]);
+
+  // Phase 2 — heaviest: tasks → drives positives + recent activity.
+  // Waits until snapshots are in so we never block paint of the charts.
+  useEffect(() => {
+    if (!snapshotsLoaded) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const tk = await fetchAllCSTasks();
+        if (!cancelled) setTasks(tk);
+      } finally {
+        if (!cancelled) setTasksLoaded(true);
+      }
+    }, 0);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [snapshotsLoaded]);
 
   // Default selected period to the latest available, but allow the user to change it.
   useEffect(() => {
