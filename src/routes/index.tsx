@@ -10,7 +10,7 @@ import {
   outcomeLabel, excludedTenants, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
-import { fetchHealthScores, healthLevel } from "@/lib/health";
+import { fetchHealthScores, fetchHealthScoresAt, healthLevel } from "@/lib/health";
 import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 import { ClubLink } from "@/components/ClubLink";
