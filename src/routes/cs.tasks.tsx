@@ -23,7 +23,7 @@ import { computeRiskWithCS, FLAG_CTA, FLAG_META, type RiskFlag } from "@/lib/ris
 import { fetchHealthScores } from "@/lib/health";
 import { formatEuro, formatNumber, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta } from "@/components/DataTable";
-import { ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Eye, EyeOff, ListChecks } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Eye, EyeOff, ListChecks } from "lucide-react";
 
 export const Route = createFileRoute("/cs/tasks")({
   component: CSTasksPage,
@@ -175,39 +175,58 @@ function CSTasksPage() {
     return all.length > 24 ? all.slice(-24) : all;
   }, [snapshots, chartMode, selectedTenant, excluded]);
 
-  // Build per-club rows from pending tasks only.
+  // Build per-club rows from pending tasks. Split pending into "this week" and
+  // "overdue" (week_start < current week_start).
   type Row = {
     name: string;
     score: number;
     prevScore: number | null;
     scoreDelta: number | null;
     level: "high" | "medium" | "healthy";
-    pending: CSTask[];
+    pending: CSTask[];   // this week's tasks
+    overdue: CSTask[];   // earlier weeks still pending
   };
 
   const rows: Row[] = useMemo(() => {
     const list: Row[] = [];
-    for (const [name, pending] of pendingByTenant) {
+    for (const [name, all] of pendingByTenant) {
       const hist = tenantHistory.get(name) ?? [];
       const sts = tenantStatuses.get(name) ?? [];
       const sd = scoreWithDelta(hist, sts, healthScores.get(name) ?? null, null);
+      const thisWeek = all.filter((t) => t.week_start === weekStart);
+      const overdue = all.filter((t) => t.week_start < weekStart);
       list.push({
         name,
         score: sd.score,
         prevScore: sd.prevScore,
         scoreDelta: sd.delta,
         level: sd.level,
-        pending,
+        pending: thisWeek,
+        overdue,
       });
     }
     return list.sort((a, b) => a.score - b.score);
-  }, [pendingByTenant, tenantHistory, tenantStatuses, healthScores]);
+  }, [pendingByTenant, tenantHistory, tenantStatuses, healthScores, weekStart]);
+
+  // Rows shown in the main "this week" table — anyone with at least one task
+  // for this week. Clubs that only have overdue tasks live in the overdue panel.
+  const thisWeekRows = useMemo(() => rows.filter((r) => r.pending.length > 0), [rows]);
+  const overdueOnlyRows = useMemo(
+    () => rows.filter((r) => r.pending.length === 0 && r.overdue.length > 0),
+    [rows],
+  );
 
   const visibleRows = useMemo(
-    () => showInactive ? rows : rows.filter((r) => !excluded.has(r.name)),
-    [rows, excluded, showInactive],
+    () => showInactive ? thisWeekRows : thisWeekRows.filter((r) => !excluded.has(r.name)),
+    [thisWeekRows, excluded, showInactive],
   );
-  const inactiveRowsCount = rows.filter((r) => excluded.has(r.name)).length;
+  const visibleOverdueOnly = useMemo(
+    () => showInactive ? overdueOnlyRows : overdueOnlyRows.filter((r) => !excluded.has(r.name)),
+    [overdueOnlyRows, excluded, showInactive],
+  );
+  const inactiveRowsCount = thisWeekRows.filter((r) => excluded.has(r.name)).length;
+
+  const [overdueOpen, setOverdueOpen] = useState(true);
 
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -293,6 +312,62 @@ function CSTasksPage() {
         </section>
 
         {/* Tarefas pendentes */}
+        {/* Atrasadas — pending tasks from previous weeks for clubs that don't
+            also have a current-week task. Clubs with both render in the main
+            table below and merge their overdue bullets there. */}
+        {visibleOverdueOnly.length > 0 && (
+          <section className="rounded-xl border border-danger/40 bg-danger/5 overflow-hidden mb-6">
+            <button
+              type="button"
+              onClick={() => setOverdueOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-danger/10"
+            >
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-danger" />
+                <h2 className="text-base font-semibold text-danger">
+                  ⚠ Atrasadas · {visibleOverdueOnly.length} {visibleOverdueOnly.length === 1 ? "clube" : "clubes"}
+                </h2>
+              </div>
+              {overdueOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+            {overdueOpen && (
+              <div className="border-t border-danger/30">
+                <ul className="divide-y divide-danger/20">
+                  {visibleOverdueOnly.map((r) => {
+                    const isOpen = expanded === `overdue:${r.name}`;
+                    return (
+                      <li key={r.name} className="px-5 py-3">
+                        <button
+                          type="button"
+                          onClick={() => setExpanded(isOpen ? null : `overdue:${r.name}`)}
+                          className="w-full flex items-center justify-between gap-3 text-left"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <ClubLink name={r.name} className="font-semibold hover:underline truncate" />
+                            <RiskBadge level={r.level} score={r.score} />
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-danger/15 text-danger font-medium">
+                              {r.overdue.length} atrasada{r.overdue.length === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                          {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                        </button>
+                        {isOpen && (
+                          <div className="mt-3">
+                            <ExpandedClubPanel
+                              row={{ name: r.name, pending: [], overdue: r.overdue }}
+                              onComplete={handleClubComplete}
+                            />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
+
         <section className="rounded-xl border border-border overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-3">
             <div className="flex items-center gap-2">
@@ -400,14 +475,15 @@ function CSTasksPage() {
 function ExpandedClubPanel({
   row, onComplete,
 }: {
-  row: { name: string; pending: CSTask[] };
+  row: { name: string; pending: CSTask[]; overdue?: CSTask[] };
   onComplete: (tenant: string, taskIds: string[], outcome: string, note: string | null) => Promise<void>;
 }) {
   const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const tasks = row.pending;
+  const overdueTasks = row.overdue ?? [];
+  const tasks = [...row.pending, ...overdueTasks];
 
   async function handleComplete() {
     if (tasks.length === 0) return;
@@ -426,23 +502,29 @@ function ExpandedClubPanel({
     }
   }
 
-  // Build a flat list of {reason, cta} bullets across every pending task for this club.
+  // Build a flat list of {reason, cta, isOverdue} bullets across every pending task for this club.
   // Tasks are generated with one line per flag joined by "\n", so split back out.
-  type Bullet = { reason: string; cta: string; flags: string[] };
+  type Bullet = { reason: string; cta: string; flags: string[]; isOverdue: boolean; weekStart: string };
   const bullets: Bullet[] = [];
-  for (const t of tasks) {
-    const reasons = (t.reason ?? "").split("\n").filter((s) => s.trim().length > 0);
-    const ctas = (t.cta ?? "").split("\n").filter((s) => s.trim().length > 0);
-    const flags = t.flags ?? [];
-    const n = Math.max(reasons.length, ctas.length, 1);
-    for (let i = 0; i < n; i++) {
-      bullets.push({
-        reason: reasons[i] ?? reasons[0] ?? "",
-        cta: ctas[i] ?? ctas[0] ?? "",
-        flags: flags[i] ? [flags[i]] : [],
-      });
+  const buildBullets = (taskList: CSTask[], isOverdue: boolean) => {
+    for (const t of taskList) {
+      const reasons = (t.reason ?? "").split("\n").filter((s) => s.trim().length > 0);
+      const ctas = (t.cta ?? "").split("\n").filter((s) => s.trim().length > 0);
+      const flags = t.flags ?? [];
+      const n = Math.max(reasons.length, ctas.length, 1);
+      for (let i = 0; i < n; i++) {
+        bullets.push({
+          reason: reasons[i] ?? reasons[0] ?? "",
+          cta: ctas[i] ?? ctas[0] ?? "",
+          flags: flags[i] ? [flags[i]] : [],
+          isOverdue,
+          weekStart: t.week_start,
+        });
+      }
     }
-  }
+  };
+  buildBullets(row.pending, false);
+  buildBullets(overdueTasks, true);
 
   return (
     <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
@@ -459,6 +541,9 @@ function ExpandedClubPanel({
         <div className="px-4 py-3 border-b border-border">
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
             Tarefas pendentes ({tasks.length})
+            {overdueTasks.length > 0 && (
+              <span className="ml-1 text-danger">· {overdueTasks.length} atrasada{overdueTasks.length === 1 ? "" : "s"}</span>
+            )}
           </div>
           {bullets.length === 0 ? (
             <div className="text-xs text-muted-foreground">Sem detalhes disponíveis.</div>
@@ -469,9 +554,16 @@ function ExpandedClubPanel({
                 const meta = flag ? FLAG_META[flag] : undefined;
                 return (
                   <li key={i} className="flex items-start gap-2 text-sm">
-                    <span className="text-muted-foreground mt-1">•</span>
+                    <span className={b.isOverdue ? "text-danger mt-1" : "text-muted-foreground mt-1"}>•</span>
                     <div className="min-w-0">
-                      <div className="font-medium">{meta?.label ?? b.reason}</div>
+                      <div className="font-medium flex items-center gap-2 flex-wrap">
+                        <span>{meta?.label ?? b.reason}</span>
+                        {b.isOverdue && (
+                          <span className="inline-flex items-center text-[10px] uppercase font-semibold text-danger bg-danger/10 px-1.5 py-0.5 rounded-full">
+                            Atrasada
+                          </span>
+                        )}
+                      </div>
                       {meta && b.reason && (
                         <div className="text-xs text-muted-foreground mt-0.5">{b.reason}</div>
                       )}

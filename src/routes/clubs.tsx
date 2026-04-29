@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Sparkles, X,
+  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Sparkles, Star, X,
 } from "lucide-react";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
@@ -15,6 +15,8 @@ import {
   fetchClubStatusLogsForTenant,
   fetchCSStatusesForTenant,
   fetchCSTasksForTenant,
+  fetchPriorityMap,
+  setTenantPriority,
   setClubStatus,
   currentClubStatus,
   currentChurnCompetitor,
@@ -67,6 +69,7 @@ interface ClubRow {
   flagsAdded: string[];
   flagsResolved: string[];
   csOutcome: { outcome: string; recordedAt: string } | null;
+  isPriority: boolean;
 }
 
 function ClubsPage() {
@@ -76,6 +79,7 @@ function ClubsPage() {
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [statusLogs, setStatusLogs] = useState<ClubStatusLog[]>([]);
   const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
+  const [priorityMap, setPriorityMap] = useState<Map<string, boolean>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
@@ -101,10 +105,10 @@ function ClubsPage() {
   const [filterNewOnly, setFilterNewOnly] = useState(false);
 
   async function loadAll() {
-    const [s, p, sts, tks, logs, scores] = await Promise.all([
-      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchClubStatusLogs(), fetchHealthScores(),
+    const [s, p, sts, tks, logs, scores, prio] = await Promise.all([
+      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchClubStatusLogs(), fetchHealthScores(), fetchPriorityMap(),
     ]);
-    setSnapshots(s); setPeriods(p); setStatuses(sts); setTasks(tks); setStatusLogs(logs); setHealthScores(scores);
+    setSnapshots(s); setPeriods(p); setStatuses(sts); setTasks(tks); setStatusLogs(logs); setHealthScores(scores); setPriorityMap(prio);
   }
 
   useEffect(() => {
@@ -161,10 +165,11 @@ function ClubsPage() {
         isNew, firstSeen,
         flagsCurrent: rd.flags.current, flagsAdded: rd.flags.added, flagsResolved: rd.flags.resolved,
         csOutcome: csOut,
+        isPriority: priorityMap.get(name) ?? false,
       });
     }
     return result;
-  }, [snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod, healthScores]);
+  }, [snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod, healthScores, priorityMap]);
 
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
   const newCount = rows.filter((r) => r.isNew).length;
@@ -278,6 +283,36 @@ function ClubsPage() {
           selectedKeys={selectedKeys}
           onSelectionChange={setSelectedKeys}
           columns={[
+            {
+              key: "priority",
+              header: "",
+              align: "center",
+              sortable: false,
+              render: (r) => (
+                <button
+                  type="button"
+                  title="Clube prioritário — recebe tarefa semanal automática independentemente do health score. Útil para clubes de alto GMV ou com potencial de crescimento."
+                  aria-label={r.isPriority ? "Remover prioridade" : "Marcar como prioritário"}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const next = !r.isPriority;
+                    // Optimistic toggle.
+                    setPriorityMap((m) => { const n = new Map(m); n.set(r.name, next); return n; });
+                    try {
+                      await setTenantPriority(r.name, next);
+                    } catch {
+                      // Revert on failure.
+                      setPriorityMap((m) => { const n = new Map(m); n.set(r.name, !next); return n; });
+                    }
+                  }}
+                  className="p-1 rounded hover:bg-surface"
+                >
+                  <Star
+                    className={`h-4 w-4 ${r.isPriority ? "fill-warning text-warning" : "text-muted-foreground/40"}`}
+                  />
+                </button>
+              ),
+            },
             {
               key: "name",
               header: "Clube",

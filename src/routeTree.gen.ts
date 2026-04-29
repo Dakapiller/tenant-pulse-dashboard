@@ -17,6 +17,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as TenantNameRouteImport } from './routes/tenant.$name'
 import { Route as CsTasksRouteImport } from './routes/cs.tasks'
 import { Route as CsHistoryRouteImport } from './routes/cs.history'
+import { Route as ApiPublicHooksGenerateWeeklyTasksRouteImport } from './routes/api/public/hooks/generate-weekly-tasks'
 
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
@@ -58,6 +59,12 @@ const CsHistoryRoute = CsHistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => CsRoute,
 } as any)
+const ApiPublicHooksGenerateWeeklyTasksRoute =
+  ApiPublicHooksGenerateWeeklyTasksRouteImport.update({
+    id: '/api/public/hooks/generate-weekly-tasks',
+    path: '/api/public/hooks/generate-weekly-tasks',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -68,6 +75,7 @@ export interface FileRoutesByFullPath {
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
   '/tenant/$name': typeof TenantNameRoute
+  '/api/public/hooks/generate-weekly-tasks': typeof ApiPublicHooksGenerateWeeklyTasksRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +86,7 @@ export interface FileRoutesByTo {
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
   '/tenant/$name': typeof TenantNameRoute
+  '/api/public/hooks/generate-weekly-tasks': typeof ApiPublicHooksGenerateWeeklyTasksRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +98,7 @@ export interface FileRoutesById {
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
   '/tenant/$name': typeof TenantNameRoute
+  '/api/public/hooks/generate-weekly-tasks': typeof ApiPublicHooksGenerateWeeklyTasksRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +111,7 @@ export interface FileRouteTypes {
     | '/cs/history'
     | '/cs/tasks'
     | '/tenant/$name'
+    | '/api/public/hooks/generate-weekly-tasks'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +122,7 @@ export interface FileRouteTypes {
     | '/cs/history'
     | '/cs/tasks'
     | '/tenant/$name'
+    | '/api/public/hooks/generate-weekly-tasks'
   id:
     | '__root__'
     | '/'
@@ -121,6 +133,7 @@ export interface FileRouteTypes {
     | '/cs/history'
     | '/cs/tasks'
     | '/tenant/$name'
+    | '/api/public/hooks/generate-weekly-tasks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -130,6 +143,7 @@ export interface RootRouteChildren {
   CsRoute: typeof CsRouteWithChildren
   UploadRoute: typeof UploadRoute
   TenantNameRoute: typeof TenantNameRoute
+  ApiPublicHooksGenerateWeeklyTasksRoute: typeof ApiPublicHooksGenerateWeeklyTasksRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -190,6 +204,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CsHistoryRouteImport
       parentRoute: typeof CsRoute
     }
+    '/api/public/hooks/generate-weekly-tasks': {
+      id: '/api/public/hooks/generate-weekly-tasks'
+      path: '/api/public/hooks/generate-weekly-tasks'
+      fullPath: '/api/public/hooks/generate-weekly-tasks'
+      preLoaderRoute: typeof ApiPublicHooksGenerateWeeklyTasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -212,6 +233,8 @@ const rootRouteChildren: RootRouteChildren = {
   CsRoute: CsRouteWithChildren,
   UploadRoute: UploadRoute,
   TenantNameRoute: TenantNameRoute,
+  ApiPublicHooksGenerateWeeklyTasksRoute:
+    ApiPublicHooksGenerateWeeklyTasksRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

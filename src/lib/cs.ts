@@ -27,6 +27,7 @@ export interface CSTenantStatus {
   club_status?: string | null;
   churn_competitor?: string | null;
   health_score?: number | null;
+  is_priority?: boolean | null;
 }
 
 export type ClubStatus = "active" | "possible_churn" | "churned" | "closed" | "changed_owner";
@@ -82,6 +83,47 @@ export function currentWeekStart(date: Date = new Date()): string {
   const diff = (day === 0 ? -6 : 1 - day);
   d.setUTCDate(d.getUTCDate() + diff);
   return d.toISOString().slice(0, 10);
+}
+
+/** Latest is_priority flag per tenant. */
+export async function fetchPriorityMap(): Promise<Map<string, boolean>> {
+  const { data, error } = await supabase
+    .from("cs_tenant_status")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .select("tenant_name, is_priority, recorded_at" as any)
+    .order("recorded_at", { ascending: false });
+  if (error) throw error;
+  const map = new Map<string, boolean>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (data as any[] ?? []).forEach((r) => {
+    if (!map.has(r.tenant_name)) map.set(r.tenant_name, !!r.is_priority);
+  });
+  return map;
+}
+
+/** Toggle is_priority on the latest cs_tenant_status row for a tenant. Inserts a row if none exists. */
+export async function setTenantPriority(tenant: string, isPriority: boolean): Promise<void> {
+  const { data: latest } = await supabase
+    .from("cs_tenant_status")
+    .select("id")
+    .eq("tenant_name", tenant)
+    .order("recorded_at", { ascending: false })
+    .limit(1);
+  const latestId = (latest as { id: string }[] | null)?.[0]?.id;
+  if (latestId) {
+    const { error } = await supabase
+      .from("cs_tenant_status")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ is_priority: isPriority } as any)
+      .eq("id", latestId);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from("cs_tenant_status")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .insert({ tenant_name: tenant, relationship_status: "status_active", club_status: "active", is_priority: isPriority } as any);
+    if (error) throw error;
+  }
 }
 
 export async function fetchAllCSStatuses(): Promise<CSTenantStatus[]> {
