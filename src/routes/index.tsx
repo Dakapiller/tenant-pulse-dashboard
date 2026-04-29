@@ -219,13 +219,25 @@ function DashboardPage() {
     return list;
   }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart, latestPeriod, healthScores, prevMonthScores]);
 
+  // Current (today) status per tenant — independent of selected period cutoff.
+  // The "Clubes ativos" KPI must reflect today's reality (matches /clubs = 281),
+  // not the as-of-period reality (which can hide recent churns made after the
+  // selected period's month-end).
+  const currentStatusByTenant = useMemo(() => buildCurrentStatusMap(statuses), [statuses]);
+
   // KPIs
   const kpis = useMemo(() => {
-    // Single source of truth: a club is active iff its current status is not
-    // churned/closed/changed_owner. Whether it submitted data this month is
-    // intentionally NOT part of the rule (see isActiveStatus in lib/cs.ts) —
-    // this keeps the count aligned with the /clubs page.
-    const activeClubs = clubs.filter((c) => isActiveStatus(c.status)).length;
+    // Single source of truth: a club is active iff its CURRENT status is not
+    // churned/closed/changed_owner. Use the live status map (not the
+    // period-truncated `clubs.status`) so the count aligns with /clubs (281).
+    const allTenantNames = new Set<string>();
+    clubs.forEach((c) => allTenantNames.add(c.name));
+    statuses.forEach((s) => allTenantNames.add(s.tenant_name));
+    let activeClubs = 0;
+    for (const name of allTenantNames) {
+      const st = currentStatusByTenant.get(name) ?? "active";
+      if (isActiveStatus(st)) activeClubs++;
+    }
     const churnedThisYear = (() => {
       const year = new Date().getUTCFullYear();
       const set = new Set<string>();
