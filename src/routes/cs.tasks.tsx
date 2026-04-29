@@ -40,6 +40,9 @@ function CSTasksPage() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
   const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
+  const [priorityMap, setPriorityMap] = useState<Map<string, boolean>>(new Map());
+  // Most recent completed contact per tenant — drives the "no contact in 3m" rule.
+  const [lastContactMap, setLastContactMap] = useState<Map<string, string | null>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const [chartMode, setChartMode] = useState<"aggregate" | "tenant">("aggregate");
