@@ -185,12 +185,14 @@ function ClubsPage() {
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
   const newCount = rows.filter((r) => r.isNew).length;
   const inactiveCount = rows.filter((r) => r.status === "churned" || r.status === "closed").length;
+  const pendingCount = rows.filter((r) => r.pending > 0 && r.status !== "churned" && r.status !== "closed").length;
   const visibleRows = useMemo(() => {
     let r = showInactive ? rows : rows.filter((x) => x.status !== "churned" && x.status !== "closed");
     if (filterNewOnly) r = r.filter((x) => x.isNew);
+    if (filterPendingOnly) r = r.filter((x) => x.pending > 0);
     if (search.level) r = r.filter((x) => x.level === search.level);
     return r;
-  }, [rows, showInactive, filterNewOnly, search.level]);
+  }, [rows, showInactive, filterNewOnly, filterPendingOnly, search.level]);
 
   async function handleStatusChange(tenant: string, current: ClubStatus, next: ClubStatus, competitor: string | null) {
     if (next === "churned" && current !== "churned") {
