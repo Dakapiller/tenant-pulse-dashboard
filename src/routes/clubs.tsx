@@ -179,8 +179,9 @@ function ClubsPage() {
   const visibleRows = useMemo(() => {
     let r = showInactive ? rows : rows.filter((x) => x.status !== "churned" && x.status !== "closed");
     if (filterNewOnly) r = r.filter((x) => x.isNew);
+    if (search.level) r = r.filter((x) => x.level === search.level);
     return r;
-  }, [rows, showInactive, filterNewOnly]);
+  }, [rows, showInactive, filterNewOnly, search.level]);
 
   async function handleStatusChange(tenant: string, current: ClubStatus, next: ClubStatus, competitor: string | null) {
     if (next === "churned" && current !== "churned") {
