@@ -347,10 +347,7 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
                 {showInactive ? "Ocultar inativos" : `Mostrar inativos (${inactiveRowsCount})`}
               </button>
             )}
-            <div className="inline-flex rounded-md border border-border p-0.5 bg-background">
-              <button onClick={() => setTab("contacts")} className={`px-3 py-1.5 text-xs rounded ${tab === "contacts" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>Contactos</button>
-              <button onClick={() => setTab("history")} className={`px-3 py-1.5 text-xs rounded ${tab === "history" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>Histórico</button>
-            </div>
+            {/* Tabs moved to route-level sub-nav (CSPageWrapper) — kept removed here */}
             {tab === "contacts" && (
               <div className="inline-flex rounded-md border border-border p-0.5 bg-background">
                 {(["week", "month", "year"] as RangeKey[]).map((k) => (
