@@ -300,18 +300,28 @@ export function buildCurrentStatusMap(statuses: CSTenantStatus[]): Map<string, C
   return out;
 }
 
+/**
+ * Single source of truth for "this tenant is active":
+ *   active  ↔  current club_status NOT IN { churned, closed, changed_owner }
+ * Whether or not the tenant uploaded a snapshot in the latest period is
+ * intentionally NOT part of this rule (see /clubs vs Dashboard alignment).
+ */
+export function isActiveStatus(status: ClubStatus): boolean {
+  return status !== "churned" && status !== "closed" && status !== "changed_owner";
+}
+
+export function isExcludedStatus(status: ClubStatus): boolean {
+  return !isActiveStatus(status);
+}
+
 /** Tenants whose current status excludes them from aggregate metrics. */
 export function excludedTenants(statuses: CSTenantStatus[]): Set<string> {
   const set = new Set<string>();
   const map = buildCurrentStatusMap(statuses);
   for (const [name, st] of map) {
-    if (st === "churned" || st === "closed") set.add(name);
+    if (isExcludedStatus(st)) set.add(name);
   }
   return set;
-}
-
-export function isExcludedStatus(status: ClubStatus): boolean {
-  return status === "churned" || status === "closed";
 }
 
 // Latest competitor recorded for a churned tenant.

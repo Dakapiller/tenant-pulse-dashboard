@@ -7,7 +7,7 @@ import {
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
   fetchAllCSStatuses, fetchAllCSTasks, currentClubStatus, currentWeekStart, lastCompletedActivityAt,
-  outcomeLabel, excludedTenants, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
+  outcomeLabel, excludedTenants, isActiveStatus, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
 import { fetchHealthScores, fetchHealthScoresAt, healthLevel } from "@/lib/health";
@@ -221,16 +221,11 @@ function DashboardPage() {
 
   // KPIs
   const kpis = useMemo(() => {
-    // "Active club" = reported a snapshot in the selected period AND not churned/closed/changed_owner.
-    // Defaulting unmapped tenants to "active" was inflating this number (e.g. 324 vs ~270 real).
-    const activeClubs = clubs.filter((c) => {
-      if (c.status === "churned" || c.status === "closed" || c.status === "changed_owner") return false;
-      if (!c.latest || c.latest.period !== latestPeriod) return false;
-      const games = Number(c.latest.games_online ?? 0);
-      const gmv = Number(c.latest.gmv_all ?? 0);
-      const rev = Number(c.latest.revenue ?? 0);
-      return games > 0 || gmv > 0 || rev > 0;
-    }).length;
+    // Single source of truth: a club is active iff its current status is not
+    // churned/closed/changed_owner. Whether it submitted data this month is
+    // intentionally NOT part of the rule (see isActiveStatus in lib/cs.ts) —
+    // this keeps the count aligned with the /clubs page.
+    const activeClubs = clubs.filter((c) => isActiveStatus(c.status)).length;
     const churnedThisYear = (() => {
       const year = new Date().getUTCFullYear();
       const set = new Set<string>();
@@ -395,13 +390,6 @@ function DashboardPage() {
       active: 0, possible_churn: 0, churned: 0, closed: 0, changed_owner: 0,
     };
     for (const c of clubs) {
-      if (c.status === "active") {
-        if (!c.latest || c.latest.period !== latestPeriod) continue;
-        const games = Number(c.latest.games_online ?? 0);
-        const gmv = Number(c.latest.gmv_all ?? 0);
-        const rev = Number(c.latest.revenue ?? 0);
-        if (games <= 0 && gmv <= 0 && rev <= 0) continue;
-      }
       counts[c.status]++;
     }
     return (Object.keys(counts) as ClubStatus[])
