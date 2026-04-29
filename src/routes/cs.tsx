@@ -282,7 +282,7 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
 
   async function handleSingleComplete(tenant: string, taskId: string, outcome: string, note: string | null) {
     await completeCSTask(taskId, tenant, outcome, note);
-    await loadAll();
+    await reloadTasks();
   }
 
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
