@@ -610,6 +610,26 @@ const STATUS_COLOR: Record<ClubStatus, string> = {
   changed_owner: "oklch(0.65 0.12 270)",
 };
 
+function ChartSkeleton() {
+  return (
+    <div className="rounded-xl border border-border bg-background p-5">
+      <div className="h-3 w-32 bg-surface rounded animate-pulse mb-2" />
+      <div className="h-3 w-56 bg-surface rounded animate-pulse mb-4" />
+      <div className="h-72 bg-surface/60 rounded animate-pulse" />
+    </div>
+  );
+}
+
+function CardSkeleton() {
+  return (
+    <div className="rounded-lg bg-background border border-success/20 p-3">
+      <div className="h-7 w-10 bg-surface rounded animate-pulse" />
+      <div className="h-3 w-20 bg-surface rounded animate-pulse mt-2" />
+      <div className="h-2.5 w-28 bg-surface rounded animate-pulse mt-1" />
+    </div>
+  );
+}
+
 function PositiveCard({ value, title, subtitle }: { value: number; title: string; subtitle: string }) {
   return (
     <div className="rounded-lg bg-background border border-success/20 p-3">
