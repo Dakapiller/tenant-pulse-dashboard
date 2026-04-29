@@ -5,8 +5,10 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Sparkles, Star, X,
+  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Plus, SlidersHorizontal, Sparkles, Star, X,
 } from "lucide-react";
+import { NewTaskDialog } from "@/components/NewTaskDialog";
+import { AdjustScoreDialog } from "@/components/AdjustScoreDialog";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
   fetchAllCSStatuses,
