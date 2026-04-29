@@ -6,8 +6,11 @@ import { fetchAllCSStatuses, fetchAllCSTasks, currentWeekStart, riskWithDelta, e
 import { fetchHealthScores } from "@/lib/health";
 import { FLAG_META, FLAG_CTA, type RiskFlag } from "@/lib/risk";
 import { ScoreDelta } from "@/components/DataTable";
-import { ArrowRight, ListChecks, Search, ShieldCheck, X } from "lucide-react";
+import { ArrowRight, ListChecks, Plus, Search, ShieldCheck, X } from "lucide-react";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { NewTaskDialog } from "@/components/NewTaskDialog";
+
+const TOP_LIMIT = 20;
 
 export const Route = createFileRoute("/at-risk")({
   component: AtRiskPage,
