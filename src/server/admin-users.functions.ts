@@ -19,7 +19,7 @@ export const approveUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ userId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertSuperuser(context.supabase, context.userId);
+    await assertSuperuser(context.userId);
     const { error } = await supabaseAdmin
       .from("user_profiles")
       .update({ role: "cs", approved_at: new Date().toISOString(), approved_by: context.userId })
@@ -32,7 +32,7 @@ export const revokeUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ userId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertSuperuser(context.supabase, context.userId);
+    await assertSuperuser(context.userId);
     // never revoke superuser
     const { data: target } = await supabaseAdmin
       .from("user_profiles")
@@ -52,7 +52,7 @@ export const rejectUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ userId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertSuperuser(context.supabase, context.userId);
+    await assertSuperuser(context.userId);
     const { data: target } = await supabaseAdmin
       .from("user_profiles")
       .select("role")
