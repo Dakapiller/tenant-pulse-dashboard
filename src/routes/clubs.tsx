@@ -715,18 +715,15 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
             Tarefas pendentes · {pendingTasks.length}
           </div>
           <ul className="space-y-2">
-            {pendingTasks.map((t) => {
-              const isOverdue = t.week_start < (row.tasks[0] ? "" : "") || false;
-              return (
-                <li key={t.id} className="text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{t.reason}</span>
-                    <span className="text-muted-foreground tabular-nums shrink-0">{t.week_start}</span>
-                  </div>
-                  <div className="text-muted-foreground mt-0.5">CTA: {t.cta}</div>
-                </li>
-              );
-            })}
+            {pendingTasks.map((t) => (
+              <li key={t.id} className="text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{t.reason}</span>
+                  <span className="text-muted-foreground tabular-nums shrink-0">{t.week_start}</span>
+                </div>
+                <div className="text-muted-foreground mt-0.5">CTA: {t.cta}</div>
+              </li>
+            ))}
           </ul>
         </div>
       )}
