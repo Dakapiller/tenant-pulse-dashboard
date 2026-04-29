@@ -40,7 +40,7 @@ import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/form
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 
 export const Route = createFileRoute("/clubs")({
-  validateSearch: (s: Record<string, unknown>) => ({
+  validateSearch: (s: Record<string, unknown>): { tenant?: string; level?: "high" | "medium" | "healthy"; q?: string } => ({
     tenant: typeof s.tenant === "string" ? s.tenant : undefined,
     level: s.level === "high" || s.level === "medium" || s.level === "healthy" ? s.level : undefined,
     q: typeof s.q === "string" ? s.q : undefined,
