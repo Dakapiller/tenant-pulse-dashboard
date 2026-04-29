@@ -123,7 +123,7 @@
   --sidebar-accent: oklch(0.968 0.007 247);
   --sidebar-accent-foreground: oklch(0.21 0.034 264);
   --sidebar-border: oklch(0.929 0.013 255);
-  --sidebar-ring: oklch(0.546 0.215 262.9);
+  --sidebar-ring: oklch(0.546 0.245 262.881);
 }
 
 .dark {
