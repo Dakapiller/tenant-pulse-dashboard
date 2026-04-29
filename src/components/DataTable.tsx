@@ -261,7 +261,7 @@ export function DataTable<T>({
           {toolbar}
         </div>
       )}
-      <div className={`overflow-auto ${containerClassName}`}>
+      <div ref={tableScrollRef} className={`overflow-auto ${containerClassName}`}>
         <table className="w-full text-sm">
           <thead className={`bg-surface text-xs uppercase tracking-wide text-muted-foreground ${stickyHeader ? "sticky top-0 z-10" : ""}`}>
             <tr>
