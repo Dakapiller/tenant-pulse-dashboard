@@ -12,7 +12,7 @@ import {
   fetchAllCSTasks,
   fetchPriorityMap,
   insertCSTasks,
-  completeCSTask,
+  
   completeCSTasksBatch,
   postponeCSTask,
   currentWeekStart,
@@ -384,25 +384,65 @@ function CSTasksPage() {
             </button>
             {overdueOpen && (
               <div className="border-t border-danger/30">
+                {(() => {
+                  const overdueNames = visibleOverdueOnly.map((r) => r.name);
+                  const allSelected = overdueNames.length > 0 && overdueNames.every((n) => selectedKeys.has(n));
+                  const someSelected = !allSelected && overdueNames.some((n) => selectedKeys.has(n));
+                  const toggleAll = () => {
+                    const next = new Set(selectedKeys);
+                    if (allSelected) overdueNames.forEach((n) => next.delete(n));
+                    else overdueNames.forEach((n) => next.add(n));
+                    setSelectedKeys(next);
+                  };
+                  return (
+                    <div className="flex items-center gap-2 px-5 py-2 border-b border-danger/20 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                        onChange={toggleAll}
+                        className="h-3.5 w-3.5 accent-danger cursor-pointer"
+                        aria-label="Selecionar todas as atrasadas"
+                      />
+                      <span className="text-muted-foreground">Selecionar todas</span>
+                    </div>
+                  );
+                })()}
                 <ul className="divide-y divide-danger/20">
                   {visibleOverdueOnly.map((r) => {
                     const isOpen = expanded === `overdue:${r.name}`;
+                    const isSelected = selectedKeys.has(r.name);
                     return (
                       <li key={r.name} className="px-5 py-3">
-                        <button
-                          type="button"
-                          onClick={() => setExpanded(isOpen ? null : `overdue:${r.name}`)}
-                          className="w-full flex items-center justify-between gap-3 text-left"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <ClubLink name={r.name} className="font-semibold hover:underline truncate" />
-                            <RiskBadge level={r.level} score={r.score} />
-                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-danger/15 text-danger font-medium">
-                              {r.overdue.length} atrasada{r.overdue.length === 1 ? "" : "s"}
-                            </span>
-                          </div>
-                          {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              const next = new Set(selectedKeys);
+                              if (e.target.checked) next.add(r.name);
+                              else next.delete(r.name);
+                              setSelectedKeys(next);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-3.5 w-3.5 accent-danger cursor-pointer"
+                            aria-label={`Selecionar ${r.name}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setExpanded(isOpen ? null : `overdue:${r.name}`)}
+                            className="flex-1 flex items-center justify-between gap-3 text-left"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <ClubLink name={r.name} className="font-semibold hover:underline truncate" />
+                              <RiskBadge level={r.level} score={r.score} />
+                              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-danger/15 text-danger font-medium">
+                                {r.overdue.length} atrasada{r.overdue.length === 1 ? "" : "s"}
+                              </span>
+                            </div>
+                            {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                          </button>
+                        </div>
                         {isOpen && (
                           <div className="mt-3">
                             <ExpandedClubPanel
@@ -508,13 +548,17 @@ function CSTasksPage() {
             count={selectedKeys.size}
             onApply={async (outcome, note) => {
               const names = Array.from(selectedKeys);
-              for (const name of names) {
-                const r = rows.find((x) => x.name === name);
-                if (!r) continue;
-                for (const t of r.pending) {
-                  await completeCSTask(t.id, t.tenant_name, outcome, note.trim() || null);
-                }
-              }
+              const trimmed = note.trim() || null;
+              // One batch call per club (groups all pending + overdue tasks for that club).
+              await Promise.all(
+                names.map((name) => {
+                  const r = rows.find((x) => x.name === name);
+                  if (!r) return Promise.resolve();
+                  const ids = [...r.pending, ...r.overdue].map((t) => t.id);
+                  if (ids.length === 0) return Promise.resolve();
+                  return completeCSTasksBatch(name, ids, outcome, trimmed);
+                }),
+              );
               setSelectedKeys(new Set());
               await reloadPending();
             }}
