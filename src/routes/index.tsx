@@ -577,7 +577,11 @@ function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {recentActivity.map((t) => (
+              {!tasksLoaded ? (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">A carregar atividade…</td></tr>
+              ) : recentActivity.length === 0 ? (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">Sem atividade recente.</td></tr>
+              ) : recentActivity.map((t) => (
                 <tr key={t.id} className="border-t border-border hover:bg-surface">
                   <td className="px-4 py-2 text-xs text-muted-foreground">{t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : "—"}</td>
                   <td className="px-4 py-2 font-medium"><ClubLink name={t.tenant_name} /></td>
@@ -585,9 +589,6 @@ function DashboardPage() {
                   <td className="px-4 py-2 text-xs text-muted-foreground truncate max-w-md">{t.reason}</td>
                 </tr>
               ))}
-              {recentActivity.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">Sem atividade recente.</td></tr>
-              )}
             </tbody>
           </table>
         </div>
