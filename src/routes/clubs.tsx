@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { AdjustScoreDialog } from "@/components/AdjustScoreDialog";
+import { TaskQuickActions } from "@/components/TaskQuickActions";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
   fetchAllCSStatuses,
@@ -109,6 +110,7 @@ function ClubsPage() {
   const [missingOpen, setMissingOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [filterNewOnly, setFilterNewOnly] = useState(false);
+  const [filterPendingOnly, setFilterPendingOnly] = useState(false);
   const [bulkScoreOpen, setBulkScoreOpen] = useState(false);
 
   async function loadAll() {
@@ -183,12 +185,14 @@ function ClubsPage() {
   const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
   const newCount = rows.filter((r) => r.isNew).length;
   const inactiveCount = rows.filter((r) => r.status === "churned" || r.status === "closed").length;
+  const pendingCount = rows.filter((r) => r.pending > 0 && r.status !== "churned" && r.status !== "closed").length;
   const visibleRows = useMemo(() => {
     let r = showInactive ? rows : rows.filter((x) => x.status !== "churned" && x.status !== "closed");
     if (filterNewOnly) r = r.filter((x) => x.isNew);
+    if (filterPendingOnly) r = r.filter((x) => x.pending > 0);
     if (search.level) r = r.filter((x) => x.level === search.level);
     return r;
-  }, [rows, showInactive, filterNewOnly, search.level]);
+  }, [rows, showInactive, filterNewOnly, filterPendingOnly, search.level]);
 
   async function handleStatusChange(tenant: string, current: ClubStatus, next: ClubStatus, competitor: string | null) {
     if (next === "churned" && current !== "churned") {
@@ -267,16 +271,28 @@ function ClubsPage() {
               </span>
             )}
           </span>
-          {inactiveCount > 0 && (
-            <button
-              onClick={() => setShowInactive((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-surface"
-              title={showInactive ? "Ocultar clubes em churn e fechados" : "Mostrar clubes em churn e fechados"}
-            >
-              {showInactive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              {showInactive ? "Ocultar inativos" : "Mostrar inativos"}
-            </button>
-          )}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {pendingCount > 0 && (
+              <button
+                onClick={() => setFilterPendingOnly((v) => !v)}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${filterPendingOnly ? "border-warning bg-warning/15 text-warning" : "border-border hover:bg-surface"}`}
+                title="Mostrar apenas clubes com tarefas pendentes (incluindo atrasadas)"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {filterPendingOnly ? "A filtrar pendentes" : `Apenas com pendentes (${pendingCount})`}
+              </button>
+            )}
+            {inactiveCount > 0 && (
+              <button
+                onClick={() => setShowInactive((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-surface"
+                title={showInactive ? "Ocultar clubes em churn e fechados" : "Mostrar clubes em churn e fechados"}
+              >
+                {showInactive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {showInactive ? "Ocultar inativos" : "Mostrar inativos"}
+              </button>
+            )}
+          </div>
         </div>
         <DataTable<ClubRow>
           rows={visibleRows}
@@ -287,7 +303,7 @@ function ClubsPage() {
           containerClassName="max-h-[700px]"
           rowClassName={(r) => expandedTenant === r.name ? "bg-surface/40" : r.isNew ? "bg-success/5" : r.missingFromLatest ? "bg-warning/5" : ""}
           onRowClick={(r) => setExpandedTenant(expandedTenant === r.name ? null : r.name)}
-          expandedRow={(r) => expandedTenant === r.name ? <ClubHistoryPanel row={r} /> : null}
+          expandedRow={(r) => expandedTenant === r.name ? <ClubHistoryPanel row={r} onChanged={loadAll} /> : null}
           emptyMessage="Sem clubes."
           selectable
           selectedKeys={selectedKeys}
@@ -673,7 +689,7 @@ function ScoreChangeLine({ oldScore, newScore, delta }: { oldScore: number; newS
   );
 }
 
-function ClubHistoryPanel({ row }: { row: ClubRow }) {
+function ClubHistoryPanel({ row, onChanged }: { row: ClubRow; onChanged?: () => void | Promise<void> }) {
   // Memoize per-snapshot risk recomputation; expensive for tenants with long history.
   const scoreEventsRaw = useMemo(() => scoreChangeEvents(row), [row]);
 
@@ -714,14 +730,15 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
           <div className="text-[11px] uppercase tracking-wide text-warning font-semibold mb-2">
             Tarefas pendentes · {pendingTasks.length}
           </div>
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {pendingTasks.map((t) => (
-              <li key={t.id} className="text-xs">
+              <li key={t.id} className="text-xs space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{t.reason}</span>
                   <span className="text-muted-foreground tabular-nums shrink-0">{t.week_start}</span>
                 </div>
-                <div className="text-muted-foreground mt-0.5">CTA: {t.cta}</div>
+                <div className="text-muted-foreground">CTA: {t.cta}</div>
+                <TaskQuickActions task={t} onChanged={onChanged} />
               </li>
             ))}
           </ul>
@@ -935,6 +952,9 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
                       </div>
                       <div className="mt-1 font-medium whitespace-pre-line">{t.reason}</div>
                       <div className="text-muted-foreground mt-0.5 whitespace-pre-line">CTA: {t.cta}</div>
+                      <div className="mt-2">
+                        <TaskQuickActions task={t} onChanged={async () => { await reload(); await onChanged?.(); }} />
+                      </div>
                     </li>
                   ))}
               </ul>

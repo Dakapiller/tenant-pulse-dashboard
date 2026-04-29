@@ -280,6 +280,17 @@ export async function completeCSTasksBatch(
   await applyTaskOutcome(tenant, outcome);
 }
 
+/** Push a pending task to a future week. Snaps the given date to its Monday (UTC). */
+export async function postponeCSTask(taskId: string, target: Date | string): Promise<void> {
+  const d = typeof target === "string" ? new Date(target) : target;
+  const newWeekStart = currentWeekStart(d);
+  const { error } = await supabase
+    .from("cs_tasks")
+    .update({ week_start: newWeekStart } as never)
+    .eq("id", taskId);
+  if (error) throw error;
+}
+
 // --------- Club status helpers ---------
 
 export async function fetchClubStatusLogs(): Promise<ClubStatusLog[]> {

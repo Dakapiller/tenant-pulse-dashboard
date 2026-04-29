@@ -12,6 +12,7 @@ import {
   insertCSTasks,
   completeCSTask,
   completeCSTasksBatch,
+  postponeCSTask,
   currentWeekStart,
   scoreWithDelta,
   excludedTenants,
@@ -23,7 +24,7 @@ import { computeRiskWithCS, FLAG_CTA, FLAG_META, type RiskFlag } from "@/lib/ris
 import { fetchHealthScores } from "@/lib/health";
 import { formatEuro, formatNumber, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta } from "@/components/DataTable";
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Eye, EyeOff, ListChecks, Plus } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Clock, Eye, EyeOff, ListChecks, Plus } from "lucide-react";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
 
 export const Route = createFileRoute("/cs/tasks")({
@@ -242,6 +243,12 @@ function CSTasksPage() {
     setExpanded(null);
   }
 
+  async function handleClubPostpone(taskIds: string[], target: string) {
+    for (const id of taskIds) await postponeCSTask(id, target);
+    await reloadPending();
+    setExpanded(null);
+  }
+
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const activeClubNames = useMemo(
     () => tenantNames.filter((n) => !excluded.has(n)),
@@ -379,6 +386,7 @@ function CSTasksPage() {
                             <ExpandedClubPanel
                               row={{ name: r.name, pending: [], overdue: r.overdue }}
                               onComplete={handleClubComplete}
+                              onPostpone={handleClubPostpone}
                             />
                           </div>
                         )}
@@ -427,7 +435,7 @@ function CSTasksPage() {
                   onSelectionChange={setSelectedKeys}
                   isRowSelectable={(r) => r.pending.length > 0}
                   expandedRow={(r) => expanded === r.name ? (
-                    <ExpandedClubPanel row={r} onComplete={handleClubComplete} />
+                    <ExpandedClubPanel row={r} onComplete={handleClubComplete} onPostpone={handleClubPostpone} />
                   ) : null}
                   columns={[
                     {
@@ -496,14 +504,21 @@ function CSTasksPage() {
 }
 
 function ExpandedClubPanel({
-  row, onComplete,
+  row, onComplete, onPostpone,
 }: {
   row: { name: string; pending: CSTask[]; overdue?: CSTask[] };
   onComplete: (tenant: string, taskIds: string[], outcome: string, note: string | null) => Promise<void>;
+  onPostpone?: (taskIds: string[], target: string) => Promise<void>;
 }) {
   const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [postponeOpen, setPostponeOpen] = useState(false);
+  const [postponeTarget, setPostponeTarget] = useState<string>(() => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + 7);
+    return currentWeekStart(d);
+  });
 
   const overdueTasks = row.overdue ?? [];
   const tasks = [...row.pending, ...overdueTasks];
@@ -624,7 +639,51 @@ function ExpandedClubPanel({
               className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs resize-y"
             />
           </div>
-          <div className="flex items-center justify-end pt-1">
+          <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+            {onPostpone ? (
+              postponeOpen ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Adiar para</label>
+                  <input
+                    type="date"
+                    value={postponeTarget}
+                    onChange={(e) => setPostponeTarget(e.target.value)}
+                    className="px-2 py-1 rounded-md border border-border bg-background text-xs"
+                  />
+                  <span className="text-[10px] text-muted-foreground">
+                    → semana de {currentWeekStart(new Date(postponeTarget))}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setBusy(true);
+                      try {
+                        await onPostpone(tasks.map((t) => t.id), postponeTarget);
+                        setPostponeOpen(false);
+                      } finally { setBusy(false); }
+                    }}
+                    disabled={busy}
+                    className="px-2.5 py-1 text-[11px] rounded-md bg-foreground text-background font-medium disabled:opacity-50 hover:opacity-90 inline-flex items-center gap-1"
+                  >
+                    <Clock className="h-3 w-3" /> {busy ? "A guardar…" : "Confirmar adiar"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPostponeOpen(false)}
+                    className="text-[11px] text-muted-foreground hover:text-foreground"
+                  >Cancelar</button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPostponeOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-surface text-muted-foreground"
+                  title="Adiar todas as tarefas para outra semana"
+                >
+                  <Clock className="h-3.5 w-3.5" /> Adiar todas
+                </button>
+              )
+            ) : <span />}
             <button
               onClick={handleComplete}
               disabled={busy || tasks.length === 0}
