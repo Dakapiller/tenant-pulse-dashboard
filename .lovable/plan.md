@@ -1,68 +1,71 @@
 ## Objetivo
 
-Hoje o sistema cria **uma linha em `cs_tasks` por flag** (ex. Sportgreen tem 2 flags = 2 tasks). Vais ver:
-- 2 bullets na expansão do clube
-- 2 selects de "Resultado"
-- 2 botões "Marcar feita"
+Mostrar **a razão** ao lado de cada variação de score no histórico de cada clube, e tornar o motor de scoring mais conservador para que o score só varie quando existir um motivo real:
 
-Tu queres **1 task por clube** com vários bullets dentro, **1 resultado**, **1 comentário**, **1 botão**. Na realidade é um único contacto.
+1. Alguma métrica-chave piorou ou melhorou **mais de 5%** vs o último mês analisado, **ou**
+2. Existe uma **tendência negativa há 4+ meses consecutivos** numa métrica-chave.
 
-## Mudanças
+Caso contrário, o score mantém-se estável de mês para mês.
 
-### 1. Schema (`cs_tasks`)
-Já existe a coluna `flags text[]`. Vamos passar a guardar **todos os flags do clube no mesmo row**, em vez de um row por flag.
+---
 
-- Migration: nada a alterar na estrutura — só remover o índice único antigo `cs_tasks_pending_unique` (que assumia 1 flag por row) e criar `cs_tasks_pending_unique_tenant_week` em `(tenant_name, week_start) WHERE status = 'pending'`. Garante 1 task pendente por clube por semana.
-- Data migration: para a semana atual, fundir os rows pendentes do mesmo clube num só (agregar `flags`, concatenar `reason` e `cta` por linha), apagar os duplicados.
+## Mudanças de scoring (`src/lib/risk.ts`)
 
-### 2. Geração semanal (`generateWeeklyTasks` em `src/routes/cs.tsx`)
-- Em vez de fazer um push por cada flag, criar **um único objeto por clube** com:
-  - `flags`: array com todos os flags
-  - `reason`: linhas concatenadas (uma por flag)
-  - `cta`: linhas concatenadas (uma por flag)
-  - `priority`: o score
-- Usar upsert por `(tenant_name, week_start)` para evitar duplicar se rodar duas vezes.
+Atualmente as flags disparam com regras heterogéneas (ex.: `gmv_stagnant` quando varia <5%, `rate_declining` >10pp, `games_dropping` em 2 meses). Vou alinhá-las com a regra única do utilizador.
 
-### 3. UI da expansão (`ExpandedClubPanel` em `src/routes/cs.tsx`)
-A linha do clube continua igual. Dentro do painel expandido:
+**Métricas-chave consideradas:** `games_online`, `gmv_all`, `revenue`, `transacted_rate`.
+
+**Novas flags:**
+
+| Flag | Quando dispara | Pontos |
+|---|---|---|
+| `games_drop_5` | jogos caíram >5% vs mês anterior | 25 |
+| `gmv_drop_5` | GMV caiu >5% vs mês anterior | 20 |
+| `revenue_drop_5` | receita caiu >5% vs mês anterior | 25 |
+| `rate_drop_5` | taxa transacionada caiu >5pp vs mês anterior | 20 |
+| `games_trend_4m` | jogos a cair 4 meses seguidos | 30 |
+| `gmv_trend_4m` | GMV a cair 4 meses seguidos | 25 |
+| `revenue_trend_4m` | receita a cair 4 meses seguidos | 30 |
+| `no_revenue` *(mantida)* | GMV>0 e receita=0 | 25 |
+
+Flags antigas `games_dropping`, `gmv_stagnant`, `rate_declining`, `spike_then_crash`, `saas_only` são **removidas** (cobertas pelas novas regras ou ruído).
+
+Cada flag passa a ter um **`reason`** legível (ex.: "Receita caiu 12,4% (€340 → €298)") guardado no resultado, para que o histórico possa explicá-la.
+
+A função `computeRisk` passa a devolver, além de `flags`, um array `flagDetails: { flag, label, points, reason }[]` com a razão calculada a partir dos snapshots.
+
+## Mudanças no histórico (`src/routes/clubs.tsx`)
+
+`scoreChangeEvents` passa a também devolver, para cada variação, o **conjunto de razões**: comparando os `flagDetails` do mês com os do mês anterior, identificamos:
+
+- **Flags adicionadas** → "Receita caiu 12% vs mês anterior"
+- **Flags resolvidas** → "Recuperação: jogos voltaram a subir"
+- **Variação CS** (se o `csModifier` mudou) → "Outcome CS: má relação (+25)"
+
+`ClubHistoryPanel` (a lista de eventos no dropdown da `/clubs`) e `ScoreVariationSection` (no drawer) renderizam essas razões por baixo da linha "▲ X pts · old → new", em bullets pequenos cinza.
 
 ```text
-[Clube: Sportgreen Gulpilhares]                     [▼]
-└─ • Sem receita — GMV is present but revenue is zero
-   • Jogos a cair — Games online dropped 2+ months
-   
-   Resultado: [Boa recetividade ▼]
-   Comentário: [_______________________________]
-   
-                                  [Marcar como feita]
+SCORE   Variação em março de 2026               01/04/2026
+▲ 10 pts · 20 → 30
+  • Receita caiu 14% (€325 → €279)
+  • GMV caiu 6% vs fevereiro
 ```
 
-- Remover os checkboxes por bullet, o select por bullet, o botão por bullet, o "Selecionar todas".
-- Os bullets passam a ser **só leitura** (lista visual dos flags ativos).
-- Um único `<select>` de Resultado, um único `<textarea>` de Comentário, um único botão "Marcar como feita".
-- Ao clicar, faz `completeCSTask(taskId, tenant, outcome, note)` para o ÚNICO row do clube.
+Quando não há variação (todas as métricas dentro de ±5% e sem tendências), **não é gerado evento** — o histórico fica mais limpo, alinhado com a regra do utilizador.
 
-### 4. Bulk completion (vários clubes selecionados)
-Mantém-se: a bottom bar continua a aplicar o mesmo outcome+nota a todos os clubes selecionados, mas agora marca **1 task por clube** em vez de N.
+## Impacto noutros locais
 
-### 5. Histórico
-- A vista de histórico (`tab === "history"`) e o `ClubHistoryPanel` em `clubs.tsx` já funcionam com a estrutura `flags: string[]`. Só preciso garantir que a label mostra **todos** os flags da task (não só `flags[0]`), por exemplo "Sem receita + Jogos a cair".
-- O comentário já é guardado em `note` e renderizado em ambas as views.
+- `/cs` (geração de tarefas semanais): continua a usar `computeRiskWithCS` mas a lista de flags muda. Os labels apresentados (`FLAG_META[f].label`) e textos de CTA (`FLAG_CTA[f]`) são atualizados para as novas flags. Tarefas pendentes geradas com flags antigas continuam válidas (o campo `flags` é `text[]` na BD); apenas deixarão de ser regeradas com nomes antigos.
+- `/at-risk`, `/index` (Dashboard): consomem `computeRiskWithCS` — funcionam sem alterações, scores ficam mais estáveis.
+- `tenant.$name`: idem.
 
-## Detalhe técnico
+## Ficheiros a editar
 
-**Ficheiros tocados:**
-- Migration nova: drop `cs_tasks_pending_unique`, create `cs_tasks_pending_unique_tenant_week`.
-- Data fix (insert tool): merge dos rows pendentes existentes da semana 2026-04-27 num único row por clube.
-- `src/routes/cs.tsx`:
-  - `generateWeeklyTasks`: 1 task por clube com `flags = risk.flags` e `reason`/`cta` multilinha.
-  - `ExpandedClubPanel`: simplificar — bullets read-only, 1 outcome, 1 nota, 1 botão.
-  - Remover `completeCSTasksBatch` daqui (deixa de ser preciso por clube — só 1 task).
-  - Histórico: helper `formatFlagsLabel(flags)` para mostrar todos.
-- `src/routes/clubs.tsx` (`ClubHistoryPanel`): mesmo helper para mostrar todos os flags.
-- `src/lib/cs.ts`: nada a mudar nas signatures (`completeCSTask` continua igual).
+- `src/lib/risk.ts` — novas flags com regra de 5% / 4-meses, função produz `flagDetails` com `reason` calculada.
+- `src/routes/clubs.tsx` — `scoreChangeEvents` devolve `reasons[]`; `ClubHistoryPanel` e `ScoreVariationSection` mostram-nas.
+- `src/routes/cs.tsx` — atualizar `FLAG_CTA` map para as novas flags (reason + cta em PT).
 
-**Comportamento após o fix para Sportgreen Gulpilhares:**
-- 1 linha na lista
-- Expandido: 2 bullets (Sem receita, Jogos a cair) + 1 resultado + 1 nota + 1 botão
-- Marcar feita → 1 entrada no histórico com `flags: ['no_revenue','games_dropping']` e a tua nota
+## Notas
+
+- Não há migração de BD: as flags são calculadas em runtime a partir de `tenant_snapshots`.
+- Histórico anterior ao deploy é recalculado retroativamente com as novas regras (o histórico exibido é derivado, não armazenado).

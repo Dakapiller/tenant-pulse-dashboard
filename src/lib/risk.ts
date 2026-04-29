@@ -1,95 +1,174 @@
 import type { Snapshot } from "@/lib/data";
 
+// New conservative flag set: score only changes when a key metric moves >5%
+// vs previous month, OR when there's a 4+ month consecutive negative trend.
+
 export type RiskFlag =
-  | "games_dropping"
-  | "no_revenue"
-  | "saas_only"
-  | "rate_declining"
-  | "gmv_stagnant"
-  | "spike_then_crash";
+  | "games_drop_5"
+  | "gmv_drop_5"
+  | "revenue_drop_5"
+  | "rate_drop_5"
+  | "games_trend_4m"
+  | "gmv_trend_4m"
+  | "revenue_trend_4m"
+  | "no_revenue";
 
 export const FLAG_META: Record<RiskFlag, { label: string; points: number; description: string }> = {
-  games_dropping: { label: "Jogos a cair", points: 30, description: "Jogos online em queda há 2+ meses consecutivos" },
-  no_revenue: { label: "Sem receita", points: 25, description: "Receita = 0 mas GMV > 0" },
-  saas_only: { label: "Só SaaS", points: 20, description: "SaaS > 0 mas sem comissões B2C nem receita" },
-  rate_declining: { label: "Taxa em queda", points: 20, description: "Taxa transacionada caiu mais de 10pp face a 2 meses atrás" },
-  gmv_stagnant: { label: "GMV estagnado", points: 15, description: "GMV total variou menos de 5% nos últimos 2 meses" },
-  spike_then_crash: { label: "Pico e queda", points: 25, description: "Jogos duplicaram e voltaram a cair" },
+  games_drop_5:      { label: "Jogos em queda",   points: 25, description: "Jogos online caíram mais de 5% vs mês anterior" },
+  gmv_drop_5:        { label: "GMV em queda",     points: 20, description: "GMV total caiu mais de 5% vs mês anterior" },
+  revenue_drop_5:    { label: "Receita em queda", points: 25, description: "Receita caiu mais de 5% vs mês anterior" },
+  rate_drop_5:       { label: "Taxa em queda",    points: 20, description: "Taxa transacionada caiu mais de 5pp vs mês anterior" },
+  games_trend_4m:    { label: "Tendência negativa: jogos",   points: 30, description: "Jogos online a cair há 4+ meses consecutivos" },
+  gmv_trend_4m:      { label: "Tendência negativa: GMV",     points: 25, description: "GMV total a cair há 4+ meses consecutivos" },
+  revenue_trend_4m:  { label: "Tendência negativa: receita", points: 30, description: "Receita a cair há 4+ meses consecutivos" },
+  no_revenue:        { label: "Sem receita",      points: 25, description: "Existe GMV mas a receita é zero" },
 };
 
 export const FLAG_CTA: Record<RiskFlag, { reason: string; cta: string }> = {
-  games_dropping: {
-    reason: "Jogos online em queda há 2+ meses consecutivos",
-    cta: "Verificar se há um problema técnico ou quebra de procura. Propor uma reunião de revisão da plataforma.",
+  games_drop_5: {
+    reason: "Jogos online caíram mais de 5% vs mês anterior",
+    cta: "Verificar se há quebra de procura ou problema técnico. Propor revisão da utilização da plataforma.",
+  },
+  gmv_drop_5: {
+    reason: "GMV total caiu mais de 5% vs mês anterior",
+    cta: "Compreender a quebra de volume. Propor ações comerciais ou de marketing.",
+  },
+  revenue_drop_5: {
+    reason: "Receita caiu mais de 5% vs mês anterior",
+    cta: "Investigar causas da quebra de receita. Confirmar pricing e fluxo de pagamento.",
+  },
+  rate_drop_5: {
+    reason: "Taxa transacionada caiu mais de 5pp vs mês anterior",
+    cta: "Investigar abandono no checkout e propor revisão de UX/pricing.",
+  },
+  games_trend_4m: {
+    reason: "Jogos online em queda contínua há 4+ meses",
+    cta: "Marcar reunião urgente. Sinal claro de desengajamento prolongado.",
+  },
+  gmv_trend_4m: {
+    reason: "GMV em queda contínua há 4+ meses",
+    cta: "Rever plano comercial e benchmarks com clubes semelhantes.",
+  },
+  revenue_trend_4m: {
+    reason: "Receita em queda contínua há 4+ meses",
+    cta: "Reunião de retenção urgente. Compreender fricções e propor plano de recuperação.",
   },
   no_revenue: {
-    reason: "Existe GMV mas a receita é zero — as reservas não estão a converter",
-    cta: "Compreender o fluxo de pagamento. Oferecer apoio na ativação ou revisão da configuração comercial.",
-  },
-  saas_only: {
-    reason: "Paga SaaS mas sem atividade B2C — a ferramenta não está a ser usada comercialmente",
-    cta: "Marcar uma demonstração das funcionalidades B2C. Mostrar o valor das reservas online vs. manuais.",
-  },
-  rate_declining: {
-    reason: "A taxa transacionada caiu significativamente — menos reservas a concluir o pagamento",
-    cta: "Investigar abandono no checkout. Propor revisão de UX ou orientação de pricing.",
-  },
-  gmv_stagnant: {
-    reason: "O GMV quase não variou em 2 meses — crescimento estagnado",
-    cta: "Discutir alavancas de crescimento. Partilhar benchmarks com clubes semelhantes.",
-  },
-  spike_then_crash: {
-    reason: "Pico inesperado de atividade seguido de uma queda acentuada",
-    cta: "Compreender o que causou o pico e a queda. Pode ser um evento pontual ou um sinal de churn.",
+    reason: "GMV existe mas a receita é zero — reservas não estão a converter",
+    cta: "Compreender o fluxo de pagamento. Apoiar ativação ou revisão da configuração comercial.",
   },
 };
 
+export interface FlagDetail {
+  flag: RiskFlag;
+  label: string;
+  points: number;
+  reason: string; // human-readable, includes concrete numbers when available
+}
+
 export interface RiskResult {
   flags: RiskFlag[];
+  flagDetails: FlagDetail[];
   score: number;
   level: "high" | "medium" | "healthy";
   dataScore?: number;
   csModifier?: number;
 }
 
-// snapshots = ALL snapshots for one tenant, sorted asc by period.
-// We score the LAST snapshot using up to 3 most recent (last, prev, prev2).
+function pctChange(prev: number, cur: number): number | null {
+  if (!isFinite(prev) || prev === 0) return null;
+  return ((cur - prev) / Math.abs(prev)) * 100;
+}
+
+function fmtPct(n: number): string {
+  return `${n > 0 ? "+" : ""}${n.toFixed(1).replace(".", ",")}%`;
+}
+
+function fmtEuro(n: number): string {
+  return `€${Math.round(n).toLocaleString("pt-PT")}`;
+}
+
+function fmtNum(n: number): string {
+  return Math.round(n).toLocaleString("pt-PT");
+}
+
+// Returns true if the metric strictly decreases over the last `n` snapshots
+// (i.e. n-1 consecutive month-over-month drops). Requires at least n snapshots.
+function hasNegativeTrend(values: number[], n: number): boolean {
+  if (values.length < n) return false;
+  const tail = values.slice(-n);
+  for (let i = 1; i < tail.length; i++) {
+    if (!(tail[i] < tail[i - 1])) return false;
+  }
+  return true;
+}
+
+// snapshots = ALL snapshots for one tenant. We compute risk against the latest one.
 export function computeRisk(snapshots: Snapshot[]): RiskResult {
-  if (snapshots.length === 0) return { flags: [], score: 0, level: "healthy", dataScore: 0, csModifier: 0 };
+  if (snapshots.length === 0) {
+    return { flags: [], flagDetails: [], score: 0, level: "healthy", dataScore: 0, csModifier: 0 };
+  }
   const sorted = [...snapshots].sort((a, b) => a.period.localeCompare(b.period));
   const last = sorted[sorted.length - 1];
   const prev = sorted[sorted.length - 2];
-  const prev2 = sorted[sorted.length - 3];
 
-  const flags: RiskFlag[] = [];
+  const details: FlagDetail[] = [];
+  const push = (flag: RiskFlag, reason: string) => {
+    const meta = FLAG_META[flag];
+    details.push({ flag, label: meta.label, points: meta.points, reason });
+  };
 
-  if (prev && prev2 && last.games_online < prev.games_online && prev.games_online < prev2.games_online) {
-    flags.push("games_dropping");
-  }
-  if (last.revenue === 0 && last.gmv_all > 0) flags.push("no_revenue");
-  if (last.saas > 0 && last.b2c_commissions === 0 && last.revenue === 0) flags.push("saas_only");
-  if (prev2 && (prev2.transacted_rate - last.transacted_rate) * 100 > 10) flags.push("rate_declining");
-  if (prev2 && prev2.gmv_all > 0) {
-    const change = Math.abs((last.gmv_all - prev2.gmv_all) / prev2.gmv_all);
-    if (change < 0.05) flags.push("gmv_stagnant");
-  }
-  if (prev && prev2 && prev2.games_online > 0 && prev.games_online > 2 * prev2.games_online && last.games_online < prev.games_online) {
-    flags.push("spike_then_crash");
+  // ---- Month-over-month >5% drops ----
+  if (prev) {
+    const dGames = pctChange(prev.games_online, last.games_online);
+    if (dGames !== null && dGames < -5) {
+      push("games_drop_5", `Jogos caíram ${fmtPct(dGames)} (${fmtNum(prev.games_online)} → ${fmtNum(last.games_online)})`);
+    }
+    const dGmv = pctChange(prev.gmv_all, last.gmv_all);
+    if (dGmv !== null && dGmv < -5) {
+      push("gmv_drop_5", `GMV caiu ${fmtPct(dGmv)} (${fmtEuro(prev.gmv_all)} → ${fmtEuro(last.gmv_all)})`);
+    }
+    const dRev = pctChange(prev.revenue, last.revenue);
+    if (dRev !== null && dRev < -5) {
+      push("revenue_drop_5", `Receita caiu ${fmtPct(dRev)} (${fmtEuro(prev.revenue)} → ${fmtEuro(last.revenue)})`);
+    }
+    const ratePp = (last.transacted_rate - prev.transacted_rate) * 100; // percentage points
+    if (ratePp < -5) {
+      push("rate_drop_5", `Taxa transacionada caiu ${ratePp.toFixed(1).replace(".", ",")}pp (${(prev.transacted_rate * 100).toFixed(1)}% → ${(last.transacted_rate * 100).toFixed(1)}%)`);
+    }
   }
 
-  const dataScore = Math.min(100, flags.reduce((s, f) => s + FLAG_META[f].points, 0));
+  // ---- 4+ month consecutive negative trends ----
+  const games = sorted.map((s) => s.games_online);
+  const gmv = sorted.map((s) => s.gmv_all);
+  const rev = sorted.map((s) => s.revenue);
+  if (hasNegativeTrend(games, 4)) {
+    push("games_trend_4m", `Jogos a cair há 4 meses consecutivos (${fmtNum(games[games.length - 4])} → ${fmtNum(games[games.length - 1])})`);
+  }
+  if (hasNegativeTrend(gmv, 4)) {
+    push("gmv_trend_4m", `GMV a cair há 4 meses consecutivos (${fmtEuro(gmv[gmv.length - 4])} → ${fmtEuro(gmv[gmv.length - 1])})`);
+  }
+  if (hasNegativeTrend(rev, 4)) {
+    push("revenue_trend_4m", `Receita a cair há 4 meses consecutivos (${fmtEuro(rev[rev.length - 4])} → ${fmtEuro(rev[rev.length - 1])})`);
+  }
+
+  // ---- Structural: GMV but no revenue ----
+  if (last.revenue === 0 && last.gmv_all > 0) {
+    push("no_revenue", `Existe GMV (${fmtEuro(last.gmv_all)}) mas a receita está a zero`);
+  }
+
+  const flags = details.map((d) => d.flag);
+  const dataScore = Math.min(100, details.reduce((s, d) => s + d.points, 0));
   const score = dataScore;
   const level: RiskResult["level"] = score >= 60 ? "high" : score >= 30 ? "medium" : "healthy";
-  return { flags, score, level, dataScore, csModifier: 0 };
+  return { flags, flagDetails: details, score, level, dataScore, csModifier: 0 };
 }
 
 // CS outcome / club-status modifiers. Negative = healthier.
 export const CS_MODIFIER: Record<string, number> = {
-  // relationship outcomes
   bad_relationship: 25,
   good_receptivity: -15,
   very_satisfied: -30,
-  // club lifecycle status modifiers
   status_possible_churn: 10,
   status_changed_owner: 0,
   status_closed: 0,
@@ -102,22 +181,17 @@ export interface CSStatusEntry {
   recorded_at: string;
 }
 
-// Aggregate CS modifier from recent statuses. Most-recent relationship outcome dominates;
-// "very_satisfied" within last 4 weeks → suppress new task generation.
-// Latest lifecycle status (status_*) adds its own modifier on top.
 export function computeRiskWithCS(
   snapshots: Snapshot[],
   csStatuses: CSStatusEntry[],
 ): RiskResult & { suppressed: boolean } {
   const base = computeRisk(snapshots);
 
-  // Sort statuses oldest → newest.
   const sorted = [...csStatuses].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
   let modifier = 0;
   let suppressed = false;
   const fourWeeksAgo = Date.now() - 28 * 24 * 60 * 60 * 1000;
 
-  // Latest relationship outcome (non-status_*) — represents current relationship.
   let latestOutcome: CSStatusEntry | undefined;
   let latestStatus: CSStatusEntry | undefined;
   for (const s of sorted) {
@@ -131,7 +205,6 @@ export function computeRiskWithCS(
     modifier += CS_MODIFIER[latestStatus.relationship_status];
   }
 
-  // Suppression: any "very_satisfied" within last 4 weeks
   for (const s of sorted) {
     if (s.relationship_status === "very_satisfied" && new Date(s.recorded_at).getTime() >= fourWeeksAgo) {
       suppressed = true;
@@ -145,6 +218,7 @@ export function computeRiskWithCS(
 
   return {
     flags: base.flags,
+    flagDetails: base.flagDetails,
     score: finalScore,
     level,
     dataScore,
@@ -153,7 +227,6 @@ export function computeRiskWithCS(
   };
 }
 
-// For "Risk history" — score every month using its rolling 3-month window.
 export function riskHistory(snapshots: Snapshot[]): { period: string; result: RiskResult }[] {
   const sorted = [...snapshots].sort((a, b) => a.period.localeCompare(b.period));
   return sorted.map((_, i) => ({
@@ -162,8 +235,6 @@ export function riskHistory(snapshots: Snapshot[]): { period: string; result: Ri
   }));
 }
 
-// Compute the previous-month risk score using snapshots up to (but excluding) the latest period.
-// Used to derive month-over-month score deltas. Negative delta = improvement.
 export function previousMonthRisk(
   snapshots: Snapshot[],
   csStatuses: CSStatusEntry[] = [],
@@ -174,7 +245,6 @@ export function previousMonthRisk(
   const previousSlice = sorted.filter((s) => s.period < last.period);
   if (previousSlice.length === 0) return null;
   const prevPeriod = previousSlice[previousSlice.length - 1].period;
-  // Filter CS statuses recorded on or before the previous month end.
   const cutoff = `${prevPeriod.slice(0, 7)}-31T23:59:59Z`;
   const filteredStatuses = csStatuses.filter((s) => !s.recorded_at || s.recorded_at <= cutoff);
   return computeRiskWithCS(previousSlice, filteredStatuses);

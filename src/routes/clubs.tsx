@@ -530,20 +530,50 @@ function periodEndIso(period: string): string {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 23, 59, 59)).toISOString();
 }
 
-function scoreChangeEvents(row: ClubRow) {
+interface ScoreChangeEvent {
+  period: string;
+  oldScore: number;
+  newScore: number;
+  delta: number;
+  reasons: string[];
+}
+
+function scoreChangeEvents(row: ClubRow): ScoreChangeEvent[] {
   const sorted = [...row.history].sort((a, b) => a.period.localeCompare(b.period));
-  let previous: number | null = null;
-  const events = sorted.flatMap((snapshot, index) => {
+  let prevScore: number | null = null;
+  let prevFlagSet = new Set<string>();
+  let prevCsMod = 0;
+  const events: ScoreChangeEvent[] = [];
+  sorted.forEach((snapshot, index) => {
     const statusesUntilPeriod = row.statuses.filter((s) => !s.recorded_at || s.recorded_at <= periodEndIso(snapshot.period));
-    const current = computeRiskWithCS(sorted.slice(0, index + 1), statusesUntilPeriod).score;
-    const old = previous;
-    previous = current;
-    if (old === null || old === current) return [];
-    return [{ period: snapshot.period, oldScore: old, newScore: current, delta: current - old }];
+    const r = computeRiskWithCS(sorted.slice(0, index + 1), statusesUntilPeriod);
+    const current = r.score;
+    if (prevScore !== null && prevScore !== current) {
+      const reasons: string[] = [];
+      // Flags added
+      r.flagDetails.forEach((d) => {
+        if (!prevFlagSet.has(d.flag)) reasons.push(d.reason);
+      });
+      // Flags resolved
+      const curFlags = new Set(r.flagDetails.map((d) => d.flag));
+      prevFlagSet.forEach((f) => {
+        if (!curFlags.has(f as RiskFlag)) reasons.push(`Recuperado: ${FLAG_META[f as RiskFlag]?.label ?? f}`);
+      });
+      // CS modifier change
+      const csMod = r.csModifier ?? 0;
+      if (csMod !== prevCsMod) {
+        const diff = csMod - prevCsMod;
+        reasons.push(`Variação CS: ${diff > 0 ? "+" : ""}${diff} pts`);
+      }
+      events.push({ period: snapshot.period, oldScore: prevScore, newScore: current, delta: current - prevScore, reasons });
+    }
+    prevScore = current;
+    prevFlagSet = new Set(r.flagDetails.map((d) => d.flag));
+    prevCsMod = r.csModifier ?? 0;
   });
-  const latestMonthlyScore = previous;
+  const latestMonthlyScore = prevScore;
   if (row.prevScore !== null && row.scoreDelta !== null && row.scoreDelta !== 0 && latestMonthlyScore !== row.score) {
-    events.push({ period: "Atual", oldScore: row.prevScore, newScore: row.score, delta: row.scoreDelta });
+    events.push({ period: "Atual", oldScore: row.prevScore, newScore: row.score, delta: row.scoreDelta, reasons: [] });
   }
   return events;
 }
@@ -566,6 +596,7 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
       title: t.reason,
       meta: `${outcomeLabel(t.outcome)}${t.note ? ` · “${t.note}”` : ""}`,
       score: null as { oldScore: number; newScore: number; delta: number } | null,
+      reasons: [] as string[],
     }));
   const statusEvents = row.statusLogs.map((l) => ({
     at: l.changed_at,
@@ -573,6 +604,7 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
     title: `${CLUB_STATUS_LABEL[l.previous_status as ClubStatus] ?? l.previous_status} → ${CLUB_STATUS_LABEL[l.new_status as ClubStatus] ?? l.new_status}`,
     meta: l.note ? `“${l.note}”` : "",
     score: null as { oldScore: number; newScore: number; delta: number } | null,
+    reasons: [] as string[],
   }));
   const scoreEvents = scoreChangeEvents(row).map((s) => ({
     at: s.period === "Atual" ? new Date().toISOString() : periodEndIso(s.period),
@@ -580,6 +612,7 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
     title: s.period === "Atual" ? "Variação atual do score" : `Variação em ${periodLabel(s.period)}`,
     meta: "",
     score: { oldScore: s.oldScore, newScore: s.newScore, delta: s.delta },
+    reasons: s.reasons,
   }));
   const events = [...taskEvents, ...statusEvents, ...scoreEvents].sort((a, b) => b.at.localeCompare(a.at));
 
@@ -597,7 +630,16 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
                   <span className="font-medium">{event.title}</span>
                 </div>
                 {event.score ? (
-                  <div className="mt-1"><ScoreChangeLine {...event.score} /></div>
+                  <div className="mt-1 space-y-1">
+                    <ScoreChangeLine {...event.score} />
+                    {event.reasons.length > 0 && (
+                      <ul className="ml-1 mt-1 space-y-0.5 text-muted-foreground">
+                        {event.reasons.map((r, i) => (
+                          <li key={i} className="flex gap-1.5"><span>•</span><span>{r}</span></li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 ) : event.meta ? (
                   <div className="mt-1 text-muted-foreground">{event.meta}</div>
                 ) : null}
@@ -1299,9 +1341,18 @@ function ScoreVariationSection({ row }: { row: ClubRow }) {
         {changes.length > 0 && (
           <ul className="divide-y divide-border rounded-md border border-border">
             {changes.map((c) => (
-              <li key={`${c.period}-${c.oldScore}-${c.newScore}`} className="px-3 py-2 flex items-center justify-between gap-3">
-                <span className="text-muted-foreground">{c.period === "Atual" ? "Atual" : periodLabel(c.period)}</span>
-                <ScoreChangeLine oldScore={c.oldScore} newScore={c.newScore} delta={c.delta} />
+              <li key={`${c.period}-${c.oldScore}-${c.newScore}`} className="px-3 py-2 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">{c.period === "Atual" ? "Atual" : periodLabel(c.period)}</span>
+                  <ScoreChangeLine oldScore={c.oldScore} newScore={c.newScore} delta={c.delta} />
+                </div>
+                {c.reasons.length > 0 && (
+                  <ul className="ml-1 space-y-0.5 text-muted-foreground">
+                    {c.reasons.map((r, i) => (
+                      <li key={i} className="flex gap-1.5"><span>•</span><span>{r}</span></li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>
