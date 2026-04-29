@@ -45,6 +45,16 @@ function findKey(row: Record<string, unknown>, target: string): string | undefin
 }
 
 function UploadPage() {
+  const { profile, loading } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (loading) return;
+    if (profile?.role !== "superuser") {
+      toast.error("Acesso restrito a administradores.");
+      void navigate({ to: "/" });
+    }
+  }, [profile, loading, navigate]);
+
   const now = new Date();
   const [year, setYear] = useState(now.getUTCFullYear());
   const [month, setMonth] = useState(now.getUTCMonth() + 1); // 1-12
