@@ -14,6 +14,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as CsRouteImport } from './routes/cs'
 import { Route as ClubsRouteImport } from './routes/clubs'
 import { Route as AtRiskRouteImport } from './routes/at-risk'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TenantNameRouteImport } from './routes/tenant.$name'
 import { Route as CsTasksRouteImport } from './routes/cs.tasks'
@@ -45,6 +46,11 @@ const AtRiskRoute = AtRiskRouteImport.update({
   path: '/at-risk',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -74,6 +80,7 @@ const ApiPublicHooksGenerateWeeklyTasksRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
@@ -99,6 +107,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/at-risk'
     | '/clubs'
     | '/cs'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/at-risk'
     | '/clubs'
     | '/cs'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/at-risk'
     | '/clubs'
     | '/cs'
@@ -150,6 +162,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   AtRiskRoute: typeof AtRiskRoute
   ClubsRoute: typeof ClubsRoute
   CsRoute: typeof CsRouteWithChildren
@@ -194,6 +207,13 @@ declare module '@tanstack/react-router' {
       path: '/at-risk'
       fullPath: '/at-risk'
       preLoaderRoute: typeof AtRiskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -248,6 +268,7 @@ const CsRouteWithChildren = CsRoute._addFileChildren(CsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   AtRiskRoute: AtRiskRoute,
   ClubsRoute: ClubsRoute,
   CsRoute: CsRouteWithChildren,
