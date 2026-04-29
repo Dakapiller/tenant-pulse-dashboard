@@ -205,7 +205,7 @@ function ClubsPage() {
         </div>
         <button
           onClick={() => setExportOpen(true)}
-          className="inline-flex items-center gap-2 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-foreground text-background px-4 min-h-11 sm:min-h-9 text-sm font-medium hover:opacity-90 w-full sm:w-auto"
         >
           <Download className="h-4 w-4" /> Exportar
         </button>
