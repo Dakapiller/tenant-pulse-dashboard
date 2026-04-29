@@ -221,16 +221,11 @@ function DashboardPage() {
 
   // KPIs
   const kpis = useMemo(() => {
-    // "Active club" = reported a snapshot in the selected period AND not churned/closed/changed_owner.
-    // Defaulting unmapped tenants to "active" was inflating this number (e.g. 324 vs ~270 real).
-    const activeClubs = clubs.filter((c) => {
-      if (c.status === "churned" || c.status === "closed" || c.status === "changed_owner") return false;
-      if (!c.latest || c.latest.period !== latestPeriod) return false;
-      const games = Number(c.latest.games_online ?? 0);
-      const gmv = Number(c.latest.gmv_all ?? 0);
-      const rev = Number(c.latest.revenue ?? 0);
-      return games > 0 || gmv > 0 || rev > 0;
-    }).length;
+    // Single source of truth: a club is active iff its current status is not
+    // churned/closed/changed_owner. Whether it submitted data this month is
+    // intentionally NOT part of the rule (see isActiveStatus in lib/cs.ts) —
+    // this keeps the count aligned with the /clubs page.
+    const activeClubs = clubs.filter((c) => isActiveStatus(c.status)).length;
     const churnedThisYear = (() => {
       const year = new Date().getUTCFullYear();
       const set = new Set<string>();
