@@ -434,6 +434,22 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
+      {/* Mobile card list — replaces the table below md breakpoint */}
+      <MobileCardList
+        rows={pageRows}
+        allFilteredRows={filtered}
+        columns={columns}
+        rowKey={rowKey}
+        onRowClick={onRowClick}
+        expandedRow={expandedRow}
+        selectable={selectable}
+        selectedKeys={selectedKeys}
+        onToggleRow={toggleRow}
+        isRowSelectable={isRowSelectable}
+        rowClassName={rowClassName}
+        emptyMessage={emptyMessage}
+        hasSearchOrFilter={!!search || activeFilterCount > 0}
+      />
       {pageSize && totalRows > 0 ? (
         <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2.5 text-xs text-muted-foreground border-t border-border bg-surface flex-wrap">
           <span className="tabular-nums">
