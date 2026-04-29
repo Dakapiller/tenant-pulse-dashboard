@@ -115,12 +115,21 @@ function DashboardPage() {
     const list: ClubAgg[] = [];
     if (!latestPeriod) return list;
     const cutoff = `${latestPeriod.slice(0, 7)}-31T23:59:59Z`;
-    for (const [name, hist] of tenantHistory) {
-      const sortedAll = [...hist].sort((a, b) => a.period.localeCompare(b.period));
-      const sorted = sortedAll.filter((s) => s.period <= latestPeriod);
-      if (sorted.length === 0) continue; // tenant didn't exist yet at this period
+    for (const [name, sortedAll] of tenantHistory) {
+      // tenantHistory is already sorted ascending. Find slice end via lastIndex with period <= latestPeriod.
+      let endIdx = -1;
+      for (let i = sortedAll.length - 1; i >= 0; i--) {
+        if (sortedAll[i].period <= latestPeriod) { endIdx = i; break; }
+      }
+      if (endIdx < 0) continue;
+      const sorted = endIdx === sortedAll.length - 1 ? sortedAll : sortedAll.slice(0, endIdx + 1);
       const stsAll = tenantStatuses.get(name) ?? [];
-      const sts = stsAll.filter((s) => !s.recorded_at || s.recorded_at <= cutoff);
+      // tenantStatuses is sorted ascending by recorded_at — find first index past cutoff
+      let stsEnd = stsAll.length;
+      for (let i = 0; i < stsAll.length; i++) {
+        if ((stsAll[i].recorded_at ?? "") > cutoff) { stsEnd = i; break; }
+      }
+      const sts = stsEnd === stsAll.length ? stsAll : stsAll.slice(0, stsEnd);
       const tks = tasksByTenant.get(name) ?? [];
       const risk = computeRiskWithCS(sorted, sts);
       const status = currentClubStatus(sts);
@@ -133,7 +142,11 @@ function DashboardPage() {
         const prevSlice = sorted.slice(0, -1);
         prevSnapshot = prevSlice[prevSlice.length - 1] ?? null;
         const prevCutoff = `${prevSnapshot?.period.slice(0, 7) ?? ""}-31T23:59:59Z`;
-        const filteredSts = sts.filter((s) => !s.recorded_at || s.recorded_at <= prevCutoff);
+        let pEnd = sts.length;
+        for (let i = 0; i < sts.length; i++) {
+          if ((sts[i].recorded_at ?? "") > prevCutoff) { pEnd = i; break; }
+        }
+        const filteredSts = pEnd === sts.length ? sts : sts.slice(0, pEnd);
         const prevRisk = computeRiskWithCS(prevSlice, filteredSts);
         prevScore = prevRisk.score;
         prevLevel = prevRisk.level;
