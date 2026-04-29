@@ -390,13 +390,6 @@ function DashboardPage() {
       active: 0, possible_churn: 0, churned: 0, closed: 0, changed_owner: 0,
     };
     for (const c of clubs) {
-      if (c.status === "active") {
-        if (!c.latest || c.latest.period !== latestPeriod) continue;
-        const games = Number(c.latest.games_online ?? 0);
-        const gmv = Number(c.latest.gmv_all ?? 0);
-        const rev = Number(c.latest.revenue ?? 0);
-        if (games <= 0 && gmv <= 0 && rev <= 0) continue;
-      }
       counts[c.status]++;
     }
     return (Object.keys(counts) as ClubStatus[])
