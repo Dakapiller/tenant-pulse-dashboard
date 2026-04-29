@@ -246,12 +246,33 @@ function CSTasksPage() {
     <div className="p-10 text-muted-foreground">A carregar…</div>
   );
 
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const activeClubNames = useMemo(
+    () => tenantNames.filter((n) => !excluded.has(n)),
+    [tenantNames, excluded],
+  );
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
-        <header className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight">Customer Success</h1>
-          <p className="text-sm text-muted-foreground mt-1">Tendências e plano de contactos.</p>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto pb-24 md:pb-8">
+        <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Customer Success</h1>
+            <p className="text-sm text-muted-foreground mt-1">Tendências e plano de contactos.</p>
+          </div>
+          <button
+            onClick={() => setNewTaskOpen(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-foreground text-background px-4 min-h-11 sm:min-h-9 text-sm font-medium hover:opacity-90 w-full sm:w-auto"
+          >
+            <Plus className="h-4 w-4" /> Nova tarefa
+          </button>
         </header>
+
+        <NewTaskDialog
+          open={newTaskOpen}
+          onClose={() => setNewTaskOpen(false)}
+          activeClubs={activeClubNames}
+          onCreated={reloadPending}
+        />
 
         {/* Cronologia (deferred until snapshots load) */}
         <section className="rounded-xl border border-border p-5 mb-8">
