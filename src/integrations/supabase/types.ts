@@ -128,6 +128,7 @@ export type Database = {
       health_score_log: {
         Row: {
           changed_at: string
+          changed_by: string | null
           delta: number
           id: string
           new_score: number
@@ -138,6 +139,7 @@ export type Database = {
         }
         Insert: {
           changed_at?: string
+          changed_by?: string | null
           delta: number
           id?: string
           new_score: number
@@ -148,6 +150,7 @@ export type Database = {
         }
         Update: {
           changed_at?: string
+          changed_by?: string | null
           delta?: number
           id?: string
           new_score?: number

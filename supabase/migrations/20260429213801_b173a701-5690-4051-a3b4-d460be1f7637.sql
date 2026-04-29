@@ -1,0 +1,1 @@
+ALTER TABLE public.health_score_log ADD COLUMN IF NOT EXISTS changed_by text;
