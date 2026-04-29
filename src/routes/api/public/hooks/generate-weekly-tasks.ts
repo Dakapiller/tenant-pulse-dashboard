@@ -91,6 +91,59 @@ export const Route = createFileRoute("/api/public/hooks/generate-weekly-tasks")(
           });
         }
 
+        // Track tenants already getting a task this week (existing + just-queued)
+        const queuedThisWeek = new Set<string>(haveTask);
+        for (const t of toInsert) queuedThisWeek.add(t.tenant_name);
+
+        // ----- Third pass: preventive maintenance for "median" clubs (health 40-70) -----
+        const PREVENTIVE_REASON = "Manutenção preventiva — sem contacto nos últimos 3 meses";
+        const PREVENTIVE_CTA = "Contactar para manter relação comercial e prevenir silent churn.";
+        const MAX_PREVENTIVE = 10;
+        const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+        // Candidate tenants: active, not already queued, health 40-70
+        const candidates: Array<{ tenant: string; score: number }> = [];
+        for (const tenant of allTenants) {
+          if (queuedThisWeek.has(tenant)) continue;
+          const latest = latestByTenant.get(tenant);
+          const status = (latest?.club_status ?? "active") as string;
+          if (status === "churned" || status === "closed") continue;
+          const score = healthByTenant.get(tenant);
+          if (score == null) continue;
+          if (score < 40 || score > 70) continue;
+          candidates.push({ tenant, score });
+        }
+
+        if (candidates.length > 0) {
+          // Find which candidates have any task (pending or completed) in the last 90 days
+          const { data: recentTasks } = await supabaseAdmin
+            .from("cs_tasks")
+            .select("tenant_name, created_at, completed_at")
+            .in("tenant_name", candidates.map((c) => c.tenant))
+            .or(`created_at.gte.${ninetyDaysAgo},completed_at.gte.${ninetyDaysAgo}`);
+          const recentSet = new Set<string>();
+          for (const r of (recentTasks ?? []) as { tenant_name: string }[]) {
+            recentSet.add(r.tenant_name);
+          }
+
+          const eligible = candidates
+            .filter((c) => !recentSet.has(c.tenant))
+            .sort((a, b) => a.score - b.score)
+            .slice(0, MAX_PREVENTIVE);
+
+          for (const c of eligible) {
+            toInsert.push({
+              tenant_name: c.tenant,
+              reason: PREVENTIVE_REASON,
+              cta: PREVENTIVE_CTA,
+              priority: 50,
+              flags: ["preventive_maintenance"],
+              week_start: weekStart,
+              status: "pending",
+            });
+          }
+        }
+
         if (toInsert.length > 0) {
           const { error: insErr } = await supabaseAdmin.from("cs_tasks").insert(toInsert);
           if (insErr) {
