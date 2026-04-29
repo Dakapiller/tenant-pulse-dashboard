@@ -196,13 +196,18 @@ function DashboardPage() {
       const score = realScore ?? 100;
       const lvlMap = { risk: "high", monitor: "medium", healthy: "healthy" } as const;
       const level = lvlMap[healthLevel(score)];
+      // Previous = score at start of the current calendar month (from health_score_log).
+      // Tenants with no log entry before that cutoff fall back to the current score
+      // (no change → no fake improvement).
+      const prevScoreVal = prevMonthScores.has(name) ? (prevMonthScores.get(name) as number) : score;
+      const prevLvl = lvlMap[healthLevel(prevScoreVal)];
       list.push({
         name,
         score,
-        prevScore: null,
-        scoreDelta: null,
+        prevScore: prevScoreVal,
+        scoreDelta: score - prevScoreVal,
         level,
-        prevLevel: null,
+        prevLevel: prevLvl,
         flags: risk.flags,
         status,
         lastContact: lastCompletedActivityAt(tks),
