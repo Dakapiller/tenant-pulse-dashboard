@@ -6,6 +6,7 @@ import { fetchAllCSStatuses, fetchAllCSTasks, currentWeekStart, riskWithDelta, e
 import { FLAG_META, FLAG_CTA, type RiskFlag } from "@/lib/risk";
 import { ScoreDelta } from "@/components/DataTable";
 import { ArrowRight, ListChecks, Search, ShieldCheck, X } from "lucide-react";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 export const Route = createFileRoute("/at-risk")({
   component: AtRiskPage,
