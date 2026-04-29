@@ -66,7 +66,7 @@ export function DataTable<T>({
   selectedKeys,
   onSelectionChange,
   isRowSelectable,
-  pageSize,
+  pageSize = 50,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>(
     defaultSort ?? { key: "", dir: null },
@@ -213,7 +213,7 @@ export function DataTable<T>({
   return (
     <div className="flex flex-col">
       {(searchable || toolbar) && (
-        <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-border bg-background flex-wrap">
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-border bg-surface flex-wrap">
           {searchable && (
             <form
               className="flex items-center gap-2 flex-1 min-w-[220px]"
@@ -229,12 +229,12 @@ export function DataTable<T>({
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder={searchPlaceholder}
-                  className="w-full pl-8 pr-8 py-2 text-base sm:text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-foreground/20"
+                  className="w-full pl-8 pr-8 py-2 text-base sm:text-sm rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 {searchInput && (
                   <button
                     onClick={() => { setSearchInput(""); setSearch(""); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-surface text-muted-foreground"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted text-muted-foreground"
                     aria-label="Limpar pesquisa"
                     type="button"
                   >
@@ -244,7 +244,7 @@ export function DataTable<T>({
               </div>
               <button
                 type="submit"
-                className="shrink-0 inline-flex items-center gap-1.5 px-3.5 h-9 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90"
+                className="shrink-0 inline-flex items-center gap-1.5 px-3.5 h-9 rounded-lg bg-primary text-primary-foreground text-sm font-medium transition-colors duration-150 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <Search className="h-3.5 w-3.5" />
                 Procurar
@@ -265,7 +265,7 @@ export function DataTable<T>({
       )}
       <div ref={tableScrollRef} className={`overflow-auto ${containerClassName}`}>
         <table className="w-full text-sm">
-          <thead className={`bg-surface text-xs uppercase tracking-wide text-muted-foreground ${stickyHeader ? "sticky top-0 z-10" : ""}`}>
+          <thead className={`bg-surface text-xs uppercase tracking-wide text-muted-foreground shadow-sm ${stickyHeader ? "sticky top-0 z-10" : ""}`}>
             <tr>
               {selectable && (
                 <th className="px-3 py-3 w-10 text-center">
@@ -275,7 +275,7 @@ export function DataTable<T>({
                     aria-label="Selecionar todos"
                     checked={allVisibleSelected}
                     onChange={toggleAllVisible}
-                    className="h-4 w-4 align-middle accent-foreground cursor-pointer"
+                    className="h-4 w-4 align-middle accent-primary cursor-pointer"
                     disabled={visibleSelectableRows.length === 0}
                   />
                 </th>
@@ -288,13 +288,13 @@ export function DataTable<T>({
                 return (
                   <th
                     key={col.key}
-                    className={`px-3 sm:px-4 py-3 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} ${col.hideOnMobile ? "hidden sm:table-cell" : ""} ${col.thClassName ?? ""}`}
+                    className={`px-3 sm:px-4 py-3 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} ${col.hideOnMobile ? "hidden sm:table-cell" : ""} ${isSorted ? "text-primary" : ""} ${col.thClassName ?? ""}`}
                   >
                     <div className={`inline-flex items-center gap-1 ${align === "right" ? "flex-row-reverse" : ""}`}>
                       {sortable ? (
                         <button
                           onClick={() => toggleSort(col.key)}
-                          className="inline-flex items-center gap-1 hover:text-foreground"
+                          className={`inline-flex items-center gap-1 transition-colors duration-150 ${isSorted ? "text-primary" : "hover:text-foreground"}`}
                           type="button"
                         >
                           <span>{col.header}</span>
@@ -317,7 +317,7 @@ export function DataTable<T>({
                         >
                           <button
                             onClick={() => setOpenFilter(openFilter === col.key ? null : col.key)}
-                            className={`p-0.5 rounded hover:bg-background ${filterActive ? "text-foreground" : "opacity-40 hover:opacity-100"}`}
+                            className={`p-0.5 rounded transition-colors duration-150 hover:bg-muted ${filterActive ? "text-primary" : "opacity-40 hover:opacity-100"}`}
                             type="button"
                             aria-label="Filtrar"
                           >
@@ -380,7 +380,7 @@ export function DataTable<T>({
               return (
                 <Fragment key={k}>
                   <tr
-                    className={`border-t border-border hover:bg-surface ${onRowClick ? "cursor-pointer" : ""} ${isSelected ? "bg-foreground/[0.04]" : ""} ${rowClassName?.(row) ?? ""}`}
+                    className={`border-t border-border even:bg-muted/40 hover:bg-primary/5 transition-colors duration-150 ${onRowClick ? "cursor-pointer" : ""} ${isSelected ? "bg-primary/10" : ""} ${rowClassName?.(row) ?? ""}`}
                     onClick={() => onRowClick?.(row)}
                   >
                     {selectable && (
@@ -391,7 +391,7 @@ export function DataTable<T>({
                             aria-label="Selecionar linha"
                             checked={isSelected}
                             onChange={() => toggleRow(row)}
-                            className="h-4 w-4 align-middle accent-foreground cursor-pointer"
+                            className="h-4 w-4 align-middle accent-primary cursor-pointer"
                           />
                         ) : null}
                       </td>
@@ -429,13 +429,19 @@ export function DataTable<T>({
         </table>
       </div>
       {pageSize && totalRows > 0 ? (
-        <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2 text-xs text-muted-foreground border-t border-border bg-background flex-wrap">
+        <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2.5 text-xs text-muted-foreground border-t border-border bg-surface flex-wrap">
           <span className="tabular-nums">
-            {(search || activeFilterCount > 0)
-              ? `${totalRows} de ${rows.length} resultado${rows.length === 1 ? "" : "s"}`
-              : `${totalRows} resultado${totalRows === 1 ? "" : "s"}`}
-            {totalPages > 1 && (
-              <> · {Math.min(page * pageSize + 1, totalRows)}–{Math.min((page + 1) * pageSize, totalRows)}</>
+            {totalPages > 1 ? (
+              <>
+                {Math.min(page * pageSize + 1, totalRows)}–{Math.min((page + 1) * pageSize, totalRows)} de {totalRows} resultado{totalRows === 1 ? "" : "s"}
+                {(search || activeFilterCount > 0) && rows.length !== totalRows && (
+                  <> · filtrado de {rows.length}</>
+                )}
+              </>
+            ) : (
+              <>
+                {totalRows} de {Math.max(rows.length, totalRows)} resultado{rows.length === 1 ? "" : "s"}
+              </>
             )}
           </span>
           {totalPages > 1 && (
@@ -444,7 +450,7 @@ export function DataTable<T>({
                 type="button"
                 onClick={() => goToPage(page - 1)}
                 disabled={page === 0}
-                className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-border bg-background hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1 px-3 h-8 rounded-lg border border-border bg-surface text-foreground transition-colors duration-150 hover:bg-primary/5 hover:border-primary/40 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface disabled:hover:text-foreground disabled:hover:border-border focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <ChevronLeft className="h-3.5 w-3.5" /> Anterior
               </button>
@@ -453,7 +459,7 @@ export function DataTable<T>({
                 type="button"
                 onClick={() => goToPage(page + 1)}
                 disabled={page >= totalPages - 1}
-                className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-border bg-background hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1 px-3 h-8 rounded-lg border border-border bg-surface text-foreground transition-colors duration-150 hover:bg-primary/5 hover:border-primary/40 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface disabled:hover:text-foreground disabled:hover:border-border focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 Próximo <ChevronRight className="h-3.5 w-3.5" />
               </button>
@@ -461,7 +467,7 @@ export function DataTable<T>({
           )}
         </div>
       ) : (search || activeFilterCount > 0) && filtered.length > 0 ? (
-        <div className="px-3 sm:px-4 py-2 text-[11px] text-muted-foreground border-t border-border bg-background">
+        <div className="px-3 sm:px-4 py-2 text-[11px] text-muted-foreground border-t border-border bg-surface">
           {filtered.length} de {rows.length} resultado{rows.length === 1 ? "" : "s"}
         </div>
       ) : null}
