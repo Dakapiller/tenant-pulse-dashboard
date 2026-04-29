@@ -122,6 +122,31 @@ export async function fetchAllCSTasks(): Promise<CSTask[]> {
   );
 }
 
+/** Pending tasks only — small set, paginated for safety. */
+export async function fetchPendingCSTasks(): Promise<CSTask[]> {
+  return fetchAllPaged<CSTask>((from, to) =>
+    supabase
+      .from("cs_tasks")
+      .select("*")
+      .eq("status", "pending")
+      .order("priority", { ascending: false })
+      .range(from, to),
+  );
+}
+
+/** Server-paginated page of completed tasks ordered by completed_at desc. */
+export async function fetchCompletedCSTasksPage(offset: number, limit: number): Promise<CSTask[]> {
+  const { data, error } = await supabase
+    .from("cs_tasks")
+    .select("*")
+    .eq("status", "completed")
+    .not("completed_at", "is", null)
+    .order("completed_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw error;
+  return (data ?? []) as CSTask[];
+}
+
 export async function fetchCSTasksForTenant(tenant: string): Promise<CSTask[]> {
   const { data, error } = await supabase
     .from("cs_tasks")

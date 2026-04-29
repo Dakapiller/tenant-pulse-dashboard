@@ -604,6 +604,9 @@ function ScoreChangeLine({ oldScore, newScore, delta }: { oldScore: number; newS
 }
 
 function ClubHistoryPanel({ row }: { row: ClubRow }) {
+  // Memoize per-snapshot risk recomputation; expensive for tenants with long history.
+  const scoreEventsRaw = useMemo(() => scoreChangeEvents(row), [row]);
+
   const taskEvents = row.tasks
     .filter((t) => t.status === "completed" && t.completed_at)
     .map((t) => ({
@@ -622,7 +625,7 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
     score: null as { oldScore: number; newScore: number; delta: number } | null,
     reasons: [] as string[],
   }));
-  const scoreEvents = scoreChangeEvents(row).map((s) => ({
+  const scoreEvents = scoreEventsRaw.map((s) => ({
     at: s.period === "Atual" ? new Date().toISOString() : periodEndIso(s.period),
     type: "Score",
     title: s.period === "Atual" ? "Variação atual do score" : `Variação em ${periodLabel(s.period)}`,
