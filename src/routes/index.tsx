@@ -355,16 +355,28 @@ function DashboardPage() {
     return { improved, leftHighRisk, revenueGrew, csImpacted };
   }, [clubs, latestPeriod, tasksByTenant, excluded]);
 
-  // Status distribution donut — keep ALL clubs so users still see the breakdown.
+  // Status distribution donut — must align with the "Clubes ativos" KPI:
+  // a club only counts as "active" if it reported activity in the latest period.
+  // Tenants without a recorded status default to "active", which inflated the count
+  // (e.g. 324 vs ~270 real). Apply the same activity filter here.
   const statusDistribution = useMemo(() => {
     const counts: Record<ClubStatus, number> = {
       active: 0, possible_churn: 0, churned: 0, closed: 0, changed_owner: 0,
     };
-    for (const c of clubs) counts[c.status]++;
+    for (const c of clubs) {
+      if (c.status === "active") {
+        if (!c.latest || c.latest.period !== latestPeriod) continue;
+        const games = Number(c.latest.games_online ?? 0);
+        const gmv = Number(c.latest.gmv_all ?? 0);
+        const rev = Number(c.latest.revenue ?? 0);
+        if (games <= 0 && gmv <= 0 && rev <= 0) continue;
+      }
+      counts[c.status]++;
+    }
     return (Object.keys(counts) as ClubStatus[])
       .map((k) => ({ name: CLUB_STATUS_LABEL[k], key: k, value: counts[k] }))
       .filter((s) => s.value > 0);
-  }, [clubs]);
+  }, [clubs, latestPeriod]);
 
   // (Radar de Risco was removed — full at-risk view lives at /at-risk and the full club table at /clubs.)
 
