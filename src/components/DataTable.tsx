@@ -426,11 +426,43 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
-      {(search || activeFilterCount > 0) && filtered.length > 0 && (
+      {pageSize && totalRows > 0 ? (
+        <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2 text-xs text-muted-foreground border-t border-border bg-background flex-wrap">
+          <span className="tabular-nums">
+            {(search || activeFilterCount > 0)
+              ? `${totalRows} de ${rows.length} resultado${rows.length === 1 ? "" : "s"}`
+              : `${totalRows} resultado${totalRows === 1 ? "" : "s"}`}
+            {totalPages > 1 && (
+              <> · {Math.min(page * pageSize + 1, totalRows)}–{Math.min((page + 1) * pageSize, totalRows)}</>
+            )}
+          </span>
+          {totalPages > 1 && (
+            <div className="inline-flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => goToPage(page - 1)}
+                disabled={page === 0}
+                className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-border bg-background hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> Anterior
+              </button>
+              <span className="tabular-nums">Página {page + 1} de {totalPages}</span>
+              <button
+                type="button"
+                onClick={() => goToPage(page + 1)}
+                disabled={page >= totalPages - 1}
+                className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-border bg-background hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Próximo <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (search || activeFilterCount > 0) && filtered.length > 0 ? (
         <div className="px-3 sm:px-4 py-2 text-[11px] text-muted-foreground border-t border-border bg-background">
           {filtered.length} de {rows.length} resultado{rows.length === 1 ? "" : "s"}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
