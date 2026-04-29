@@ -79,6 +79,7 @@ function ClubsPage() {
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [statusLogs, setStatusLogs] = useState<ClubStatusLog[]>([]);
   const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
+  const [priorityMap, setPriorityMap] = useState<Map<string, boolean>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
@@ -104,10 +105,10 @@ function ClubsPage() {
   const [filterNewOnly, setFilterNewOnly] = useState(false);
 
   async function loadAll() {
-    const [s, p, sts, tks, logs, scores] = await Promise.all([
-      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchClubStatusLogs(), fetchHealthScores(),
+    const [s, p, sts, tks, logs, scores, prio] = await Promise.all([
+      fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(), fetchClubStatusLogs(), fetchHealthScores(), fetchPriorityMap(),
     ]);
-    setSnapshots(s); setPeriods(p); setStatuses(sts); setTasks(tks); setStatusLogs(logs); setHealthScores(scores);
+    setSnapshots(s); setPeriods(p); setStatuses(sts); setTasks(tks); setStatusLogs(logs); setHealthScores(scores); setPriorityMap(prio);
   }
 
   useEffect(() => {
