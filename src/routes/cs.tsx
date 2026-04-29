@@ -103,13 +103,16 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Per-tenant data
+  // Per-tenant data — pre-sorted ascending so downstream computations don't re-sort.
   const tenantHistory = useMemo(() => {
     const m = new Map<string, Snapshot[]>();
     snapshots.forEach((s) => {
       if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
       m.get(s.tenant_name)!.push(s);
     });
+    for (const arr of m.values()) {
+      arr.sort((a, b) => a.period.localeCompare(b.period));
+    }
     return m;
   }, [snapshots]);
 
@@ -119,8 +122,21 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
       if (!m.has(s.tenant_name)) m.set(s.tenant_name, []);
       m.get(s.tenant_name)!.push(s);
     });
+    for (const arr of m.values()) {
+      arr.sort((a, b) => (a.recorded_at ?? "").localeCompare(b.recorded_at ?? ""));
+    }
     return m;
   }, [statuses]);
+
+  // Index tasks by tenant once so per-row work stays O(1) instead of O(N×M).
+  const tasksByTenant = useMemo(() => {
+    const m = new Map<string, CSTask[]>();
+    allTasks.forEach((t) => {
+      if (!m.has(t.tenant_name)) m.set(t.tenant_name, []);
+      m.get(t.tenant_name)!.push(t);
+    });
+    return m;
+  }, [allTasks]);
 
   const tenantNames = useMemo(
     () => Array.from(tenantHistory.keys()).sort((a, b) => a.localeCompare(b)),
