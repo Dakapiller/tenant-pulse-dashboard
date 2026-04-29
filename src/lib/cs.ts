@@ -27,6 +27,7 @@ export interface CSTenantStatus {
   club_status?: string | null;
   churn_competitor?: string | null;
   health_score?: number | null;
+  is_priority?: boolean | null;
 }
 
 export type ClubStatus = "active" | "possible_churn" | "churned" | "closed" | "changed_owner";
