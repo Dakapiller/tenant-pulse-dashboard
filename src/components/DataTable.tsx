@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Filter as FilterIcon, Search, X } from "lucide-react";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 export type SortDir = "asc" | "desc" | null;
 
@@ -72,11 +73,15 @@ export function DataTable<T>({
   );
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
-  // Two-state search: `searchInput` is what's typed, `search` is what's actually applied
-  // (committed by clicking "Procurar" or pressing Enter). Matches the rest of the app.
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const debouncedSearchInput = useDebouncedValue(searchInput, 300);
+  const debouncedFilters = useDebouncedValue(filters, 300);
   const filterRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  useEffect(() => {
+    setSearch(debouncedSearchInput);
+  }, [debouncedSearchInput]);
 
   // Close any open filter dropdown when clicking outside
   useEffect(() => {
@@ -98,7 +103,7 @@ export function DataTable<T>({
   const filtered = useMemo(() => {
     let r = rows;
     for (const col of columns) {
-      const f = filters[col.key];
+      const f = debouncedFilters[col.key];
       if (!f) continue;
       const norm = f.toLowerCase();
       r = r.filter((row) => {
@@ -133,7 +138,7 @@ export function DataTable<T>({
       }
     }
     return r;
-  }, [rows, columns, filters, sort, search]);
+  }, [rows, columns, debouncedFilters, sort, search]);
 
   function toggleSort(key: string) {
     setSort((cur) => {
@@ -153,7 +158,7 @@ export function DataTable<T>({
   const totalPages = pageSize ? Math.max(1, Math.ceil(totalRows / pageSize)) : 1;
   useEffect(() => {
     setPage(0);
-  }, [search, filters, sort, pageSize, totalRows]);
+  }, [search, debouncedFilters, sort, pageSize, totalRows]);
   const pageRows = useMemo(() => {
     if (!pageSize) return filtered;
     const start = page * pageSize;
