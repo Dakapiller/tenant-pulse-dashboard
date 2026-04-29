@@ -51,10 +51,11 @@ function DashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [p, st] = await Promise.all([fetchPeriods(), fetchAllCSStatuses()]);
+        const [p, st, sc] = await Promise.all([fetchPeriods(), fetchAllCSStatuses(), fetchHealthScores()]);
         if (cancelled) return;
         setPeriods(p);
         setStatuses(st);
+        setHealthScores(sc);
       } finally {
         if (!cancelled) setLoading(false);
       }
