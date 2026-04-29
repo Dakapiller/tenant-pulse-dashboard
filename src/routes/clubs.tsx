@@ -75,6 +75,7 @@ function ClubsPage() {
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [statusLogs, setStatusLogs] = useState<ClubStatusLog[]>([]);
+  const [healthScores, setHealthScores] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
