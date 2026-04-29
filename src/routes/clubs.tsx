@@ -66,6 +66,8 @@ interface ClubRow {
   csImpact: number;
   lastActivity: string | null;
   pending: number;
+  pendingThisWeek: number;
+  overdue: number;
   missingFromLatest: boolean;
   isNew: boolean;
   firstSeen: string | null;
@@ -156,7 +158,9 @@ function ClubsPage() {
       const rd = riskWithDelta(sorted, sts, healthScores.get(name) ?? null, null);
       const status = currentClubStatus(sts);
       const competitor = currentChurnCompetitor(sts);
-      const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
+      const pendingThisWeek = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
+      const overdue = tks.filter((t) => t.status === "pending" && t.week_start < weekStart).length;
+      const pending = pendingThisWeek + overdue;
       const missing = !!latestPeriod && !sorted.some((s) => s.period === latestPeriod);
       const firstSeen = sorted[0]?.period ?? null;
       const isNew = !!latestPeriod && firstSeen === latestPeriod && sorted.length === 1;
@@ -166,7 +170,7 @@ function ClubsPage() {
         status, competitor, score: rd.score, prevScore: rd.prevScore, scoreDelta: rd.delta, level: rd.level,
         csImpact: sumCSImpact(sts),
         lastActivity: lastCompletedActivityAt(tks),
-        pending, missingFromLatest: missing,
+        pending, pendingThisWeek, overdue, missingFromLatest: missing,
         isNew, firstSeen,
         flagsCurrent: rd.flags.current, flagsAdded: rd.flags.added, flagsResolved: rd.flags.resolved,
         csOutcome: csOut,
