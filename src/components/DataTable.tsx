@@ -265,7 +265,7 @@ export function DataTable<T>({
       )}
       <div ref={tableScrollRef} className={`overflow-auto ${containerClassName}`}>
         <table className="w-full text-sm">
-          <thead className={`bg-surface text-xs uppercase tracking-wide text-muted-foreground ${stickyHeader ? "sticky top-0 z-10" : ""}`}>
+          <thead className={`bg-surface text-xs uppercase tracking-wide text-muted-foreground shadow-sm ${stickyHeader ? "sticky top-0 z-10" : ""}`}>
             <tr>
               {selectable && (
                 <th className="px-3 py-3 w-10 text-center">
@@ -275,7 +275,7 @@ export function DataTable<T>({
                     aria-label="Selecionar todos"
                     checked={allVisibleSelected}
                     onChange={toggleAllVisible}
-                    className="h-4 w-4 align-middle accent-foreground cursor-pointer"
+                    className="h-4 w-4 align-middle accent-primary cursor-pointer"
                     disabled={visibleSelectableRows.length === 0}
                   />
                 </th>
@@ -288,13 +288,13 @@ export function DataTable<T>({
                 return (
                   <th
                     key={col.key}
-                    className={`px-3 sm:px-4 py-3 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} ${col.hideOnMobile ? "hidden sm:table-cell" : ""} ${col.thClassName ?? ""}`}
+                    className={`px-3 sm:px-4 py-3 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} ${col.hideOnMobile ? "hidden sm:table-cell" : ""} ${isSorted ? "text-primary" : ""} ${col.thClassName ?? ""}`}
                   >
                     <div className={`inline-flex items-center gap-1 ${align === "right" ? "flex-row-reverse" : ""}`}>
                       {sortable ? (
                         <button
                           onClick={() => toggleSort(col.key)}
-                          className="inline-flex items-center gap-1 hover:text-foreground"
+                          className={`inline-flex items-center gap-1 transition-colors duration-150 ${isSorted ? "text-primary" : "hover:text-foreground"}`}
                           type="button"
                         >
                           <span>{col.header}</span>
