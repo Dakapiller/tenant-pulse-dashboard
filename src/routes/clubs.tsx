@@ -1263,7 +1263,7 @@ function MissingClubsModal({
                   align: "center",
                   sortValue: (r) => r.score,
                   render: (r) => {
-                    const healthColor = r.score >= 60 ? "text-danger bg-danger/10" : r.score >= 30 ? "text-warning bg-warning/15" : "text-success bg-success/10";
+                    const healthColor = r.score < 30 ? "text-danger bg-danger/10" : r.score < 60 ? "text-warning bg-warning/15" : "text-success bg-success/10";
                     return <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${healthColor}`}>{r.score}</span>;
                   },
                 },
