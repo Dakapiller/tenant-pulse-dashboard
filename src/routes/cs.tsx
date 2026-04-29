@@ -1,8 +1,15 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { CSSubNav } from "@/components/CSSubNav";
 
 export const Route = createFileRoute("/cs")({
-  // /cs alone redirects to the Tasks sub-page.
-  beforeLoad: () => {
-    throw redirect({ to: "/cs/tasks" });
-  },
+  component: CSLayout,
 });
+
+function CSLayout() {
+  return (
+    <div>
+      <CSSubNav />
+      <Outlet />
+    </div>
+  );
+}
