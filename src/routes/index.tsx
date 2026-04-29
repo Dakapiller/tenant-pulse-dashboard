@@ -105,17 +105,22 @@ function DashboardPage() {
     [snapshots, excluded],
   );
 
-  // Per-tenant aggregate with score + previous-month score
+  // Per-tenant aggregate as of the SELECTED period (history truncated to <= selected,
+  // statuses filtered by recorded_at <= end of selected month).
   const clubs: ClubAgg[] = useMemo(() => {
     const list: ClubAgg[] = [];
+    if (!latestPeriod) return list;
+    const cutoff = `${latestPeriod.slice(0, 7)}-31T23:59:59Z`;
     for (const [name, hist] of tenantHistory) {
-      const sorted = [...hist].sort((a, b) => a.period.localeCompare(b.period));
-      const sts = tenantStatuses.get(name) ?? [];
+      const sortedAll = [...hist].sort((a, b) => a.period.localeCompare(b.period));
+      const sorted = sortedAll.filter((s) => s.period <= latestPeriod);
+      if (sorted.length === 0) continue; // tenant didn't exist yet at this period
+      const stsAll = tenantStatuses.get(name) ?? [];
+      const sts = stsAll.filter((s) => !s.recorded_at || s.recorded_at <= cutoff);
       const tks = tasksByTenant.get(name) ?? [];
       const risk = computeRiskWithCS(sorted, sts);
       const status = currentClubStatus(sts);
       const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
-      // Previous-month score (slice off the latest period and recompute)
       const latest = sorted[sorted.length - 1] ?? null;
       let prevScore: number | null = null;
       let prevLevel: "high" | "medium" | "healthy" | null = null;
@@ -123,8 +128,8 @@ function DashboardPage() {
       if (latest && sorted.length >= 2) {
         const prevSlice = sorted.slice(0, -1);
         prevSnapshot = prevSlice[prevSlice.length - 1] ?? null;
-        const cutoff = `${prevSnapshot?.period.slice(0, 7) ?? ""}-31T23:59:59Z`;
-        const filteredSts = sts.filter((s) => !s.recorded_at || s.recorded_at <= cutoff);
+        const prevCutoff = `${prevSnapshot?.period.slice(0, 7) ?? ""}-31T23:59:59Z`;
+        const filteredSts = sts.filter((s) => !s.recorded_at || s.recorded_at <= prevCutoff);
         const prevRisk = computeRiskWithCS(prevSlice, filteredSts);
         prevScore = prevRisk.score;
         prevLevel = prevRisk.level;
@@ -145,7 +150,7 @@ function DashboardPage() {
       });
     }
     return list;
-  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart]);
+  }, [tenantHistory, tenantStatuses, tasksByTenant, weekStart, latestPeriod]);
 
   // KPIs
   const kpis = useMemo(() => {
