@@ -530,20 +530,50 @@ function periodEndIso(period: string): string {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 23, 59, 59)).toISOString();
 }
 
-function scoreChangeEvents(row: ClubRow) {
+interface ScoreChangeEvent {
+  period: string;
+  oldScore: number;
+  newScore: number;
+  delta: number;
+  reasons: string[];
+}
+
+function scoreChangeEvents(row: ClubRow): ScoreChangeEvent[] {
   const sorted = [...row.history].sort((a, b) => a.period.localeCompare(b.period));
-  let previous: number | null = null;
-  const events = sorted.flatMap((snapshot, index) => {
+  let prevScore: number | null = null;
+  let prevFlagSet = new Set<string>();
+  let prevCsMod = 0;
+  const events: ScoreChangeEvent[] = [];
+  sorted.forEach((snapshot, index) => {
     const statusesUntilPeriod = row.statuses.filter((s) => !s.recorded_at || s.recorded_at <= periodEndIso(snapshot.period));
-    const current = computeRiskWithCS(sorted.slice(0, index + 1), statusesUntilPeriod).score;
-    const old = previous;
-    previous = current;
-    if (old === null || old === current) return [];
-    return [{ period: snapshot.period, oldScore: old, newScore: current, delta: current - old }];
+    const r = computeRiskWithCS(sorted.slice(0, index + 1), statusesUntilPeriod);
+    const current = r.score;
+    if (prevScore !== null && prevScore !== current) {
+      const reasons: string[] = [];
+      // Flags added
+      r.flagDetails.forEach((d) => {
+        if (!prevFlagSet.has(d.flag)) reasons.push(d.reason);
+      });
+      // Flags resolved
+      const curFlags = new Set(r.flagDetails.map((d) => d.flag));
+      prevFlagSet.forEach((f) => {
+        if (!curFlags.has(f)) reasons.push(`Recuperado: ${FLAG_META[f as RiskFlag]?.label ?? f}`);
+      });
+      // CS modifier change
+      const csMod = r.csModifier ?? 0;
+      if (csMod !== prevCsMod) {
+        const diff = csMod - prevCsMod;
+        reasons.push(`Variação CS: ${diff > 0 ? "+" : ""}${diff} pts`);
+      }
+      events.push({ period: snapshot.period, oldScore: prevScore, newScore: current, delta: current - prevScore, reasons });
+    }
+    prevScore = current;
+    prevFlagSet = new Set(r.flagDetails.map((d) => d.flag));
+    prevCsMod = r.csModifier ?? 0;
   });
-  const latestMonthlyScore = previous;
+  const latestMonthlyScore = prevScore;
   if (row.prevScore !== null && row.scoreDelta !== null && row.scoreDelta !== 0 && latestMonthlyScore !== row.score) {
-    events.push({ period: "Atual", oldScore: row.prevScore, newScore: row.score, delta: row.scoreDelta });
+    events.push({ period: "Atual", oldScore: row.prevScore, newScore: row.score, delta: row.scoreDelta, reasons: [] });
   }
   return events;
 }
