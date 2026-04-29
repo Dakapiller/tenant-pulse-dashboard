@@ -88,7 +88,7 @@ function ClubsPage() {
   }, [search.tenant]);
 
   const closeDrawer = () => {
-    navigate({ to: "/clubs", search: {} });
+    navigate({ to: "/clubs", search: { tenant: undefined } });
   };
 
   const [exportOpen, setExportOpen] = useState(false);
