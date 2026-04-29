@@ -285,10 +285,7 @@ function DashboardPage() {
       .filter((s) => s.value > 0);
   }, [clubs]);
 
-  // Top 10 at-risk
-  const topRisk = useMemo(() => {
-    return clubs.filter((c) => c.status !== "churned" && c.status !== "closed");
-  }, [clubs]);
+  // (Radar de Risco was removed — full at-risk view lives at /at-risk and the full club table at /clubs.)
 
   // Recent CS activity (last 10)
   const recentActivity = useMemo(() => {
@@ -385,9 +382,25 @@ function DashboardPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1500px] mx-auto">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Centro de comando para prevenção de churn — {periodLabel(latestPeriod)}</p>
+      <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Visão geral</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Centro de comando para prevenção de churn — {periodLabel(latestPeriod)}
+          </p>
+        </div>
+        <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+          Período
+          <select
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(e.target.value)}
+            className="px-3 h-9 rounded-md border border-border bg-background text-sm min-w-[160px]"
+          >
+            {periods.map((p) => (
+              <option key={p} value={p}>{periodLabel(p)}</option>
+            ))}
+          </select>
+        </label>
       </header>
 
       {/* Row 1 — KPIs */}
