@@ -181,6 +181,8 @@ function DashboardPage() {
   const monthlySeries = useMemo(() => {
     const byPeriod = new Map<string, { games: number; gmv: number; revenue: number }>();
     includedSnapshots.forEach((s) => {
+      // Truncate the chart at the selected period
+      if (latestPeriod && s.period > latestPeriod) return;
       const cur = byPeriod.get(s.period) ?? { games: 0, gmv: 0, revenue: 0 };
       cur.games += Number(s.games_online ?? 0);
       cur.gmv += Number(s.gmv_all ?? 0);
