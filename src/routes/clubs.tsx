@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { AdjustScoreDialog } from "@/components/AdjustScoreDialog";
+import { TaskQuickActions } from "@/components/TaskQuickActions";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
   fetchAllCSStatuses,
