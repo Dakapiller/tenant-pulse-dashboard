@@ -242,15 +242,16 @@ function CSTasksPage() {
     setExpanded(null);
   }
 
-  if (loading) return (
-    <div className="p-10 text-muted-foreground">A carregar…</div>
-  );
-
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const activeClubNames = useMemo(
     () => tenantNames.filter((n) => !excluded.has(n)),
     [tenantNames, excluded],
   );
+
+  if (loading) return (
+    <div className="p-10 text-muted-foreground">A carregar…</div>
+  );
+
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto pb-24 md:pb-8">
