@@ -924,6 +924,21 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
           </section>
         </div>
       </div>
+
+      <NewTaskDialog
+        open={taskOpen}
+        onClose={() => setTaskOpen(false)}
+        tenant={tenant}
+        onCreated={async () => { await reload(); await onChanged?.(); }}
+      />
+      <AdjustScoreDialog
+        open={scoreOpen}
+        mode="single"
+        tenant={tenant}
+        currentScore={row.score}
+        onClose={() => setScoreOpen(false)}
+        onApplied={async () => { await reload(); await onChanged?.(); }}
+      />
     </div>
   );
 }
