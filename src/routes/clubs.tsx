@@ -1199,10 +1199,11 @@ function downloadText(name: string, content: string) {
 // ---------- Bulk status bar (floating) ----------
 
 function BulkStatusBar({
-  count, onApply, onCancel,
+  count, onApply, onAdjustScore, onCancel,
 }: {
   count: number;
   onApply: (next: ClubStatus, competitor: string | null) => Promise<void>;
+  onAdjustScore: () => void;
   onCancel: () => void;
 }) {
   const [next, setNext] = useState<ClubStatus>("active");
