@@ -5,8 +5,10 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Sparkles, Star, X,
+  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Plus, SlidersHorizontal, Sparkles, Star, X,
 } from "lucide-react";
+import { NewTaskDialog } from "@/components/NewTaskDialog";
+import { AdjustScoreDialog } from "@/components/AdjustScoreDialog";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
   fetchAllCSStatuses,
@@ -105,6 +107,7 @@ function ClubsPage() {
   const [missingOpen, setMissingOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [filterNewOnly, setFilterNewOnly] = useState(false);
+  const [bulkScoreOpen, setBulkScoreOpen] = useState(false);
 
   async function loadAll() {
     const [s, p, sts, tks, logs, scores, prio] = await Promise.all([
@@ -493,9 +496,21 @@ function ClubsPage() {
             setSelectedKeys(new Set());
             await loadAll();
           }}
+          onAdjustScore={() => setBulkScoreOpen(true)}
           onCancel={() => setSelectedKeys(new Set())}
         />
       )}
+
+      <AdjustScoreDialog
+        open={bulkScoreOpen}
+        mode="bulk"
+        tenants={Array.from(selectedKeys).map((name) => {
+          const r = rows.find((x) => x.name === name);
+          return { name, score: r?.score ?? 0 };
+        })}
+        onClose={() => setBulkScoreOpen(false)}
+        onApplied={async () => { setSelectedKeys(new Set()); await loadAll(); }}
+      />
     </div>
   );
 }
@@ -719,21 +734,23 @@ function ClubHistoryPanel({ row }: { row: ClubRow }) {
 
 // ---------- Drawer ----------
 
-function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; onClose: () => void; onChanged?: () => Promise<void> }) {
+function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: ClubRow; onClose: () => void; onChanged?: () => Promise<void> }) {
   const [statusLogs, setStatusLogs] = useState<ClubStatusLog[]>([]);
   const [tenantTasks, setTenantTasks] = useState<CSTask[]>([]);
   const [tenantStatuses, setTenantStatuses] = useState<CSTenantStatus[]>([]);
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [scoreOpen, setScoreOpen] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const [logs, tks, sts] = await Promise.all([
-        fetchClubStatusLogsForTenant(tenant),
-        fetchCSTasksForTenant(tenant),
-        fetchCSStatusesForTenant(tenant),
-      ]);
-      setStatusLogs(logs); setTenantTasks(tks); setTenantStatuses(sts);
-    })();
-  }, [tenant]);
+  async function reload() {
+    const [logs, tks, sts] = await Promise.all([
+      fetchClubStatusLogsForTenant(tenant),
+      fetchCSTasksForTenant(tenant),
+      fetchCSStatusesForTenant(tenant),
+    ]);
+    setStatusLogs(logs); setTenantTasks(tks); setTenantStatuses(sts);
+  }
+
+  useEffect(() => { reload(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [tenant]);
 
   const risk = useMemo(() => computeRiskWithCS(row.history, tenantStatuses), [row.history, tenantStatuses]);
 
@@ -765,8 +782,8 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
         className="relative w-full md:max-w-3xl h-full bg-background md:border-l border-border shadow-xl overflow-y-auto animate-in slide-in-from-bottom md:slide-in-from-right duration-200"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-background border-b border-border px-4 sm:px-6 py-4 flex items-center justify-between z-10">
-          <div className="min-w-0">
+        <div className="sticky top-0 bg-background border-b border-border px-4 sm:px-6 py-4 flex items-center justify-between gap-2 z-10">
+          <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold truncate">{tenant}</h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <ClubStatusBadge status={row.status} competitor={row.competitor} />
@@ -775,7 +792,33 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
               </Link>
             </div>
           </div>
-          <button onClick={onClose} className="shrink-0 ml-2 inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface" aria-label="Fechar"><X className="h-5 w-5" /></button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setTaskOpen(true)}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-9 text-xs font-medium hover:bg-surface"
+              title="Criar nova tarefa para este clube"
+            >
+              <Plus className="h-3.5 w-3.5" /> Tarefa
+            </button>
+            <button
+              onClick={() => setScoreOpen(true)}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-9 text-xs font-medium hover:bg-surface"
+              title="Ajustar manualmente o health score"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" /> Score
+            </button>
+            <button
+              onClick={() => setTaskOpen(true)}
+              className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
+              aria-label="Nova tarefa"
+            ><Plus className="h-5 w-5" /></button>
+            <button
+              onClick={() => setScoreOpen(true)}
+              className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
+              aria-label="Ajustar score"
+            ><SlidersHorizontal className="h-5 w-5" /></button>
+            <button onClick={onClose} className="inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface" aria-label="Fechar"><X className="h-5 w-5" /></button>
+          </div>
         </div>
 
         <div className="p-6 space-y-6">
@@ -894,6 +937,21 @@ function ClubDrawer({ tenant, row, onClose }: { tenant: string; row: ClubRow; on
           </section>
         </div>
       </div>
+
+      <NewTaskDialog
+        open={taskOpen}
+        onClose={() => setTaskOpen(false)}
+        tenant={tenant}
+        onCreated={async () => { await reload(); await onChanged?.(); }}
+      />
+      <AdjustScoreDialog
+        open={scoreOpen}
+        mode="single"
+        tenant={tenant}
+        currentScore={row.score}
+        onClose={() => setScoreOpen(false)}
+        onApplied={async () => { await reload(); await onChanged?.(); }}
+      />
     </div>
   );
 }
@@ -1141,10 +1199,11 @@ function downloadText(name: string, content: string) {
 // ---------- Bulk status bar (floating) ----------
 
 function BulkStatusBar({
-  count, onApply, onCancel,
+  count, onApply, onAdjustScore, onCancel,
 }: {
   count: number;
   onApply: (next: ClubStatus, competitor: string | null) => Promise<void>;
+  onAdjustScore: () => void;
   onCancel: () => void;
 }) {
   const [next, setNext] = useState<ClubStatus>("active");
@@ -1190,6 +1249,13 @@ function BulkStatusBar({
               className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 rounded-md bg-foreground text-background px-4 min-h-11 md:min-h-9 text-sm font-medium hover:opacity-90 disabled:opacity-50"
             >
               <Check className="h-4 w-4" /> {busy ? "A aplicar…" : "Aplicar"}
+            </button>
+            <button
+              onClick={onAdjustScore}
+              className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 min-h-11 md:min-h-9 text-sm font-medium hover:bg-surface"
+              title="Ajustar manualmente o health score dos clubes selecionados"
+            >
+              <SlidersHorizontal className="h-4 w-4" /> Ajustar score
             </button>
             <button
               onClick={onCancel}
