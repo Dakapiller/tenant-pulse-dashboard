@@ -304,10 +304,21 @@ function DashboardPage() {
       const tenantsThatMonth = tenantsByPeriod.get(p)!;
       const cutoffSts = `${p.slice(0, 7)}-31T23:59:59Z`;
       let healthy = 0, medium = 0, high = 0;
+      const isLatestColumn = p === latestPeriod;
       for (const name of tenantsThatMonth) {
+        if (isLatestColumn) {
+          // Latest column: use the real DB health score.
+          const score = healthScores.get(name);
+          if (score === undefined) { healthy++; continue; }
+          const lvl = healthLevel(score);
+          if (lvl === "risk") high++;
+          else if (lvl === "monitor") medium++;
+          else healthy++;
+          continue;
+        }
+        // Prior months: legacy per-period computation (no historical health score available).
         const fullHist = tenantHistory.get(name);
         if (!fullHist || fullHist.length === 0) { healthy++; continue; }
-        // sorted ascending: find slice end <= p
         let endIdx = -1;
         for (let i = fullHist.length - 1; i >= 0; i--) {
           if (fullHist[i].period <= p) { endIdx = i; break; }
@@ -334,7 +345,7 @@ function DashboardPage() {
         total: healthy + medium + high,
       };
     });
-  }, [includedSnapshots, tenantHistory, tenantStatuses, latestPeriod]);
+  }, [includedSnapshots, tenantHistory, tenantStatuses, latestPeriod, healthScores]);
 
   // Positive metrics
   const positives = useMemo(() => {
