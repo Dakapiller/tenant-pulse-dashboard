@@ -302,26 +302,58 @@ function CSHistoryPage() {
                 <li key={tenant}>
                   <Collapsible open={open} onOpenChange={(v) => setOpenClubs((p) => ({ ...p, [tenant]: v }))}>
                     <CollapsibleTrigger asChild>
-                      <button className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-muted/40 transition-colors text-left">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform shrink-0", open && "rotate-180")} />
-                          <ClubLink name={tenant} className="font-medium hover:underline truncate" />
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
-                            {list.length} {list.length === 1 ? "ação" : "ações"}
-                          </span>
+                      <button className="w-full flex items-start md:items-center justify-between gap-3 px-4 sm:px-5 py-4 hover:bg-muted/40 transition-colors text-left">
+                        <div className="flex items-start md:items-center gap-3 min-w-0 flex-1">
+                          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform shrink-0 mt-1 md:mt-0", open && "rotate-180")} />
+                          <div className="min-w-0 flex-1 flex flex-col md:flex-row md:items-center md:gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <ClubLink name={tenant} className="font-medium hover:underline truncate" />
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                                {list.length} {list.length === 1 ? "ação" : "ações"}
+                              </span>
+                            </div>
+                            <span className={cn("md:hidden mt-2 inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium", outcomeBadgeClass(last.outcome))}>
+                              {outcomeLabel(last.outcome)}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
+                        <div className="hidden md:flex items-center gap-3 shrink-0">
                           <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", outcomeBadgeClass(last.outcome))}>
                             {outcomeLabel(last.outcome)}
                           </span>
-                          <span className="text-xs text-muted-foreground hidden sm:inline">
+                          <span className="text-xs text-muted-foreground">
                             {last.completed_at ? format(new Date(last.completed_at), "dd MMM yyyy", { locale: pt }) : ""}
                           </span>
                         </div>
                       </button>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
-                      <div className="px-5 pb-4 overflow-x-auto">
+                      {/* Mobile: stacked cards */}
+                      <ul className="md:hidden px-4 pb-4 space-y-2">
+                        {list.map((t) => (
+                          <li key={t.id} className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-muted-foreground">
+                                {t.completed_at ? format(new Date(t.completed_at), "dd MMM yyyy", { locale: pt }) : "—"}
+                              </span>
+                              <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0", outcomeBadgeClass(t.outcome))}>
+                                {outcomeLabel(t.outcome)}
+                              </span>
+                            </div>
+                            {t.flags && t.flags.length > 0 && (
+                              <div>
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{formatFlagsLabel(t.flags)}</span>
+                              </div>
+                            )}
+                            {t.note && (
+                              <p className="text-xs italic text-muted-foreground break-words">“{t.note}”</p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+
+                      {/* Desktop: table */}
+                      <div className="hidden md:block px-5 pb-4 overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
