@@ -94,7 +94,7 @@
   /* Neutrals */
   --border: oklch(0.929 0.013 255);           /* #E2E8F0 slate-200 */
   --input: oklch(0.929 0.013 255);
-  --ring: oklch(0.546 0.215 262.9);           /* focus ring = primary */
+  --ring: oklch(0.546 0.245 262.881);         /* focus ring = primary */
   --muted: oklch(0.968 0.007 247);            /* slate-100 */
   --muted-foreground: oklch(0.554 0.046 257); /* slate-500 */
   --accent: oklch(0.968 0.007 247);
