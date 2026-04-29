@@ -55,11 +55,20 @@ function DashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [p, st, sc] = await Promise.all([fetchPeriods(), fetchAllCSStatuses(), fetchHealthScores()]);
+        // Start of the current calendar month (UTC) — anchor for monthly delta.
+        const now = new Date();
+        const monthStartIso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+        const [p, st, sc, prevSc] = await Promise.all([
+          fetchPeriods(),
+          fetchAllCSStatuses(),
+          fetchHealthScores(),
+          fetchHealthScoresAt(monthStartIso),
+        ]);
         if (cancelled) return;
         setPeriods(p);
         setStatuses(st);
         setHealthScores(sc);
+        setPrevMonthScores(prevSc);
       } finally {
         if (!cancelled) setLoading(false);
       }
