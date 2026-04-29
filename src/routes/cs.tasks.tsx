@@ -312,6 +312,62 @@ function CSTasksPage() {
         </section>
 
         {/* Tarefas pendentes */}
+        {/* Atrasadas — pending tasks from previous weeks for clubs that don't
+            also have a current-week task. Clubs with both render in the main
+            table below and merge their overdue bullets there. */}
+        {visibleOverdueOnly.length > 0 && (
+          <section className="rounded-xl border border-danger/40 bg-danger/5 overflow-hidden mb-6">
+            <button
+              type="button"
+              onClick={() => setOverdueOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-danger/10"
+            >
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-danger" />
+                <h2 className="text-base font-semibold text-danger">
+                  ⚠ Atrasadas · {visibleOverdueOnly.length} {visibleOverdueOnly.length === 1 ? "clube" : "clubes"}
+                </h2>
+              </div>
+              {overdueOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+            {overdueOpen && (
+              <div className="border-t border-danger/30">
+                <ul className="divide-y divide-danger/20">
+                  {visibleOverdueOnly.map((r) => {
+                    const isOpen = expanded === `overdue:${r.name}`;
+                    return (
+                      <li key={r.name} className="px-5 py-3">
+                        <button
+                          type="button"
+                          onClick={() => setExpanded(isOpen ? null : `overdue:${r.name}`)}
+                          className="w-full flex items-center justify-between gap-3 text-left"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <ClubLink name={r.name} className="font-semibold hover:underline truncate" />
+                            <RiskBadge level={r.level} score={r.score} />
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-danger/15 text-danger font-medium">
+                              {r.overdue.length} atrasada{r.overdue.length === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                          {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                        </button>
+                        {isOpen && (
+                          <div className="mt-3">
+                            <ExpandedClubPanel
+                              row={{ name: r.name, pending: [], overdue: r.overdue }}
+                              onComplete={handleClubComplete}
+                            />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
+
         <section className="rounded-xl border border-border overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-3">
             <div className="flex items-center gap-2">
