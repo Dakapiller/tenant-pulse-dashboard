@@ -2,10 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
-import { fetchAllCSStatuses, fetchAllCSTasks, currentWeekStart, scoreWithDelta, excludedTenants, type CSTenantStatus, type CSTask } from "@/lib/cs";
-import { computeRiskWithCS, FLAG_META, FLAG_CTA, type RiskFlag } from "@/lib/risk";
+import { fetchAllCSStatuses, fetchAllCSTasks, currentWeekStart, riskWithDelta, excludedTenants, type CSTenantStatus, type CSTask } from "@/lib/cs";
+import { FLAG_META, FLAG_CTA, type RiskFlag } from "@/lib/risk";
 import { ScoreDelta } from "@/components/DataTable";
 import { ArrowRight, ListChecks, Search, ShieldCheck, X } from "lucide-react";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 export const Route = createFileRoute("/at-risk")({
   component: AtRiskPage,
@@ -18,6 +19,7 @@ function AtRiskPage() {
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   useEffect(() => {
     (async () => {
@@ -67,20 +69,37 @@ function AtRiskPage() {
 
   const cards = useMemo(() => {
     if (!latest) return [];
-    const list: { name: string; risk: ReturnType<typeof computeRiskWithCS>; scoreDelta: number | null; spark: { period: string; games: number }[]; pending: number }[] = [];
+    type Card = {
+      name: string;
+      score: number;
+      level: "high" | "medium" | "healthy";
+      flags: RiskFlag[];
+      scoreDelta: number | null;
+      spark: { period: string; games: number }[];
+      pending: number;
+    };
+    const list: Card[] = [];
     for (const [name, hist] of tenantHistory) {
       if (excluded.has(name)) continue;
       const sorted = [...hist].sort((a, b) => a.period.localeCompare(b.period));
       const hasLatest = sorted.some((s) => s.period === latest);
       if (!hasLatest) continue;
       const sts = statusByTenant.get(name) ?? [];
-      const risk = computeRiskWithCS(sorted, sts);
-      if (risk.flags.length === 0) continue;
-      const sd = scoreWithDelta(sorted, sts);
+      // Single pass: gives us score, level, delta and current flags.
+      const rd = riskWithDelta(sorted, sts);
+      if (rd.flags.current.length === 0) continue;
       const spark = sorted.slice(-6).map((s) => ({ period: s.period, games: s.games_online }));
-      list.push({ name, risk, scoreDelta: sd.delta, spark, pending: pendingByTenant.get(name) ?? 0 });
+      list.push({
+        name,
+        score: rd.score,
+        level: rd.level,
+        flags: rd.flags.current as RiskFlag[],
+        scoreDelta: rd.delta,
+        spark,
+        pending: pendingByTenant.get(name) ?? 0,
+      });
     }
-    return list.sort((a, b) => b.risk.score - a.risk.score);
+    return list.sort((a, b) => b.score - a.score);
   }, [tenantHistory, latest, statusByTenant, pendingByTenant, excluded]);
 
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
@@ -124,9 +143,9 @@ function AtRiskPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {cards
-            .filter((c) => !search || c.name.toLowerCase().includes(search.toLowerCase()))
+            .filter((c) => !debouncedSearch || c.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
             .map((c) => {
-            const tone = c.risk.level === "high"
+            const tone = c.level === "high"
               ? { bar: "bg-danger", text: "text-danger", bg: "bg-danger/5", border: "border-danger/30" }
               : { bar: "bg-warning", text: "text-warning", bg: "bg-warning/5", border: "border-warning/30" };
             return (
@@ -135,18 +154,18 @@ function AtRiskPage() {
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{c.name}</div>
                     <div className={`text-xs mt-0.5 ${tone.text} font-medium`}>
-                      {c.risk.level === "high" ? "Risco alto" : "Risco médio"}
+                      {c.level === "high" ? "Risco alto" : "Risco médio"}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className={`text-3xl font-bold tabular-nums ${tone.text}`}>{c.risk.score}</div>
+                    <div className={`text-3xl font-bold tabular-nums ${tone.text}`}>{c.score}</div>
                     <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Score</div>
                     <div className="mt-1"><ScoreDelta delta={c.scoreDelta} /></div>
                   </div>
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                  {c.risk.flags.map((f) => (
+                  {c.flags.map((f) => (
                     <span key={f} className="rounded-full bg-background border border-border px-2 py-0.5 text-xs">
                       {FLAG_META[f].label}
                     </span>
@@ -161,7 +180,7 @@ function AtRiskPage() {
                 <div className="mt-4">
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">Porquê</div>
                   <ul className="space-y-1 text-xs">
-                    {c.risk.flags.map((f) => (
+                    {c.flags.map((f) => (
                       <li key={f} className="flex gap-2">
                         <span className={`mt-1.5 h-1 w-1 rounded-full ${tone.bar} shrink-0`} />
                         <span>{FLAG_CTA[f as RiskFlag].reason}</span>
@@ -174,7 +193,7 @@ function AtRiskPage() {
                 <div className="mt-3">
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">Sugestões</div>
                   <ul className="space-y-1 text-xs text-muted-foreground">
-                    {c.risk.flags.map((f) => (
+                    {c.flags.map((f) => (
                       <li key={f} className="flex gap-2">
                         <span className="mt-1.5 h-1 w-1 rounded-full bg-foreground/60 shrink-0" />
                         <span>{FLAG_CTA[f as RiskFlag].cta}</span>

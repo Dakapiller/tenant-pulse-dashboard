@@ -40,23 +40,57 @@ function DashboardPage() {
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
 
+  // Phase 0 — fast: periods + CS statuses → renders KPI shell + period selector.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [s, p, st, tk] = await Promise.all([
-          fetchAllSnapshots(), fetchPeriods(), fetchAllCSStatuses(), fetchAllCSTasks(),
-        ]);
+        const [p, st] = await Promise.all([fetchPeriods(), fetchAllCSStatuses()]);
         if (cancelled) return;
-        setSnapshots(s); setPeriods(p); setStatuses(st); setTasks(tk);
+        setPeriods(p);
+        setStatuses(st);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Phase 1 — heavier: all snapshots → drives charts + KPI numbers.
+  // Deferred behind a microtask so the KPI shell paints first.
+  useEffect(() => {
+    if (loading) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const s = await fetchAllSnapshots();
+        if (!cancelled) setSnapshots(s);
+      } finally {
+        if (!cancelled) setSnapshotsLoaded(true);
+      }
+    }, 0);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [loading]);
+
+  // Phase 2 — heaviest: tasks → drives positives + recent activity.
+  // Waits until snapshots are in so we never block paint of the charts.
+  useEffect(() => {
+    if (!snapshotsLoaded) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const tk = await fetchAllCSTasks();
+        if (!cancelled) setTasks(tk);
+      } finally {
+        if (!cancelled) setTasksLoaded(true);
+      }
+    }, 0);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [snapshotsLoaded]);
 
   // Default selected period to the latest available, but allow the user to change it.
   useEffect(() => {
@@ -397,7 +431,13 @@ function DashboardPage() {
         Clubes ativos = clubes com atividade reportada no período selecionado, excluindo churned, fechados e mudança de proprietário.
       </p>
 
-      {/* Row 2 — Charts */}
+      {/* Row 2 — Charts (deferred until snapshots load) */}
+      {!snapshotsLoaded ? (
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          <ChartSkeleton />
+          <ChartSkeleton />
+        </section>
+      ) : (
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <div className="rounded-xl border border-border bg-background p-5">
           <h2 className="text-sm font-semibold mb-1">Tendência mensal</h2>
@@ -468,6 +508,7 @@ function DashboardPage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Row 3 — Positives + status donut */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
@@ -479,12 +520,18 @@ function DashboardPage() {
               <span className="text-xs text-muted-foreground">vs {periodShort(previousPeriod)}</span>
             )}
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <PositiveCard value={positives.improved} title="Clubes melhorados" subtitle="Score de saúde diminuiu vs mês anterior" />
-            <PositiveCard value={positives.leftHighRisk} title="Saíram de risco alto" subtitle="Estavam ≥60 e baixaram para médio ou saudável" />
-            <PositiveCard value={positives.revenueGrew} title="Receita cresceu" subtitle="Receita mensal superior à do mês anterior" />
-            <PositiveCard value={positives.csImpacted} title="Impacto CS" subtitle="Tarefa CS concluída este mês e score melhorou" />
-          </div>
+          {tasksLoaded ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <PositiveCard value={positives.improved} title="Clubes melhorados" subtitle="Score de saúde diminuiu vs mês anterior" />
+              <PositiveCard value={positives.leftHighRisk} title="Saíram de risco alto" subtitle="Estavam ≥60 e baixaram para médio ou saudável" />
+              <PositiveCard value={positives.revenueGrew} title="Receita cresceu" subtitle="Receita mensal superior à do mês anterior" />
+              <PositiveCard value={positives.csImpacted} title="Impacto CS" subtitle="Tarefa CS concluída este mês e score melhorou" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[0,1,2,3].map((i) => <CardSkeleton key={i} />)}
+            </div>
+          )}
         </div>
         <div className="rounded-xl border border-border bg-background p-5">
           <h2 className="text-sm font-semibold mb-1">Distribuição por estado</h2>
@@ -530,7 +577,11 @@ function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {recentActivity.map((t) => (
+              {!tasksLoaded ? (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">A carregar atividade…</td></tr>
+              ) : recentActivity.length === 0 ? (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">Sem atividade recente.</td></tr>
+              ) : recentActivity.map((t) => (
                 <tr key={t.id} className="border-t border-border hover:bg-surface">
                   <td className="px-4 py-2 text-xs text-muted-foreground">{t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : "—"}</td>
                   <td className="px-4 py-2 font-medium"><ClubLink name={t.tenant_name} /></td>
@@ -538,9 +589,6 @@ function DashboardPage() {
                   <td className="px-4 py-2 text-xs text-muted-foreground truncate max-w-md">{t.reason}</td>
                 </tr>
               ))}
-              {recentActivity.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">Sem atividade recente.</td></tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -561,6 +609,26 @@ const STATUS_COLOR: Record<ClubStatus, string> = {
   closed: "oklch(0.7 0.02 250)",
   changed_owner: "oklch(0.65 0.12 270)",
 };
+
+function ChartSkeleton() {
+  return (
+    <div className="rounded-xl border border-border bg-background p-5">
+      <div className="h-3 w-32 bg-surface rounded animate-pulse mb-2" />
+      <div className="h-3 w-56 bg-surface rounded animate-pulse mb-4" />
+      <div className="h-72 bg-surface/60 rounded animate-pulse" />
+    </div>
+  );
+}
+
+function CardSkeleton() {
+  return (
+    <div className="rounded-lg bg-background border border-success/20 p-3">
+      <div className="h-7 w-10 bg-surface rounded animate-pulse" />
+      <div className="h-3 w-20 bg-surface rounded animate-pulse mt-2" />
+      <div className="h-2.5 w-28 bg-surface rounded animate-pulse mt-1" />
+    </div>
+  );
+}
 
 function PositiveCard({ value, title, subtitle }: { value: number; title: string; subtitle: string }) {
   return (

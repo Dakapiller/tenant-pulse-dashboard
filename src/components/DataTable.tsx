@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Filter as FilterIcon, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Filter as FilterIcon, Search, X } from "lucide-react";
 
 export type SortDir = "asc" | "desc" | null;
 
@@ -43,6 +43,8 @@ export interface DataTableProps<T> {
   selectedKeys?: Set<string>;
   onSelectionChange?: (next: Set<string>) => void;
   isRowSelectable?: (row: T) => boolean;
+  /** When set, paginate the table client-side. Set to undefined for "show all". */
+  pageSize?: number;
 }
 
 export function DataTable<T>({
@@ -63,6 +65,7 @@ export function DataTable<T>({
   selectedKeys,
   onSelectionChange,
   isRowSelectable,
+  pageSize,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>(
     defaultSort ?? { key: "", dir: null },
@@ -142,6 +145,27 @@ export function DataTable<T>({
   }
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
+  // Pagination — only when pageSize is set. Reset to page 0 whenever the underlying
+  // filtered/sorted result set changes (search committed, filter applied, sort toggled).
+  const [page, setPage] = useState(0);
+  const totalRows = filtered.length;
+  const totalPages = pageSize ? Math.max(1, Math.ceil(totalRows / pageSize)) : 1;
+  useEffect(() => {
+    setPage(0);
+  }, [search, filters, sort, pageSize, totalRows]);
+  const pageRows = useMemo(() => {
+    if (!pageSize) return filtered;
+    const start = page * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  function goToPage(next: number) {
+    const clamped = Math.max(0, Math.min(totalPages - 1, next));
+    setPage(clamped);
+    // Scroll the table viewport to top so the user sees row 1 of the new page
+    if (tableScrollRef.current) tableScrollRef.current.scrollTop = 0;
+  }
 
   // Bulk-selection helpers (computed against the filtered, currently-visible rows)
   const visibleSelectableRows = useMemo(
@@ -237,7 +261,7 @@ export function DataTable<T>({
           {toolbar}
         </div>
       )}
-      <div className={`overflow-auto ${containerClassName}`}>
+      <div ref={tableScrollRef} className={`overflow-auto ${containerClassName}`}>
         <table className="w-full text-sm">
           <thead className={`bg-surface text-xs uppercase tracking-wide text-muted-foreground ${stickyHeader ? "sticky top-0 z-10" : ""}`}>
             <tr>
@@ -345,7 +369,7 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {filtered.map((row) => {
+            {pageRows.map((row) => {
               const expandedContent = expandedRow?.(row);
               const k = rowKey(row);
               const isSelected = !!selectedKeys?.has(k);
@@ -402,11 +426,43 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
-      {(search || activeFilterCount > 0) && filtered.length > 0 && (
+      {pageSize && totalRows > 0 ? (
+        <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2 text-xs text-muted-foreground border-t border-border bg-background flex-wrap">
+          <span className="tabular-nums">
+            {(search || activeFilterCount > 0)
+              ? `${totalRows} de ${rows.length} resultado${rows.length === 1 ? "" : "s"}`
+              : `${totalRows} resultado${totalRows === 1 ? "" : "s"}`}
+            {totalPages > 1 && (
+              <> · {Math.min(page * pageSize + 1, totalRows)}–{Math.min((page + 1) * pageSize, totalRows)}</>
+            )}
+          </span>
+          {totalPages > 1 && (
+            <div className="inline-flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => goToPage(page - 1)}
+                disabled={page === 0}
+                className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-border bg-background hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> Anterior
+              </button>
+              <span className="tabular-nums">Página {page + 1} de {totalPages}</span>
+              <button
+                type="button"
+                onClick={() => goToPage(page + 1)}
+                disabled={page >= totalPages - 1}
+                className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-border bg-background hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Próximo <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (search || activeFilterCount > 0) && filtered.length > 0 ? (
         <div className="px-3 sm:px-4 py-2 text-[11px] text-muted-foreground border-t border-border bg-background">
           {filtered.length} de {rows.length} resultado{rows.length === 1 ? "" : "s"}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

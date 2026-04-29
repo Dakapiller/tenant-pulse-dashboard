@@ -18,8 +18,7 @@ import {
   setClubStatus,
   currentClubStatus,
   currentChurnCompetitor,
-  scoreWithDelta,
-  flagsWithDelta,
+  riskWithDelta,
   latestCSOutcome,
   sumCSImpact,
   lastCompletedActivityAt,
@@ -143,23 +142,22 @@ function ClubsPage() {
       const latest = sorted[sorted.length - 1] ?? null;
       const sts = stsByTenant.get(name) ?? [];
       const tks = tasksByTenant.get(name) ?? [];
-      const sd = scoreWithDelta(sorted, sts);
+      const rd = riskWithDelta(sorted, sts);
       const status = currentClubStatus(sts);
       const competitor = currentChurnCompetitor(sts);
       const pending = tks.filter((t) => t.status === "pending" && t.week_start === weekStart).length;
       const missing = !!latestPeriod && !sorted.some((s) => s.period === latestPeriod);
       const firstSeen = sorted[0]?.period ?? null;
       const isNew = !!latestPeriod && firstSeen === latestPeriod && sorted.length === 1;
-      const fd = flagsWithDelta(sorted, sts);
       const csOut = latestCSOutcome(sts);
       result.push({
         name, latest, history: sorted, statuses: sts, tasks: tks, statusLogs: logsByTenant.get(name) ?? [],
-        status, competitor, score: sd.score, prevScore: sd.prevScore, scoreDelta: sd.delta, level: sd.level,
+        status, competitor, score: rd.score, prevScore: rd.prevScore, scoreDelta: rd.delta, level: rd.level,
         csImpact: sumCSImpact(sts),
         lastActivity: lastCompletedActivityAt(tks),
         pending, missingFromLatest: missing,
         isNew, firstSeen,
-        flagsCurrent: fd.current, flagsAdded: fd.added, flagsResolved: fd.resolved,
+        flagsCurrent: rd.flags.current, flagsAdded: rd.flags.added, flagsResolved: rd.flags.resolved,
         csOutcome: csOut,
       });
     }
@@ -268,6 +266,7 @@ function ClubsPage() {
           rowKey={(r) => r.name}
           defaultSort={{ key: "name", dir: "asc" }}
           stickyHeader
+          pageSize={50}
           containerClassName="max-h-[700px]"
           rowClassName={(r) => expandedTenant === r.name ? "bg-surface/40" : r.isNew ? "bg-success/5" : r.missingFromLatest ? "bg-warning/5" : ""}
           onRowClick={(r) => setExpandedTenant(expandedTenant === r.name ? null : r.name)}

@@ -302,23 +302,68 @@ export function lastCompletedActivityAt(tasks: CSTask[]): string | null {
 }
 
 /**
- * Compute current vs previous-month risk score for a tenant.
- * Returns { score, prevScore, delta } where delta = score - prevScore (negative = improvement).
+ * Compute current vs previous-month risk score AND flag delta in a single pass.
+ * Replaces the old `scoreWithDelta` + `flagsWithDelta` pair so we only run
+ * computeRiskWithCS twice (current + prev) instead of four times per tenant.
  */
+export function riskWithDelta(
+  history: Snapshot[],
+  statuses: CSTenantStatus[],
+): {
+  score: number;
+  prevScore: number | null;
+  delta: number | null;
+  level: "high" | "medium" | "healthy";
+  prevLevel: "high" | "medium" | "healthy" | null;
+  flags: { current: string[]; added: string[]; resolved: string[]; prev: string[] };
+} {
+  const sorted = [...history].sort((a, b) => a.period.localeCompare(b.period));
+  if (sorted.length === 0) {
+    return {
+      score: 0, prevScore: null, delta: null, level: "healthy", prevLevel: null,
+      flags: { current: [], added: [], resolved: [], prev: [] },
+    };
+  }
+  const cur = computeRiskWithCS(sorted, statuses);
+  if (sorted.length < 2) {
+    return {
+      score: cur.score, prevScore: null, delta: null, level: cur.level, prevLevel: null,
+      flags: { current: cur.flags, added: cur.flags, resolved: [], prev: [] },
+    };
+  }
+  const prevSlice = sorted.slice(0, -1);
+  const prevPeriod = prevSlice[prevSlice.length - 1].period;
+  const cutoff = `${prevPeriod.slice(0, 7)}-31T23:59:59Z`;
+  // statuses come in sorted ascending in most callers; do a linear scan to find the cutoff.
+  const filtered: CSTenantStatus[] = [];
+  for (const s of statuses) {
+    if (!s.recorded_at || s.recorded_at <= cutoff) filtered.push(s);
+  }
+  const prev = computeRiskWithCS(prevSlice, filtered);
+  const prevSet = new Set(prev.flags);
+  const curSet = new Set(cur.flags);
+  return {
+    score: cur.score,
+    prevScore: prev.score,
+    delta: cur.score - prev.score,
+    level: cur.level,
+    prevLevel: prev.level,
+    flags: {
+      current: cur.flags,
+      added: cur.flags.filter((f) => !prevSet.has(f)),
+      resolved: prev.flags.filter((f) => !curSet.has(f)),
+      prev: prev.flags,
+    },
+  };
+}
+
+/** @deprecated Use `riskWithDelta` instead — runs twice as much risk computation. */
 export function scoreWithDelta(
   history: Snapshot[],
   statuses: CSTenantStatus[],
 ): { score: number; prevScore: number | null; delta: number | null; level: "high" | "medium" | "healthy"; prevLevel: "high" | "medium" | "healthy" | null } {
-  const sorted = [...history].sort((a, b) => a.period.localeCompare(b.period));
-  if (sorted.length === 0) return { score: 0, prevScore: null, delta: null, level: "healthy", prevLevel: null };
-  const cur = computeRiskWithCS(sorted, statuses);
-  if (sorted.length < 2) return { score: cur.score, prevScore: null, delta: null, level: cur.level, prevLevel: null };
-  const prevSlice = sorted.slice(0, -1);
-  const prevPeriod = prevSlice[prevSlice.length - 1].period;
-  const cutoff = `${prevPeriod.slice(0, 7)}-31T23:59:59Z`;
-  const filtered = statuses.filter((s) => !s.recorded_at || s.recorded_at <= cutoff);
-  const prev = computeRiskWithCS(prevSlice, filtered);
-  return { score: cur.score, prevScore: prev.score, delta: cur.score - prev.score, level: cur.level, prevLevel: prev.level };
+  const r = riskWithDelta(history, statuses);
+  return { score: r.score, prevScore: r.prevScore, delta: r.delta, level: r.level, prevLevel: r.prevLevel };
 }
 
 /** Compute current flags, plus which were added/resolved vs previous month. */
