@@ -420,12 +420,13 @@ function DashboardPage() {
       </header>
 
       {/* Row 1 — KPIs */}
+      {/* Row 1 — KPIs (KPIs that depend on snapshots show skeletons until Phase 1 lands) */}
       <section className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
-        <KpiCard icon={<Building2 className="h-4 w-4" />} label="Clubes ativos" value={formatNumber(kpis.activeClubs)} />
+        <KpiCard icon={<Building2 className="h-4 w-4" />} label="Clubes ativos" value={snapshotsLoaded ? formatNumber(kpis.activeClubs) : "…"} />
         <KpiCard icon={<TrendingDown className="h-4 w-4" />} label="Churned este ano" value={formatNumber(kpis.churnedThisYear)} tone="danger" />
-        <KpiCard icon={<AlertTriangle className="h-4 w-4" />} label="Em risco alto" value={formatNumber(kpis.highRisk)} tone="warning" />
-        <KpiCard icon={<Euro className="h-4 w-4" />} label="GMV mês" value={formatEuro(kpis.monthGmv)} />
-        <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita mês" value={formatEuro(kpis.monthRevenue)} />
+        <KpiCard icon={<AlertTriangle className="h-4 w-4" />} label="Em risco alto" value={snapshotsLoaded ? formatNumber(kpis.highRisk) : "…"} tone="warning" />
+        <KpiCard icon={<Euro className="h-4 w-4" />} label="GMV mês" value={snapshotsLoaded ? formatEuro(kpis.monthGmv) : "…"} />
+        <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita mês" value={snapshotsLoaded ? formatEuro(kpis.monthRevenue) : "…"} />
       </section>
       <p className="text-[11px] text-muted-foreground -mt-3 mb-6">
         Clubes ativos = clubes com atividade reportada no período selecionado, excluindo churned, fechados e mudança de proprietário.
