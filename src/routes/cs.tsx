@@ -167,7 +167,7 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
       if (Number(s.gmv_all ?? 0) > 0) cur.activeClubs.add(s.tenant_name);
       byPeriod.set(s.period, cur);
     });
-    return Array.from(byPeriod.entries())
+    const all = Array.from(byPeriod.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([period, v]) => ({
         period,
@@ -177,6 +177,8 @@ export function CSPage({ initialTab = "contacts" }: { initialTab?: "contacts" | 
         revenue: Math.round(v.revenue),
         activeClubs: v.activeClubs.size,
       }));
+    // Cap to last 24 months so SVG paths and x-axis stay light.
+    return all.length > 24 ? all.slice(-24) : all;
   }, [snapshots, chartMode, selectedTenant, excluded]);
 
   const yoyPairs = useMemo(() => {
