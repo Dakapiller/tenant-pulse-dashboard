@@ -214,6 +214,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           created_at: string
+          display_name: string | null
           email: string
           id: string
           role: string
@@ -222,6 +223,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          display_name?: string | null
           email: string
           id: string
           role?: string
@@ -230,9 +232,31 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          display_name?: string | null
           email?: string
           id?: string
           role?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
         }
         Relationships: []
       }
@@ -241,10 +265,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
+      has_role:
+        | {
+            Args: {
+              _role: Database["public"]["Enums"]["app_role"]
+              _user_id: string
+            }
+            Returns: boolean
+          }
+        | { Args: { _role: string; _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "superuser" | "cs" | "pending"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -371,6 +403,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["superuser", "cs", "pending"],
+    },
   },
 } as const
