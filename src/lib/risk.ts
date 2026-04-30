@@ -14,10 +14,10 @@ export type RiskFlag =
   | "no_revenue";
 
 export const FLAG_META: Record<RiskFlag, { label: string; points: number; description: string }> = {
-  games_drop_5:      { label: "Jogos em queda",   points: 25, description: "Jogos online caíram mais de 5% vs mês anterior" },
-  gmv_drop_5:        { label: "GMV em queda",     points: 20, description: "GMV total caiu mais de 5% vs mês anterior" },
-  revenue_drop_5:    { label: "Receita em queda", points: 25, description: "Receita caiu mais de 5% vs mês anterior" },
-  rate_drop_5:       { label: "Taxa em queda",    points: 20, description: "Taxa transacionada caiu mais de 5pp vs mês anterior" },
+  games_drop_5:      { label: "Jogos em queda",   points: 25, description: "Jogos online caíram mais de 10% vs mês anterior" },
+  gmv_drop_5:        { label: "GMV em queda",     points: 20, description: "GMV total caiu mais de 10% vs mês anterior" },
+  revenue_drop_5:    { label: "Receita em queda", points: 25, description: "Receita caiu mais de 10% vs mês anterior" },
+  rate_drop_5:       { label: "Taxa em queda",    points: 20, description: "Taxa transacionada caiu mais de 10pp vs mês anterior" },
   games_trend_4m:    { label: "Tendência negativa: jogos",   points: 30, description: "Jogos online a cair há 4+ meses consecutivos" },
   gmv_trend_4m:      { label: "Tendência negativa: GMV",     points: 25, description: "GMV total a cair há 4+ meses consecutivos" },
   revenue_trend_4m:  { label: "Tendência negativa: receita", points: 30, description: "Receita a cair há 4+ meses consecutivos" },
