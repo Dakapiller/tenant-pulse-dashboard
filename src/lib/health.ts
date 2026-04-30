@@ -376,10 +376,10 @@ export function computeUploadDelta(
   let worst: { name: string; pct: number } | null = null;
   for (const m of metrics) {
     if (m.pct === null) continue;
-    if (m.pct < -5) {
+    if (m.pct < -10) {
       drops++;
       if (!worst || m.pct < worst.pct) worst = { name: m.name, pct: m.pct };
-    } else if (m.pct > 5) {
+    } else if (m.pct > 10) {
       ups++;
     }
   }
