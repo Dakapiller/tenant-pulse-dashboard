@@ -5,10 +5,12 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Plus, SlidersHorizontal, Sparkles, Star, X,
+  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, ImageIcon, Plus, SlidersHorizontal, Sparkles, Star, X,
 } from "lucide-react";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { AdjustScoreDialog } from "@/components/AdjustScoreDialog";
+import { YoYSection } from "@/components/YoYSection";
+import { ExportClubCardDialog } from "@/components/ExportClubCardDialog";
 import { TaskQuickActions } from "@/components/TaskQuickActions";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
@@ -787,6 +789,7 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
   const [tenantStatuses, setTenantStatuses] = useState<CSTenantStatus[]>([]);
   const [taskOpen, setTaskOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
+  const [exportCardOpen, setExportCardOpen] = useState(false);
 
   async function reload() {
     const [logs, tks, sts] = await Promise.all([
@@ -861,6 +864,13 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
               <SlidersHorizontal className="h-3.5 w-3.5" /> Score
             </button>
             <button
+              onClick={() => setExportCardOpen(true)}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-9 text-xs font-medium hover:bg-surface"
+              title="Exportar club card (PNG / JPEG) para partilhar com o clube"
+            >
+              <ImageIcon className="h-3.5 w-3.5" /> Club card
+            </button>
+            <button
               onClick={() => setTaskOpen(true)}
               className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
               aria-label="Nova tarefa"
@@ -870,6 +880,11 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
               className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
               aria-label="Ajustar score"
             ><SlidersHorizontal className="h-5 w-5" /></button>
+            <button
+              onClick={() => setExportCardOpen(true)}
+              className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
+              aria-label="Exportar club card"
+            ><ImageIcon className="h-5 w-5" /></button>
             <button onClick={onClose} className="inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface" aria-label="Fechar"><X className="h-5 w-5" /></button>
           </div>
         </div>
@@ -895,6 +910,8 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
               <div className="text-xs text-muted-foreground">Sem sinalizações de risco ativas.</div>
             )}
           </section>
+
+          <YoYSection history={row.history} />
 
           <ScoreVariationSection row={row} />
 
@@ -1033,6 +1050,13 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
         currentScore={row.score}
         onClose={() => setScoreOpen(false)}
         onApplied={async () => { await reload(); await onChanged?.(); }}
+      />
+      <ExportClubCardDialog
+        open={exportCardOpen}
+        onClose={() => setExportCardOpen(false)}
+        tenant={tenant}
+        history={row.history}
+        realScore={row.score}
       />
     </div>
   );
