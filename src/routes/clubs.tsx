@@ -1051,6 +1051,13 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
         onClose={() => setScoreOpen(false)}
         onApplied={async () => { await reload(); await onChanged?.(); }}
       />
+      <ExportClubCardDialog
+        open={exportCardOpen}
+        onClose={() => setExportCardOpen(false)}
+        tenant={tenant}
+        history={row.history}
+        realScore={row.score}
+      />
     </div>
   );
 }
