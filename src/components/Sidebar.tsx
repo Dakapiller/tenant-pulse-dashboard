@@ -16,9 +16,10 @@ const allItems: readonly NavItem[] = [
   { to: "/upload", label: "Carregar", icon: Upload, superuserOnly: true },
   { to: "/at-risk", label: "Em risco", icon: AlertTriangle },
   { to: "/cs/tasks", label: "CS", icon: Users, matchPrefix: "/cs" },
-  { to: "/help", label: "Ajuda", icon: HelpCircle, matchPrefix: "/help" },
   { to: "/admin", label: "Admin", icon: Shield, superuserOnly: true },
 ];
+
+const helpItem: NavItem = { to: "/help", label: "Ajuda", icon: HelpCircle, matchPrefix: "/help" };
 
 function isActive(pathname: string, item: NavItem): boolean {
   if (item.matchPrefix) return pathname.startsWith(item.matchPrefix);
@@ -75,6 +76,18 @@ export function Sidebar() {
         </nav>
         <div className="p-3 border-t border-border space-y-1">
           <Link
+            to={helpItem.to}
+            className={
+              "w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors " +
+              (isActive(loc.pathname, helpItem)
+                ? "bg-primary text-primary-foreground"
+                : "text-foreground hover:bg-muted")
+            }
+          >
+            <HelpCircle className="h-4 w-4" />
+            Ajuda
+          </Link>
+          <Link
             to="/profile"
             className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
           >
@@ -117,6 +130,15 @@ export function Sidebar() {
             </Link>
           );
         })}
+        <Link
+          to={helpItem.to}
+          data-active={isActive(loc.pathname, helpItem)}
+          className="bottom-nav-item"
+          aria-label="Ajuda"
+        >
+          <HelpCircle className="h-6 w-6" />
+          <span>Ajuda</span>
+        </Link>
         <Link
           to="/profile"
           data-active={loc.pathname === "/profile"}
