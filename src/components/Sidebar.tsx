@@ -116,15 +116,15 @@ export function Sidebar() {
             </Link>
           );
         })}
-        <button
-          onClick={() => void signOut()}
-          data-active={false}
+        <Link
+          to="/profile"
+          data-active={loc.pathname === "/profile"}
           className="bottom-nav-item"
-          aria-label="Sair"
+          aria-label="Perfil"
         >
-          <LogOut className="h-6 w-6" />
-          <span>Sair</span>
-        </button>
+          <UserCircle className="h-6 w-6" />
+          <span>Perfil</span>
+        </Link>
       </nav>
     </>
   );
