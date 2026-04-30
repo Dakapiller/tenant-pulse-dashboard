@@ -133,6 +133,32 @@ function AuthGate() {
 
   // user is authenticated; profile may still be loading on first frame
   if (!profile) {
+    if (profileSlow) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background px-4">
+          <div className="max-w-md text-center space-y-4">
+            <h2 className="text-lg font-semibold text-foreground">Não foi possível carregar o teu perfil</h2>
+            <p className="text-sm text-muted-foreground">
+              {profileError ?? "A ligação à base de dados está lenta ou indisponível."}
+            </p>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => { setProfileSlow(false); void refreshProfile(); }}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Tentar novamente
+              </button>
+              <button
+                onClick={() => void signOut()}
+                className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+              >
+                Terminar sessão
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
         A carregar perfil…
