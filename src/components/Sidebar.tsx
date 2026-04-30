@@ -78,7 +78,7 @@ export function Sidebar() {
           <Link
             to={helpItem.to}
             className={
-              "w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors " +
+              "w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap text-center rounded-lg " +
               (isActive(loc.pathname, helpItem)
                 ? "bg-primary text-primary-foreground"
                 : "text-foreground hover:bg-muted")
@@ -89,7 +89,7 @@ export function Sidebar() {
           </Link>
           <Link
             to="/profile"
-            className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap text-center rounded-lg text-foreground hover:bg-muted"
           >
             <UserCircle className="h-4 w-4 shrink-0" />
             <div className="min-w-0">
@@ -101,7 +101,7 @@ export function Sidebar() {
           </Link>
           <button
             onClick={() => void signOut()}
-            className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap text-center rounded-lg text-foreground hover:bg-muted"
           >
             <LogOut className="h-4 w-4" />
             Sair
