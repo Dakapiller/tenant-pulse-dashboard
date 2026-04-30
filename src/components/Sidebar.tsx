@@ -1,6 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Upload, LayoutDashboard, AlertTriangle, Activity, Users, Building2, Shield, LogOut, UserCircle, HelpCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { VersionBadge } from "@/components/VersionBadge";
 
 type NavItem = {
   to: string;
@@ -50,8 +51,9 @@ export function Sidebar() {
     <>
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-60 shrink-0 border-r border-border bg-sidebar-bg flex-col sticky top-0 h-screen">
-        <div className="px-5 py-5 border-b border-border">
+        <div className="px-5 py-5 border-b border-border flex items-center justify-between gap-2">
           <Brand />
+          <VersionBadge />
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto min-h-0">
           {items.map((item) => {
