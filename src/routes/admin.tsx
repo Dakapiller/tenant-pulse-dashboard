@@ -47,9 +47,9 @@ function AdminPage() {
   };
 
   const onReject = async (id: string) => {
-    if (!confirm("Rejeitar este utilizador? Esta ação elimina a conta.")) return;
+    if (!confirm("Negar acesso a este utilizador? A conta ficará marcada como recusada.")) return;
     setBusy(id);
-    try { await rejectUser({ data: { userId: id } }); toast.success("Utilizador rejeitado"); refresh(); }
+    try { await rejectUser({ data: { userId: id } }); toast.success("Acesso negado"); refresh(); }
     catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
     finally { setBusy(null); }
   };
@@ -67,7 +67,8 @@ function AdminPage() {
   }
 
   const pending = users.filter((u) => u.role === "pending");
-  const active = users.filter((u) => u.role !== "pending");
+  const denied = users.filter((u) => u.role === "denied");
+  const active = users.filter((u) => u.role === "cs" || u.role === "superuser");
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8 pb-24 md:pb-6">
@@ -109,6 +110,25 @@ function AdminPage() {
           </div>
         )}
       </section>
+
+      {denied.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Acessos negados ({denied.length})</h2>
+          <div className="rounded-lg border border-border divide-y divide-border">
+            {denied.map((u) => (
+              <div key={u.id} className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4">
+                <div>
+                  <div className="font-medium">{u.display_name ?? u.email}</div>
+                  <div className="text-xs text-muted-foreground">{u.email}</div>
+                </div>
+                <Button size="sm" onClick={() => onApprove(u.id)} disabled={busy === u.id}>
+                  <Check className="h-4 w-4" /> Aprovar
+                </Button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Utilizadores ativos ({active.length})</h2>

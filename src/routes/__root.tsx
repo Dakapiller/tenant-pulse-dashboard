@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PendingApprovalScreen } from "@/components/PendingApprovalScreen";
+import { DeniedAccessScreen } from "@/components/DeniedAccessScreen";
 import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
@@ -106,7 +107,7 @@ function AuthGate() {
     if (loading) return;
     if (!user && !isLoginRoute) {
       void navigate({ to: "/login" });
-    } else if (user && profile && profile.role !== "pending" && isLoginRoute) {
+    } else if (user && profile && profile.role !== "pending" && profile.role !== "denied" && isLoginRoute) {
       void navigate({ to: "/" });
     }
   }, [user, profile, loading, isLoginRoute, navigate]);
@@ -168,6 +169,10 @@ function AuthGate() {
 
   if (profile.role === "pending") {
     return <PendingApprovalScreen />;
+  }
+
+  if (profile.role === "denied") {
+    return <DeniedAccessScreen />;
   }
 
   return (

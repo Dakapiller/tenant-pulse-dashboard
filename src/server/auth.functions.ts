@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-export type Role = "superuser" | "cs" | "pending";
+export type Role = "superuser" | "cs" | "pending" | "denied";
 
 export interface MeResponse {
   id: string;
