@@ -87,10 +87,20 @@ function RootComponent() {
 }
 
 function AuthGate() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, profileError, refreshProfile, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const isLoginRoute = location.pathname === "/login";
+  const [profileSlow, setProfileSlow] = useState(false);
+
+  useEffect(() => {
+    if (!user || profile) {
+      setProfileSlow(false);
+      return;
+    }
+    const t = setTimeout(() => setProfileSlow(true), 3000);
+    return () => clearTimeout(t);
+  }, [user, profile]);
 
   useEffect(() => {
     if (loading) return;
