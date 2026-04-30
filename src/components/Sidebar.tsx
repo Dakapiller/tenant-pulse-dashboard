@@ -49,11 +49,11 @@ export function Sidebar() {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-60 shrink-0 border-r border-border bg-sidebar-bg flex-col">
+      <aside className="hidden md:flex w-60 shrink-0 border-r border-border bg-sidebar-bg flex-col sticky top-0 h-screen">
         <div className="px-5 py-5 border-b border-border">
           <Brand />
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto min-h-0">
           {items.map((item) => {
             const active = isActive(loc.pathname, item);
             const Icon = item.icon;
