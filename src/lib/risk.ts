@@ -1,6 +1,6 @@
 import type { Snapshot } from "@/lib/data";
 
-// New conservative flag set: score only changes when a key metric moves >5%
+// New conservative flag set: score only changes when a key metric moves >10%
 // vs previous month, OR when there's a 4+ month consecutive negative trend.
 
 export type RiskFlag =
