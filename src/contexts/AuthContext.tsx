@@ -3,7 +3,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { getMe, type MeResponse } from "@/server/auth.functions";
 
-export type Role = "superuser" | "cs" | "pending";
+export type Role = "superuser" | "cs" | "pending" | "denied";
 
 export interface UserProfile {
   id: string;

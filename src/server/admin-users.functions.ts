@@ -19,7 +19,7 @@ export interface AdminUserRow {
   id: string;
   email: string;
   display_name: string | null;
-  role: "superuser" | "cs" | "pending";
+  role: "superuser" | "cs" | "pending" | "denied";
   created_at: string;
   approved_at: string | null;
 }
@@ -99,8 +99,15 @@ export const rejectUser = createServerFn({ method: "POST" })
       .select("role")
       .eq("user_id", data.userId)
       .maybeSingle();
-    if (target?.role === "superuser") throw new Response("Cannot delete superuser", { status: 400 });
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
-    if (error) throw new Error(error.message);
+    if (target?.role === "superuser") throw new Response("Cannot deny superuser", { status: 400 });
+    const { error: rErr } = await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: data.userId, role: "denied" }, { onConflict: "user_id" });
+    if (rErr) throw new Error(rErr.message);
+    const { error: pErr } = await supabaseAdmin
+      .from("user_profiles")
+      .update({ approved_at: null, approved_by: null })
+      .eq("id", data.userId);
+    if (pErr) throw new Error(pErr.message);
     return { ok: true };
   });
