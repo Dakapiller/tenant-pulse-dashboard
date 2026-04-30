@@ -1,12 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Shield, Check, X, RotateCcw } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth, type UserProfile } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { approveUser, revokeUser, rejectUser } from "@/server/admin-users.functions";
+import { approveUser, revokeUser, rejectUser, listUsers, type AdminUserRow } from "@/server/admin-users.functions";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -15,7 +14,7 @@ export const Route = createFileRoute("/admin")({
 function AdminPage() {
   const { profile, loading } = useAuth();
   const navigate = useNavigate();
-  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -29,15 +28,12 @@ function AdminPage() {
 
   useEffect(() => {
     void (async () => {
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) {
-        toast.error(error.message);
-        return;
+      try {
+        const data = await listUsers();
+        setUsers(data);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Erro a carregar utilizadores");
       }
-      setUsers((data as UserProfile[] | null) ?? []);
     })();
   }, [refreshKey]);
 
@@ -45,37 +41,25 @@ function AdminPage() {
 
   const onApprove = async (id: string) => {
     setBusy(id);
-    try {
-      await approveUser({ data: { userId: id } });
-      toast.success("Utilizador aprovado");
-      refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro");
-    } finally { setBusy(null); }
+    try { await approveUser({ data: { userId: id } }); toast.success("Utilizador aprovado"); refresh(); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
+    finally { setBusy(null); }
   };
 
   const onReject = async (id: string) => {
     if (!confirm("Rejeitar este utilizador? Esta ação elimina a conta.")) return;
     setBusy(id);
-    try {
-      await rejectUser({ data: { userId: id } });
-      toast.success("Utilizador rejeitado");
-      refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro");
-    } finally { setBusy(null); }
+    try { await rejectUser({ data: { userId: id } }); toast.success("Utilizador rejeitado"); refresh(); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
+    finally { setBusy(null); }
   };
 
   const onRevoke = async (id: string) => {
     if (!confirm("Revogar acesso deste utilizador?")) return;
     setBusy(id);
-    try {
-      await revokeUser({ data: { userId: id } });
-      toast.success("Acesso revogado");
-      refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro");
-    } finally { setBusy(null); }
+    try { await revokeUser({ data: { userId: id } }); toast.success("Acesso revogado"); refresh(); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
+    finally { setBusy(null); }
   };
 
   if (loading || profile?.role !== "superuser") {
@@ -106,7 +90,8 @@ function AdminPage() {
             {pending.map((u) => (
               <div key={u.id} className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4">
                 <div>
-                  <div className="font-medium">{u.email}</div>
+                  <div className="font-medium">{u.display_name ?? u.email}</div>
+                  <div className="text-xs text-muted-foreground">{u.email}</div>
                   <div className="text-xs text-muted-foreground">
                     Registado em {new Date(u.created_at).toLocaleString("pt-PT")}
                   </div>
@@ -132,11 +117,10 @@ function AdminPage() {
             <div key={u.id} className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">{u.email}</span>
-                  <Badge variant={u.role === "superuser" ? "default" : "secondary"}>
-                    {u.role}
-                  </Badge>
+                  <span className="font-medium">{u.display_name ?? u.email}</span>
+                  <Badge variant={u.role === "superuser" ? "default" : "secondary"}>{u.role}</Badge>
                 </div>
+                <div className="text-xs text-muted-foreground">{u.email}</div>
                 <div className="text-xs text-muted-foreground">
                   {u.approved_at ? `Aprovado em ${new Date(u.approved_at).toLocaleString("pt-PT")}` : "—"}
                 </div>
