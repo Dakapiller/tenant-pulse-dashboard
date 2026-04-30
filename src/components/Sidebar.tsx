@@ -1,6 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Upload, LayoutDashboard, AlertTriangle, Activity, Users, Building2, Shield, LogOut, UserCircle, HelpCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { VersionBadge } from "@/components/VersionBadge";
 
 type NavItem = {
   to: string;
