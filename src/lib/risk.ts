@@ -1,6 +1,6 @@
 import type { Snapshot } from "@/lib/data";
 
-// New conservative flag set: score only changes when a key metric moves >5%
+// New conservative flag set: score only changes when a key metric moves >10%
 // vs previous month, OR when there's a 4+ month consecutive negative trend.
 
 export type RiskFlag =
@@ -14,10 +14,10 @@ export type RiskFlag =
   | "no_revenue";
 
 export const FLAG_META: Record<RiskFlag, { label: string; points: number; description: string }> = {
-  games_drop_5:      { label: "Jogos em queda",   points: 25, description: "Jogos online caíram mais de 5% vs mês anterior" },
-  gmv_drop_5:        { label: "GMV em queda",     points: 20, description: "GMV total caiu mais de 5% vs mês anterior" },
-  revenue_drop_5:    { label: "Receita em queda", points: 25, description: "Receita caiu mais de 5% vs mês anterior" },
-  rate_drop_5:       { label: "Taxa em queda",    points: 20, description: "Taxa transacionada caiu mais de 5pp vs mês anterior" },
+  games_drop_5:      { label: "Jogos em queda",   points: 25, description: "Jogos online caíram mais de 10% vs mês anterior" },
+  gmv_drop_5:        { label: "GMV em queda",     points: 20, description: "GMV total caiu mais de 10% vs mês anterior" },
+  revenue_drop_5:    { label: "Receita em queda", points: 25, description: "Receita caiu mais de 10% vs mês anterior" },
+  rate_drop_5:       { label: "Taxa em queda",    points: 20, description: "Taxa transacionada caiu mais de 10pp vs mês anterior" },
   games_trend_4m:    { label: "Tendência negativa: jogos",   points: 30, description: "Jogos online a cair há 4+ meses consecutivos" },
   gmv_trend_4m:      { label: "Tendência negativa: GMV",     points: 25, description: "GMV total a cair há 4+ meses consecutivos" },
   revenue_trend_4m:  { label: "Tendência negativa: receita", points: 30, description: "Receita a cair há 4+ meses consecutivos" },
@@ -26,19 +26,19 @@ export const FLAG_META: Record<RiskFlag, { label: string; points: number; descri
 
 export const FLAG_CTA: Record<RiskFlag, { reason: string; cta: string }> = {
   games_drop_5: {
-    reason: "Jogos online caíram mais de 5% vs mês anterior",
+    reason: "Jogos online caíram mais de 10% vs mês anterior",
     cta: "Verificar se há quebra de procura ou problema técnico. Propor revisão da utilização da plataforma.",
   },
   gmv_drop_5: {
-    reason: "GMV total caiu mais de 5% vs mês anterior",
+    reason: "GMV total caiu mais de 10% vs mês anterior",
     cta: "Compreender a quebra de volume. Propor ações comerciais ou de marketing.",
   },
   revenue_drop_5: {
-    reason: "Receita caiu mais de 5% vs mês anterior",
+    reason: "Receita caiu mais de 10% vs mês anterior",
     cta: "Investigar causas da quebra de receita. Confirmar pricing e fluxo de pagamento.",
   },
   rate_drop_5: {
-    reason: "Taxa transacionada caiu mais de 5pp vs mês anterior",
+    reason: "Taxa transacionada caiu mais de 10pp vs mês anterior",
     cta: "Investigar abandono no checkout e propor revisão de UX/pricing.",
   },
   games_trend_4m: {
@@ -118,22 +118,22 @@ export function computeRisk(snapshots: Snapshot[]): RiskResult {
     details.push({ flag, label: meta.label, points: meta.points, reason });
   };
 
-  // ---- Month-over-month >5% drops ----
+  // ---- Month-over-month >10% drops ----
   if (prev) {
     const dGames = pctChange(prev.games_online, last.games_online);
-    if (dGames !== null && dGames < -5) {
+    if (dGames !== null && dGames < -10) {
       push("games_drop_5", `Jogos caíram ${fmtPct(dGames)} (${fmtNum(prev.games_online)} → ${fmtNum(last.games_online)})`);
     }
     const dGmv = pctChange(prev.gmv_all, last.gmv_all);
-    if (dGmv !== null && dGmv < -5) {
+    if (dGmv !== null && dGmv < -10) {
       push("gmv_drop_5", `GMV caiu ${fmtPct(dGmv)} (${fmtEuro(prev.gmv_all)} → ${fmtEuro(last.gmv_all)})`);
     }
     const dRev = pctChange(prev.revenue, last.revenue);
-    if (dRev !== null && dRev < -5) {
+    if (dRev !== null && dRev < -10) {
       push("revenue_drop_5", `Receita caiu ${fmtPct(dRev)} (${fmtEuro(prev.revenue)} → ${fmtEuro(last.revenue)})`);
     }
     const ratePp = (last.transacted_rate - prev.transacted_rate) * 100; // percentage points
-    if (ratePp < -5) {
+    if (ratePp < -10) {
       push("rate_drop_5", `Taxa transacionada caiu ${ratePp.toFixed(1).replace(".", ",")}pp (${(prev.transacted_rate * 100).toFixed(1)}% → ${(last.transacted_rate * 100).toFixed(1)}%)`);
     }
   }
