@@ -4,8 +4,8 @@
 //
 //   Rule 1 — New club → 100 (initial baseline)
 //   Rule 2 — Upload delta:
-//              any of {games_online, gmv_all, revenue} ↓ >5% vs prev → −10
-//              all of {games_online, gmv_all, revenue} ↑ >5% vs prev → +10
+//              any of {games_online, gmv_all, revenue} ↓ >10% vs prev → −10
+//              all of {games_online, gmv_all, revenue} ↑ >10% vs prev → +10
 //              mixed → no change, no task
 //   Rule 3 — Task outcome:
 //              bad_relationship   → −25
@@ -376,10 +376,10 @@ export function computeUploadDelta(
   let worst: { name: string; pct: number } | null = null;
   for (const m of metrics) {
     if (m.pct === null) continue;
-    if (m.pct < -5) {
+    if (m.pct < -10) {
       drops++;
       if (!worst || m.pct < worst.pct) worst = { name: m.name, pct: m.pct };
-    } else if (m.pct > 5) {
+    } else if (m.pct > 10) {
       ups++;
     }
   }

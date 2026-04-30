@@ -87,11 +87,11 @@ function ScoreArticle() {
             </ul>
             <ul className="list-disc pl-5 space-y-1 mt-2">
               <li>
-                Se <strong className="text-foreground">qualquer uma</strong> caiu mais de 5%: <strong className="text-destructive">−10 pontos</strong>{" "}
+                Se <strong className="text-foreground">qualquer uma</strong> caiu mais de 10%: <strong className="text-destructive">−10 pontos</strong>{" "}
                 e é gerada uma tarefa de CS para contactar o clube.
               </li>
               <li>
-                Se <strong className="text-foreground">as três</strong> subiram mais de 5%: <strong className="text-foreground">+10 pontos</strong>{" "}
+                Se <strong className="text-foreground">as três</strong> subiram mais de 10%: <strong className="text-foreground">+10 pontos</strong>{" "}
                 e é gerada uma tarefa para reforçar a relação.
               </li>
               <li>Em qualquer outro cenário (misto, sem variações relevantes): o score mantém-se.</li>
