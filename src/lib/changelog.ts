@@ -65,6 +65,19 @@ export async function fetchChangelog(): Promise<ChangelogEntry[]> {
   return ((data ?? []) as unknown as Record<string, unknown>[]).map(normalize);
 }
 
+export async function fetchLatestVersion(): Promise<string | null> {
+  const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from("changelog_entries" as any)
+    .select("version, released_at, created_at")
+    .order("released_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) return null;
+  const row = (data as { version: string }[] | null)?.[0];
+  return row?.version ?? null;
+}
+
 export interface ChangelogInput {
   version: string;
   released_at: string;
