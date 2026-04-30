@@ -789,6 +789,7 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
   const [tenantStatuses, setTenantStatuses] = useState<CSTenantStatus[]>([]);
   const [taskOpen, setTaskOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
+  const [exportCardOpen, setExportCardOpen] = useState(false);
 
   async function reload() {
     const [logs, tks, sts] = await Promise.all([
