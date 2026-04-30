@@ -118,22 +118,22 @@ export function computeRisk(snapshots: Snapshot[]): RiskResult {
     details.push({ flag, label: meta.label, points: meta.points, reason });
   };
 
-  // ---- Month-over-month >5% drops ----
+  // ---- Month-over-month >10% drops ----
   if (prev) {
     const dGames = pctChange(prev.games_online, last.games_online);
-    if (dGames !== null && dGames < -5) {
+    if (dGames !== null && dGames < -10) {
       push("games_drop_5", `Jogos caíram ${fmtPct(dGames)} (${fmtNum(prev.games_online)} → ${fmtNum(last.games_online)})`);
     }
     const dGmv = pctChange(prev.gmv_all, last.gmv_all);
-    if (dGmv !== null && dGmv < -5) {
+    if (dGmv !== null && dGmv < -10) {
       push("gmv_drop_5", `GMV caiu ${fmtPct(dGmv)} (${fmtEuro(prev.gmv_all)} → ${fmtEuro(last.gmv_all)})`);
     }
     const dRev = pctChange(prev.revenue, last.revenue);
-    if (dRev !== null && dRev < -5) {
+    if (dRev !== null && dRev < -10) {
       push("revenue_drop_5", `Receita caiu ${fmtPct(dRev)} (${fmtEuro(prev.revenue)} → ${fmtEuro(last.revenue)})`);
     }
     const ratePp = (last.transacted_rate - prev.transacted_rate) * 100; // percentage points
-    if (ratePp < -5) {
+    if (ratePp < -10) {
       push("rate_drop_5", `Taxa transacionada caiu ${ratePp.toFixed(1).replace(".", ",")}pp (${(prev.transacted_rate * 100).toFixed(1)}% → ${(last.transacted_rate * 100).toFixed(1)}%)`);
     }
   }
