@@ -25,7 +25,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function fetchProfileWithRetry(uid: string, attempts = 2): Promise<{ data: UserProfile | null; error: string | null }> {
+async function fetchProfileWithRetry(uid: string, attempts = 5): Promise<{ data: UserProfile | null; error: string | null }> {
   let lastErr: string | null = null;
   for (let i = 0; i < attempts; i++) {
     const { data, error } = await supabase
@@ -35,8 +35,9 @@ async function fetchProfileWithRetry(uid: string, attempts = 2): Promise<{ data:
       .maybeSingle();
     if (!error) return { data: (data as UserProfile | null) ?? null, error: null };
     lastErr = error.message ?? "Erro desconhecido";
-    // small backoff before retry
-    await new Promise((r) => setTimeout(r, 400));
+    console.warn(`[auth] profile fetch attempt ${i + 1} failed:`, lastErr);
+    // exponential backoff: 300ms, 600ms, 1200ms, 2400ms
+    await new Promise((r) => setTimeout(r, 300 * Math.pow(2, i)));
   }
   return { data: null, error: lastErr };
 }
