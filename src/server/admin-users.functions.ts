@@ -5,9 +5,9 @@ import { z } from "zod";
 
 async function assertSuperuser(userId: string) {
   const { data, error } = await supabaseAdmin
-    .from("user_profiles")
+    .from("user_roles")
     .select("role")
-    .eq("id", userId)
+    .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error("Failed to verify role");
   if (!data || data.role !== "superuser") {
@@ -15,16 +15,54 @@ async function assertSuperuser(userId: string) {
   }
 }
 
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  display_name: string | null;
+  role: "superuser" | "cs" | "pending";
+  created_at: string;
+  approved_at: string | null;
+}
+
+export const listUsers = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<AdminUserRow[]> => {
+    await assertSuperuser(context.userId);
+    const [{ data: profiles, error: pErr }, { data: roles, error: rErr }] = await Promise.all([
+      supabaseAdmin
+        .from("user_profiles")
+        .select("id,email,display_name,created_at,approved_at")
+        .order("created_at", { ascending: false }),
+      supabaseAdmin.from("user_roles").select("user_id,role"),
+    ]);
+    if (pErr) throw new Error(pErr.message);
+    if (rErr) throw new Error(rErr.message);
+    const roleMap = new Map<string, AdminUserRow["role"]>();
+    (roles ?? []).forEach((r) => roleMap.set(r.user_id as string, r.role as AdminUserRow["role"]));
+    return (profiles ?? []).map((p) => ({
+      id: p.id as string,
+      email: p.email as string,
+      display_name: (p.display_name as string | null) ?? null,
+      role: roleMap.get(p.id as string) ?? "pending",
+      created_at: p.created_at as string,
+      approved_at: (p.approved_at as string | null) ?? null,
+    }));
+  });
+
 export const approveUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ userId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertSuperuser(context.userId);
-    const { error } = await supabaseAdmin
+    const { error: rErr } = await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: data.userId, role: "cs" }, { onConflict: "user_id" });
+    if (rErr) throw new Error(rErr.message);
+    const { error: pErr } = await supabaseAdmin
       .from("user_profiles")
-      .update({ role: "cs", approved_at: new Date().toISOString(), approved_by: context.userId })
+      .update({ approved_at: new Date().toISOString(), approved_by: context.userId })
       .eq("id", data.userId);
-    if (error) throw new Error(error.message);
+    if (pErr) throw new Error(pErr.message);
     return { ok: true };
   });
 
@@ -33,18 +71,21 @@ export const revokeUser = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ userId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertSuperuser(context.userId);
-    // never revoke superuser
     const { data: target } = await supabaseAdmin
-      .from("user_profiles")
+      .from("user_roles")
       .select("role")
-      .eq("id", data.userId)
+      .eq("user_id", data.userId)
       .maybeSingle();
     if (target?.role === "superuser") throw new Response("Cannot revoke superuser", { status: 400 });
-    const { error } = await supabaseAdmin
+    const { error: rErr } = await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: data.userId, role: "pending" }, { onConflict: "user_id" });
+    if (rErr) throw new Error(rErr.message);
+    const { error: pErr } = await supabaseAdmin
       .from("user_profiles")
-      .update({ role: "pending", approved_at: null, approved_by: null })
+      .update({ approved_at: null, approved_by: null })
       .eq("id", data.userId);
-    if (error) throw new Error(error.message);
+    if (pErr) throw new Error(pErr.message);
     return { ok: true };
   });
 
@@ -54,12 +95,11 @@ export const rejectUser = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertSuperuser(context.userId);
     const { data: target } = await supabaseAdmin
-      .from("user_profiles")
+      .from("user_roles")
       .select("role")
-      .eq("id", data.userId)
+      .eq("user_id", data.userId)
       .maybeSingle();
     if (target?.role === "superuser") throw new Response("Cannot delete superuser", { status: 400 });
-    // delete auth user — cascade will remove user_profiles row
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
     if (error) throw new Error(error.message);
     return { ok: true };
