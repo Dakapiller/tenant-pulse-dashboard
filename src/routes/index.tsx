@@ -580,6 +580,7 @@ function DashboardPage() {
                   innerRadius={45}
                   outerRadius={75}
                   paddingAngle={2}
+                  isAnimationActive={false}
                 >
                   {statusDistribution.map((d) => (
                     <Cell key={d.key} fill={STATUS_COLOR[d.key]} />
