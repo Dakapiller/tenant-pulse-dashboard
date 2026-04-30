@@ -31,7 +31,7 @@ function HelpLayout() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6 md:gap-10">
+      <div className="grid grid-cols-1 md:grid-cols-[max-content_1fr] gap-6 md:gap-10">
         <nav className="md:sticky md:top-6 md:self-start">
           <ul className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
             {articles.map((a) => {
