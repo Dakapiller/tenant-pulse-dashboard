@@ -26,19 +26,19 @@ export const FLAG_META: Record<RiskFlag, { label: string; points: number; descri
 
 export const FLAG_CTA: Record<RiskFlag, { reason: string; cta: string }> = {
   games_drop_5: {
-    reason: "Jogos online caíram mais de 5% vs mês anterior",
+    reason: "Jogos online caíram mais de 10% vs mês anterior",
     cta: "Verificar se há quebra de procura ou problema técnico. Propor revisão da utilização da plataforma.",
   },
   gmv_drop_5: {
-    reason: "GMV total caiu mais de 5% vs mês anterior",
+    reason: "GMV total caiu mais de 10% vs mês anterior",
     cta: "Compreender a quebra de volume. Propor ações comerciais ou de marketing.",
   },
   revenue_drop_5: {
-    reason: "Receita caiu mais de 5% vs mês anterior",
+    reason: "Receita caiu mais de 10% vs mês anterior",
     cta: "Investigar causas da quebra de receita. Confirmar pricing e fluxo de pagamento.",
   },
   rate_drop_5: {
-    reason: "Taxa transacionada caiu mais de 5pp vs mês anterior",
+    reason: "Taxa transacionada caiu mais de 10pp vs mês anterior",
     cta: "Investigar abandono no checkout e propor revisão de UX/pricing.",
   },
   games_trend_4m: {
