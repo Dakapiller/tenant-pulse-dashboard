@@ -359,7 +359,7 @@ function MiniLine({ data, dataKey, euro, pct }: { data: { period: string; [k: st
           formatter={(v) => fmt(Number(v))}
           contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid oklch(0.93 0.01 250)" }}
         />
-        <Line type="monotone" dataKey={dataKey} stroke="oklch(0.18 0.02 250)" strokeWidth={2} dot={{ r: 2 }} />
+        <Line type="monotone" dataKey={dataKey} stroke="oklch(0.18 0.02 250)" strokeWidth={2} dot={{ r: 2 }}  isAnimationActive={false} />
       </LineChart>
     </ResponsiveContainer>
   );

@@ -488,12 +488,12 @@ function DashboardPage() {
                   formatter={(v, name) => name === "Jogos online" || name === "Jogos (ano anterior)" ? formatNumber(Number(v)) : formatEuro(Number(v))}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line yAxisId="left" type="monotone" dataKey="games" name="Jogos online" stroke="oklch(0.18 0.02 250)" strokeWidth={2} dot={{ r: 2 }} />
-                <Line yAxisId="right" type="monotone" dataKey="gmv" name="GMV total" stroke="oklch(0.55 0.18 260)" strokeWidth={2} dot={{ r: 2 }} />
-                <Line yAxisId="right" type="monotone" dataKey="revenue" name="Receita" stroke="oklch(0.65 0.18 145)" strokeWidth={2} dot={{ r: 2 }} />
-                <Line yAxisId="left" type="monotone" dataKey="gamesPrev" name="Jogos (ano anterior)" stroke="oklch(0.18 0.02 250)" strokeOpacity={0.45} strokeDasharray="4 3" strokeWidth={1.5} dot={false} />
-                <Line yAxisId="right" type="monotone" dataKey="gmvPrev" name="GMV (ano anterior)" stroke="oklch(0.55 0.18 260)" strokeOpacity={0.45} strokeDasharray="4 3" strokeWidth={1.5} dot={false} />
-                <Line yAxisId="right" type="monotone" dataKey="revenuePrev" name="Receita (ano anterior)" stroke="oklch(0.65 0.18 145)" strokeOpacity={0.45} strokeDasharray="4 3" strokeWidth={1.5} dot={false} />
+                <Line yAxisId="left" type="monotone" dataKey="games" name="Jogos online" stroke="oklch(0.18 0.02 250)" strokeWidth={2} dot={{ r: 2 }}  isAnimationActive={false} />
+                <Line yAxisId="right" type="monotone" dataKey="gmv" name="GMV total" stroke="oklch(0.55 0.18 260)" strokeWidth={2} dot={{ r: 2 }}  isAnimationActive={false} />
+                <Line yAxisId="right" type="monotone" dataKey="revenue" name="Receita" stroke="oklch(0.65 0.18 145)" strokeWidth={2} dot={{ r: 2 }}  isAnimationActive={false} />
+                <Line yAxisId="left" type="monotone" dataKey="gamesPrev" name="Jogos (ano anterior)" stroke="oklch(0.18 0.02 250)" strokeOpacity={0.45} strokeDasharray="4 3" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                <Line yAxisId="right" type="monotone" dataKey="gmvPrev" name="GMV (ano anterior)" stroke="oklch(0.55 0.18 260)" strokeOpacity={0.45} strokeDasharray="4 3" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                <Line yAxisId="right" type="monotone" dataKey="revenuePrev" name="Receita (ano anterior)" stroke="oklch(0.65 0.18 145)" strokeOpacity={0.45} strokeDasharray="4 3" strokeWidth={1.5} dot={false} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -534,9 +534,9 @@ function DashboardPage() {
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="Saudável" stackId="a" fill="oklch(0.7 0.15 145)" />
-                <Bar dataKey="Médio" stackId="a" fill="oklch(0.78 0.15 75)" />
-                <Bar dataKey="Alto" stackId="a" fill="oklch(0.65 0.2 25)" />
+                <Bar dataKey="Saudável" stackId="a" fill="oklch(0.7 0.15 145)" isAnimationActive={false} />
+                <Bar dataKey="Médio" stackId="a" fill="oklch(0.78 0.15 75)" isAnimationActive={false} />
+                <Bar dataKey="Alto" stackId="a" fill="oklch(0.65 0.2 25)" isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -580,6 +580,7 @@ function DashboardPage() {
                   innerRadius={45}
                   outerRadius={75}
                   paddingAngle={2}
+                  isAnimationActive={false}
                 >
                   {statusDistribution.map((d) => (
                     <Cell key={d.key} fill={STATUS_COLOR[d.key]} />
