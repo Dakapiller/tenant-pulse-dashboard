@@ -253,7 +253,7 @@ function AtRiskPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={c.spark}>
                       <YAxis hide domain={["dataMin", "dataMax"]} />
-                      <Line type="monotone" dataKey="games" stroke="currentColor" strokeWidth={2} dot={false} className={tone.text} />
+                      <Line type="monotone" dataKey="games" stroke="currentColor" strokeWidth={2} dot={false} className={tone.text}  isAnimationActive={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
