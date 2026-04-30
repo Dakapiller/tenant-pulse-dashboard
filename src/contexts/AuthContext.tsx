@@ -97,6 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     lastLoadedUid.current = null;
     setProfile(null);
     setProfileError(null);
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
   };
 
   const refreshProfile = async () => {
