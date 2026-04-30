@@ -48,17 +48,30 @@ function LoginPage() {
   const handleOAuth = async (provider: "google" | "apple") => {
     setBusy(true);
     try {
+      console.log("[oauth] starting", provider);
       const result = await lovable.auth.signInWithOAuth(provider, {
         redirect_uri: window.location.origin,
       });
+      console.log("[oauth] result", { redirected: result.redirected, error: result.error });
       if (result.error) {
-        toast.error(result.error instanceof Error ? result.error.message : "Erro OAuth");
+        const msg = result.error instanceof Error ? result.error.message : String(result.error);
+        toast.error(`OAuth: ${msg}`);
         setBusy(false);
         return;
       }
       if (result.redirected) return;
-      // session set, root will route
+      // session set — verify and navigate
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log("[oauth] session after setSession", !!session);
+      if (session) {
+        // hard reload to ensure auth context picks up the new session reliably
+        window.location.href = "/";
+      } else {
+        toast.error("Sessão não foi criada. Tenta novamente.");
+        setBusy(false);
+      }
     } catch (err) {
+      console.error("[oauth] exception", err);
       toast.error(err instanceof Error ? err.message : "Erro OAuth");
       setBusy(false);
     }
