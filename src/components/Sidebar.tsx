@@ -78,7 +78,7 @@ export function Sidebar() {
           <Link
             to={helpItem.to}
             className={
-              "w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors " +
+              "w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap text-center rounded-lg " +
               (isActive(loc.pathname, helpItem)
                 ? "bg-primary text-primary-foreground"
                 : "text-foreground hover:bg-muted")
