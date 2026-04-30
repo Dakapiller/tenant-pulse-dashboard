@@ -7,7 +7,7 @@ import { formatEuro, formatNumber, formatPercent, periodLabel, periodShort } fro
 import { computeYoY } from "@/lib/yoy";
 
 type ExportFormat = "png" | "jpeg";
-type RangePreset = "6m" | "12m" | "24m" | "all";
+type RangePreset = "single" | "6m" | "12m" | "24m" | "all";
 
 interface ExportClubCardDialogProps {
   open: boolean;
@@ -18,6 +18,7 @@ interface ExportClubCardDialogProps {
 }
 
 const PRESETS: { value: RangePreset; label: string; months: number | null }[] = [
+  { value: "single", label: "Apenas um mês", months: 1 },
   { value: "6m", label: "Últimos 6 meses", months: 6 },
   { value: "12m", label: "Últimos 12 meses", months: 12 },
   { value: "24m", label: "Últimos 24 meses", months: 24 },
