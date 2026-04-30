@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UploadRouteImport } from './routes/upload'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as CsRouteImport } from './routes/cs'
 import { Route as ClubsRouteImport } from './routes/clubs'
@@ -24,6 +25,11 @@ import { Route as ApiPublicHooksGenerateWeeklyTasksRouteImport } from './routes/
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
   path: '/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -85,6 +91,7 @@ export interface FileRoutesByFullPath {
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
   '/login': typeof LoginRoute
+  '/profile': typeof ProfileRoute
   '/upload': typeof UploadRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
@@ -98,6 +105,7 @@ export interface FileRoutesByTo {
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
   '/login': typeof LoginRoute
+  '/profile': typeof ProfileRoute
   '/upload': typeof UploadRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
@@ -112,6 +120,7 @@ export interface FileRoutesById {
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
   '/login': typeof LoginRoute
+  '/profile': typeof ProfileRoute
   '/upload': typeof UploadRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/clubs'
     | '/cs'
     | '/login'
+    | '/profile'
     | '/upload'
     | '/cs/history'
     | '/cs/tasks'
@@ -140,6 +150,7 @@ export interface FileRouteTypes {
     | '/clubs'
     | '/cs'
     | '/login'
+    | '/profile'
     | '/upload'
     | '/cs/history'
     | '/cs/tasks'
@@ -153,6 +164,7 @@ export interface FileRouteTypes {
     | '/clubs'
     | '/cs'
     | '/login'
+    | '/profile'
     | '/upload'
     | '/cs/history'
     | '/cs/tasks'
@@ -167,6 +179,7 @@ export interface RootRouteChildren {
   ClubsRoute: typeof ClubsRoute
   CsRoute: typeof CsRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ProfileRoute: typeof ProfileRoute
   UploadRoute: typeof UploadRoute
   TenantNameRoute: typeof TenantNameRoute
   ApiPublicHooksGenerateWeeklyTasksRoute: typeof ApiPublicHooksGenerateWeeklyTasksRoute
@@ -179,6 +192,13 @@ declare module '@tanstack/react-router' {
       path: '/upload'
       fullPath: '/upload'
       preLoaderRoute: typeof UploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -273,6 +293,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClubsRoute: ClubsRoute,
   CsRoute: CsRouteWithChildren,
   LoginRoute: LoginRoute,
+  ProfileRoute: ProfileRoute,
   UploadRoute: UploadRoute,
   TenantNameRoute: TenantNameRoute,
   ApiPublicHooksGenerateWeeklyTasksRoute:
