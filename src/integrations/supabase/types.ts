@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      changelog_entries: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          entries: Json
+          id: string
+          released_at: string
+          summary: string | null
+          title: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          entries?: Json
+          id?: string
+          released_at?: string
+          summary?: string | null
+          title: string
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          entries?: Json
+          id?: string
+          released_at?: string
+          summary?: string | null
+          title?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
       club_status_log: {
         Row: {
           changed_at: string | null

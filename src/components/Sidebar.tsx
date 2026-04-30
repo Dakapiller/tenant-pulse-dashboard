@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Upload, LayoutDashboard, AlertTriangle, Activity, Users, Building2, Shield, LogOut, UserCircle } from "lucide-react";
+import { Upload, LayoutDashboard, AlertTriangle, Activity, Users, Building2, Shield, LogOut, UserCircle, HelpCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 type NavItem = {
@@ -16,6 +16,7 @@ const allItems: readonly NavItem[] = [
   { to: "/upload", label: "Carregar", icon: Upload, superuserOnly: true },
   { to: "/at-risk", label: "Em risco", icon: AlertTriangle },
   { to: "/cs/tasks", label: "CS", icon: Users, matchPrefix: "/cs" },
+  { to: "/help", label: "Ajuda", icon: HelpCircle, matchPrefix: "/help" },
   { to: "/admin", label: "Admin", icon: Shield, superuserOnly: true },
 ];
 

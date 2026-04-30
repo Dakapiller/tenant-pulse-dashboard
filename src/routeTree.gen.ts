@@ -12,12 +12,16 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as UploadRouteImport } from './routes/upload'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as HelpRouteImport } from './routes/help'
 import { Route as CsRouteImport } from './routes/cs'
 import { Route as ClubsRouteImport } from './routes/clubs'
 import { Route as AtRiskRouteImport } from './routes/at-risk'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as TenantNameRouteImport } from './routes/tenant.$name'
+import { Route as HelpScoreRouteImport } from './routes/help.score'
+import { Route as HelpChangelogRouteImport } from './routes/help.changelog'
 import { Route as CsTasksRouteImport } from './routes/cs.tasks'
 import { Route as CsHistoryRouteImport } from './routes/cs.history'
 import { Route as ApiPublicHooksGenerateWeeklyTasksRouteImport } from './routes/api/public/hooks/generate-weekly-tasks'
@@ -35,6 +39,11 @@ const ProfileRoute = ProfileRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpRoute = HelpRouteImport.update({
+  id: '/help',
+  path: '/help',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CsRoute = CsRouteImport.update({
@@ -62,10 +71,25 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HelpIndexRoute = HelpIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => HelpRoute,
+} as any)
 const TenantNameRoute = TenantNameRouteImport.update({
   id: '/tenant/$name',
   path: '/tenant/$name',
   getParentRoute: () => rootRouteImport,
+} as any)
+const HelpScoreRoute = HelpScoreRouteImport.update({
+  id: '/score',
+  path: '/score',
+  getParentRoute: () => HelpRoute,
+} as any)
+const HelpChangelogRoute = HelpChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => HelpRoute,
 } as any)
 const CsTasksRoute = CsTasksRouteImport.update({
   id: '/tasks',
@@ -90,12 +114,16 @@ export interface FileRoutesByFullPath {
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
+  '/help': typeof HelpRouteWithChildren
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/upload': typeof UploadRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
+  '/help/changelog': typeof HelpChangelogRoute
+  '/help/score': typeof HelpScoreRoute
   '/tenant/$name': typeof TenantNameRoute
+  '/help/': typeof HelpIndexRoute
   '/api/public/hooks/generate-weekly-tasks': typeof ApiPublicHooksGenerateWeeklyTasksRoute
 }
 export interface FileRoutesByTo {
@@ -109,7 +137,10 @@ export interface FileRoutesByTo {
   '/upload': typeof UploadRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
+  '/help/changelog': typeof HelpChangelogRoute
+  '/help/score': typeof HelpScoreRoute
   '/tenant/$name': typeof TenantNameRoute
+  '/help': typeof HelpIndexRoute
   '/api/public/hooks/generate-weekly-tasks': typeof ApiPublicHooksGenerateWeeklyTasksRoute
 }
 export interface FileRoutesById {
@@ -119,12 +150,16 @@ export interface FileRoutesById {
   '/at-risk': typeof AtRiskRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
+  '/help': typeof HelpRouteWithChildren
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/upload': typeof UploadRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
+  '/help/changelog': typeof HelpChangelogRoute
+  '/help/score': typeof HelpScoreRoute
   '/tenant/$name': typeof TenantNameRoute
+  '/help/': typeof HelpIndexRoute
   '/api/public/hooks/generate-weekly-tasks': typeof ApiPublicHooksGenerateWeeklyTasksRoute
 }
 export interface FileRouteTypes {
@@ -135,12 +170,16 @@ export interface FileRouteTypes {
     | '/at-risk'
     | '/clubs'
     | '/cs'
+    | '/help'
     | '/login'
     | '/profile'
     | '/upload'
     | '/cs/history'
     | '/cs/tasks'
+    | '/help/changelog'
+    | '/help/score'
     | '/tenant/$name'
+    | '/help/'
     | '/api/public/hooks/generate-weekly-tasks'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -154,7 +193,10 @@ export interface FileRouteTypes {
     | '/upload'
     | '/cs/history'
     | '/cs/tasks'
+    | '/help/changelog'
+    | '/help/score'
     | '/tenant/$name'
+    | '/help'
     | '/api/public/hooks/generate-weekly-tasks'
   id:
     | '__root__'
@@ -163,12 +205,16 @@ export interface FileRouteTypes {
     | '/at-risk'
     | '/clubs'
     | '/cs'
+    | '/help'
     | '/login'
     | '/profile'
     | '/upload'
     | '/cs/history'
     | '/cs/tasks'
+    | '/help/changelog'
+    | '/help/score'
     | '/tenant/$name'
+    | '/help/'
     | '/api/public/hooks/generate-weekly-tasks'
   fileRoutesById: FileRoutesById
 }
@@ -178,6 +224,7 @@ export interface RootRouteChildren {
   AtRiskRoute: typeof AtRiskRoute
   ClubsRoute: typeof ClubsRoute
   CsRoute: typeof CsRouteWithChildren
+  HelpRoute: typeof HelpRouteWithChildren
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
   UploadRoute: typeof UploadRoute
@@ -206,6 +253,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help': {
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cs': {
@@ -243,12 +297,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/help/': {
+      id: '/help/'
+      path: '/'
+      fullPath: '/help/'
+      preLoaderRoute: typeof HelpIndexRouteImport
+      parentRoute: typeof HelpRoute
+    }
     '/tenant/$name': {
       id: '/tenant/$name'
       path: '/tenant/$name'
       fullPath: '/tenant/$name'
       preLoaderRoute: typeof TenantNameRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/help/score': {
+      id: '/help/score'
+      path: '/score'
+      fullPath: '/help/score'
+      preLoaderRoute: typeof HelpScoreRouteImport
+      parentRoute: typeof HelpRoute
+    }
+    '/help/changelog': {
+      id: '/help/changelog'
+      path: '/changelog'
+      fullPath: '/help/changelog'
+      preLoaderRoute: typeof HelpChangelogRouteImport
+      parentRoute: typeof HelpRoute
     }
     '/cs/tasks': {
       id: '/cs/tasks'
@@ -286,12 +361,27 @@ const CsRouteChildren: CsRouteChildren = {
 
 const CsRouteWithChildren = CsRoute._addFileChildren(CsRouteChildren)
 
+interface HelpRouteChildren {
+  HelpChangelogRoute: typeof HelpChangelogRoute
+  HelpScoreRoute: typeof HelpScoreRoute
+  HelpIndexRoute: typeof HelpIndexRoute
+}
+
+const HelpRouteChildren: HelpRouteChildren = {
+  HelpChangelogRoute: HelpChangelogRoute,
+  HelpScoreRoute: HelpScoreRoute,
+  HelpIndexRoute: HelpIndexRoute,
+}
+
+const HelpRouteWithChildren = HelpRoute._addFileChildren(HelpRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AtRiskRoute: AtRiskRoute,
   ClubsRoute: ClubsRoute,
   CsRoute: CsRouteWithChildren,
+  HelpRoute: HelpRouteWithChildren,
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
   UploadRoute: UploadRoute,
