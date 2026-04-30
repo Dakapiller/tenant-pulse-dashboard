@@ -1,58 +1,49 @@
-## O problema
+## Problema confirmado
 
-Criaste uma tarefa manual no clube **2HaveFun – Colégio Ale…** mas:
-- A coluna "Pendentes" na lista de clubes só conta tarefas com `week_start === semana atual`. Tarefas criadas para outra semana ou já atrasadas não aparecem.
-- O cartão expandido (intermédio) na lista de clubes não mostra tarefas pendentes — só a Cronologia/score/histórico CS de tarefas **completadas**.
-- O drawer só mostra "Histórico CS — Tarefas" filtrado por `status === "completed"`. Pendentes ficam invisíveis.
-- A página completa do tenant (`/tenant/$name`) também só mostra completadas.
+Testei o fluxo no preview:
 
-## "Histórico de estado" — o que faz
+- Já estás autenticado com Google (`andreduquec@gmail.com`, role `superuser` na BD).
+- Em qualquer rota (`/`, `/login`) a página fica eternamente em **"A carregar…"**.
+- O `AuthContext` nunca passa `loading` para `false`.
 
-Mostra alterações ao **estado de ciclo de vida** do clube (Ativo → Possível churn → Em churn → Fechado, etc.), feitas manualmente na lista de clubes através do editor inline. Útil para auditoria ("quando passou a churn?", "quem reativou?"), mas o título atual é ambíguo. Vou mantê-lo e melhorar a etiqueta + texto vazio.
+A BD e as RLS estão OK (verifiquei: o perfil existe e as policies permitem `auth.uid() = id`). O problema é puramente client-side no `AuthContext`.
 
-## Mudanças
+## Causa
 
-### 1. Contagem de pending corrigida (`src/routes/clubs.tsx`)
-- `ClubRow`: dividir em `pendingThisWeek`, `overdue`, `pendingTotal`.
-- Coluna "Pendentes" mostra o total (badge laranja) + sub-badge vermelho com `overdue` quando >0.
-- Tooltip no badge: "X desta semana, Y atrasadas".
+No `src/contexts/AuthContext.tsx` o `setLoading(false)` está atrás de um `await loadProfile()` dentro do `.then()` do `getSession()`:
 
-### 2. Cartão expandido intermédio (`ClubHistoryPanel`, ~linha 670 de `clubs.tsx`)
-Adicionar uma secção **no topo** do painel "Tarefas pendentes" com lista compacta (data prevista, razão, CTA, prioridade) — só renderiza se `pending > 0`.
-
-### 3. Drawer (`ClubDrawer`, ~linha 735 de `clubs.tsx`)
-- Adicionar badge "X pendentes" no cabeçalho ao lado do `ClubStatusBadge`.
-- Inserir uma nova secção "Tarefas pendentes" **acima** de "Histórico CS — Tarefas". Se >0, listar com data da semana, razão, CTA e prioridade. Se 0, esconder a secção.
-
-### 4. Página completa do tenant (`src/routes/tenant.$name.tsx`)
-- Adicionar bloco "Tarefas pendentes" antes do "Histórico CS" existente.
-- Mostra badge no cabeçalho com count.
-
-### 5. "Histórico de estado" — clarificar
-- Renomear secção para **"Histórico de mudanças de estado (ciclo de vida)"**.
-- Texto vazio: _"Sem alterações registadas. Esta secção mostra quando o clube mudou entre Ativo, Possível churn, Em churn, etc."_
-
-### 6. Bottom nav (`/at-risk`)
-A coluna at-risk e o `/cs/tasks` já contam pending corretamente — confirmar que o filtro por week_start não esconde manuais (já vi: `cs.tasks.tsx` usa `t.week_start === weekStart`, igual ao bug em clubs.tsx). Mudar para mostrar **todas** as pending, com separação visual entre "esta semana" e "atrasadas" (já existe a tabela "Atrasadas" em cima — verificar).
-
-## Detalhes técnicos
-
-```text
-ClubRow {
-  pendingThisWeek: number   // t.status==="pending" && t.week_start===weekStart
-  overdue: number           // t.status==="pending" && t.week_start < weekStart
-  pendingTotal: number      // soma das duas
-}
+```ts
+void supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+  ...
+  if (s?.user) await loadProfile(s.user.id);  // se isto pendura, nunca chega abaixo
+  setLoading(false);
+});
 ```
 
-Render da coluna:
-```tsx
-r.pendingTotal > 0 ? (
-  <span title={`${r.pendingThisWeek} desta semana, ${r.overdue} atrasadas`}
-        className="rounded-full bg-warning/15 text-warning px-2 py-0.5 text-xs">
-    {r.pendingTotal}{r.overdue > 0 && <span className="ml-1 text-danger">!</span>}
-  </span>
-) : <span className="text-success">✓</span>
-```
+Se a query a `user_profiles` falhar/travar (já vimos um `PGRST001 - Database client error` no console), o gate fica preso. Além disso o `onAuthStateChange` corre em paralelo e também chama `loadProfile`, podendo competir com o flow inicial.
 
-Ficheiros tocados: `src/routes/clubs.tsx`, `src/routes/tenant.$name.tsx`. Sem mudanças de schema, sem migrações.
+Este é o anti-padrão clássico do Supabase: nunca fazer `await` de queries dentro do callback de auth, nem segurar o `loading` enquanto se carrega o perfil.
+
+## Correção
+
+Reescrever `src/contexts/AuthContext.tsx`:
+
+1. **Separar `loading` (sessão) de `profileLoading` (perfil)**. O `loading` da sessão fecha assim que sabemos se há ou não sessão — não espera pelo perfil.
+2. No `.then()` do `getSession()`: definir `session`/`user` e `setLoading(false)` **imediatamente**. Disparar `loadProfile` em paralelo via `setTimeout(..., 0)` (sem `await`).
+3. No `onAuthStateChange`: já está a usar `setTimeout` (bom). Manter, mas garantir que não duplica a chamada inicial — usar uma flag para o load do perfil só correr uma vez por user id.
+4. Tornar `loadProfile` resiliente: em vez de `setProfile(null)` em erro (que faz o gate cair em "Aguarda aprovação" / loop), manter o profile anterior e só definir `null` na primeira tentativa. Adicionar 1 retry simples com pequeno backoff para o caso `PGRST001`.
+
+Atualizar `src/routes/__root.tsx` no `AuthGate`:
+
+- Renderizar "A carregar perfil…" só durante um curto intervalo; se o perfil não vier ao fim de ~3 s mas o user existe, mostrar uma mensagem com botão "Tentar novamente" / "Sair" (para não ficar eternamente preso se a BD estiver mesmo down).
+
+Não tocar em mais nada (login form, OAuth, admin, RLS, migrations).
+
+## Ficheiros a editar
+
+- `src/contexts/AuthContext.tsx` — restructurar o effect, separar loadings, retry no `loadProfile`.
+- `src/routes/__root.tsx` — `AuthGate` com fallback amigável quando o perfil demora/falha.
+
+## Como vais validar
+
+Depois da mudança vou navegar a `/` no preview e confirmar que entras direto na app (já estás logado e és `superuser`).

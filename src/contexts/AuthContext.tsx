@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -18,50 +18,78 @@ interface AuthContextValue {
   session: Session | null;
   profile: UserProfile | null;
   loading: boolean;
+  profileError: string | null;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const loadProfile = async (uid: string) => {
+async function fetchProfileWithRetry(uid: string, attempts = 2): Promise<{ data: UserProfile | null; error: string | null }> {
+  let lastErr: string | null = null;
+  for (let i = 0; i < attempts; i++) {
     const { data, error } = await supabase
       .from("user_profiles")
       .select("*")
       .eq("id", uid)
       .maybeSingle();
+    if (!error) return { data: (data as UserProfile | null) ?? null, error: null };
+    lastErr = error.message ?? "Erro desconhecido";
+    // small backoff before retry
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return { data: null, error: lastErr };
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const lastLoadedUid = useRef<string | null>(null);
+
+  const loadProfile = async (uid: string) => {
+    const { data, error } = await fetchProfileWithRetry(uid);
     if (error) {
       console.error("loadProfile error", error);
-      setProfile(null);
+      setProfileError(error);
+      // do NOT clear an existing profile — keep last good value
       return;
     }
-    setProfile((data as UserProfile | null) ?? null);
+    setProfileError(null);
+    setProfile(data);
+  };
+
+  const triggerProfileLoad = (uid: string, force = false) => {
+    if (!force && lastLoadedUid.current === uid) return;
+    lastLoadedUid.current = uid;
+    // fire-and-forget; never await inside auth callbacks
+    setTimeout(() => { void loadProfile(uid); }, 0);
   };
 
   useEffect(() => {
-    // Set up listener FIRST
+    // Listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       if (newSession?.user) {
-        // defer to avoid deadlocks
-        setTimeout(() => { void loadProfile(newSession.user.id); }, 0);
+        triggerProfileLoad(newSession.user.id);
       } else {
+        lastLoadedUid.current = null;
         setProfile(null);
+        setProfileError(null);
       }
     });
 
-    // THEN check existing session
-    void supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+    // THEN check existing session — never await DB queries here
+    void supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
-      if (s?.user) await loadProfile(s.user.id);
+      if (s?.user) triggerProfileLoad(s.user.id);
+      setLoading(false);
+    }).catch((e) => {
+      console.error("getSession error", e);
       setLoading(false);
     });
 
@@ -70,15 +98,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    lastLoadedUid.current = null;
     setProfile(null);
+    setProfileError(null);
   };
 
   const refreshProfile = async () => {
-    if (user) await loadProfile(user.id);
+    if (user) {
+      lastLoadedUid.current = null;
+      await loadProfile(user.id);
+      lastLoadedUid.current = user.id;
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, profileError, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
