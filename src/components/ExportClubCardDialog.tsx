@@ -34,8 +34,8 @@ function buildInsights(history: Snapshot[]): string[] {
   const latest = sorted[sorted.length - 1];
   const insights: string[] = [];
 
-  // YoY
-  const yoy = computeYoY(sorted, latest.period);
+  // YoY (sem Receita — não é partilhada com clubes)
+  const yoy = computeYoY(sorted, latest.period)?.filter((m) => m.key !== "revenue");
   if (yoy) {
     const wins = yoy.filter((m) => m.pctChange !== null && m.pctChange > 5);
     const losses = yoy.filter((m) => m.pctChange !== null && m.pctChange < -5);
@@ -253,11 +253,10 @@ export function ExportClubCardDialog({ open, onClose, tenant, history, realScore
 
               {/* Latest KPIs */}
               {latest && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
                   {[
                     { label: "GMV", value: formatEuro(latest.gmv_all) },
                     { label: "Jogos online", value: formatNumber(latest.games_online) },
-                    { label: "Receita", value: formatEuro(latest.revenue) },
                     { label: "Taxa de conversão", value: formatPercent(latest.transacted_rate) },
                   ].map((k) => (
                     <div key={k.label} style={{ background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 12, border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -299,7 +298,6 @@ export function ExportClubCardDialog({ open, onClose, tenant, history, realScore
                         <th style={{ padding: "6px 8px" }}>Mês</th>
                         <th style={{ padding: "6px 8px", textAlign: "right" }}>GMV</th>
                         <th style={{ padding: "6px 8px", textAlign: "right" }}>Jogos</th>
-                        <th style={{ padding: "6px 8px", textAlign: "right" }}>Receita</th>
                         <th style={{ padding: "6px 8px", textAlign: "right" }}>Taxa</th>
                       </tr>
                     </thead>
@@ -309,7 +307,6 @@ export function ExportClubCardDialog({ open, onClose, tenant, history, realScore
                           <td style={{ padding: "5px 8px" }}>{periodLabel(s.period)}</td>
                           <td style={{ padding: "5px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatEuro(s.gmv_all)}</td>
                           <td style={{ padding: "5px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatNumber(s.games_online)}</td>
-                          <td style={{ padding: "5px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatEuro(s.revenue)}</td>
                           <td style={{ padding: "5px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatPercent(s.transacted_rate)}</td>
                         </tr>
                       ))}
