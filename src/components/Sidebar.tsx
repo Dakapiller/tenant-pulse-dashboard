@@ -131,6 +131,15 @@ export function Sidebar() {
           );
         })}
         <Link
+          to={helpItem.to}
+          data-active={isActive(loc.pathname, helpItem)}
+          className="bottom-nav-item"
+          aria-label="Ajuda"
+        >
+          <HelpCircle className="h-6 w-6" />
+          <span>Ajuda</span>
+        </Link>
+        <Link
           to="/profile"
           data-active={loc.pathname === "/profile"}
           className="bottom-nav-item"
