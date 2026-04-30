@@ -101,7 +101,7 @@ export function Sidebar() {
           </Link>
           <button
             onClick={() => void signOut()}
-            className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap text-center rounded-lg text-foreground hover:bg-muted"
           >
             <LogOut className="h-4 w-4" />
             Sair
