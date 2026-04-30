@@ -62,7 +62,7 @@ export async function fetchChangelog(): Promise<ChangelogEntry[]> {
     .order("released_at", { ascending: false })
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return ((data ?? []) as Record<string, unknown>[]).map(normalize);
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map(normalize);
 }
 
 export interface ChangelogInput {
