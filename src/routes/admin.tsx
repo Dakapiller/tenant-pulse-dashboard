@@ -111,6 +111,25 @@ function AdminPage() {
         )}
       </section>
 
+      {denied.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Acessos negados ({denied.length})</h2>
+          <div className="rounded-lg border border-border divide-y divide-border">
+            {denied.map((u) => (
+              <div key={u.id} className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4">
+                <div>
+                  <div className="font-medium">{u.display_name ?? u.email}</div>
+                  <div className="text-xs text-muted-foreground">{u.email}</div>
+                </div>
+                <Button size="sm" onClick={() => onApprove(u.id)} disabled={busy === u.id}>
+                  <Check className="h-4 w-4" /> Aprovar
+                </Button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Utilizadores ativos ({active.length})</h2>
         <div className="rounded-lg border border-border divide-y divide-border">
