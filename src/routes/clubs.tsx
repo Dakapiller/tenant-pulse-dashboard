@@ -1317,8 +1317,7 @@ function BulkStatusBar({
   const [busy, setBusy] = useState(false);
   return (
     <div
-      className="fixed left-0 right-0 z-40 lg:left-60 border-t border-border bg-background/95 backdrop-blur shadow-lg
-                 bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0"
+      className="fixed left-0 right-0 bottom-0 z-40 lg:left-60 border-t border-border bg-background/95 backdrop-blur shadow-lg"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="mx-auto max-w-[1500px] px-4 py-3 flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
