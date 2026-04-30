@@ -1,5 +1,5 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts, useLocation, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PendingApprovalScreen } from "@/components/PendingApprovalScreen";
