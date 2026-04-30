@@ -864,6 +864,13 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
               <SlidersHorizontal className="h-3.5 w-3.5" /> Score
             </button>
             <button
+              onClick={() => setExportCardOpen(true)}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-9 text-xs font-medium hover:bg-surface"
+              title="Exportar club card (PNG / JPEG) para partilhar com o clube"
+            >
+              <ImageIcon className="h-3.5 w-3.5" /> Club card
+            </button>
+            <button
               onClick={() => setTaskOpen(true)}
               className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
               aria-label="Nova tarefa"
@@ -873,6 +880,11 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
               className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
               aria-label="Ajustar score"
             ><SlidersHorizontal className="h-5 w-5" /></button>
+            <button
+              onClick={() => setExportCardOpen(true)}
+              className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
+              aria-label="Exportar club card"
+            ><ImageIcon className="h-5 w-5" /></button>
             <button onClick={onClose} className="inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface" aria-label="Fechar"><X className="h-5 w-5" /></button>
           </div>
         </div>
