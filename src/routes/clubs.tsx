@@ -911,6 +911,8 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
             )}
           </section>
 
+          <YoYSection history={row.history} />
+
           <ScoreVariationSection row={row} />
 
           <section className="rounded-lg border border-border overflow-hidden">
