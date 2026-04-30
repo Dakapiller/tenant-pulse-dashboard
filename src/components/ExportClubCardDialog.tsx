@@ -84,12 +84,25 @@ export function ExportClubCardDialog({ open, onClose, tenant, history, realScore
   const [busy, setBusy] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // Lista de meses disponíveis (asc) — usada quando o utilizador escolhe "Apenas um mês".
+  const availablePeriods = useMemo(
+    () => [...history].map((s) => s.period).sort((a, b) => a.localeCompare(b)),
+    [history],
+  );
+  const [selectedMonth, setSelectedMonth] = useState<string>(
+    () => availablePeriods[availablePeriods.length - 1] ?? "",
+  );
+
   const filtered = useMemo(() => {
     const sorted = [...history].sort((a, b) => a.period.localeCompare(b.period));
+    if (preset === "single") {
+      const target = selectedMonth || sorted[sorted.length - 1]?.period;
+      return sorted.filter((s) => s.period === target);
+    }
     const months = PRESETS.find((p) => p.value === preset)?.months;
     if (!months) return sorted;
     return sorted.slice(-months);
-  }, [history, preset]);
+  }, [history, preset, selectedMonth]);
 
   const displayScore = Math.max(realScore, DISPLAY_FLOOR);
   const insights = useMemo(() => buildInsights(filtered), [filtered]);
