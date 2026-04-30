@@ -74,7 +74,7 @@ export async function fetchLatestVersion(): Promise<string | null> {
     .order("created_at", { ascending: false })
     .limit(1);
   if (error) return null;
-  const row = (data as { version: string }[] | null)?.[0];
+  const row = (data as unknown as { version: string }[] | null)?.[0];
   return row?.version ?? null;
 }
 
