@@ -53,7 +53,7 @@ export function Sidebar() {
         <div className="px-5 py-5 border-b border-border">
           <Brand />
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto min-h-0">
           {items.map((item) => {
             const active = isActive(loc.pathname, item);
             const Icon = item.icon;
