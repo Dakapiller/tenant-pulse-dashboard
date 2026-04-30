@@ -163,6 +163,18 @@ export function ExportClubCardDialog({ open, onClose, tenant, history, realScore
             >
               {PRESETS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
+            {preset === "single" && availablePeriods.length > 0 && (
+              <select
+                value={selectedMonth || availablePeriods[availablePeriods.length - 1]}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="px-2.5 py-1.5 rounded-md border border-border bg-background text-xs"
+                title="Escolher o mês a exportar"
+              >
+                {[...availablePeriods].reverse().map((p) => (
+                  <option key={p} value={p}>{periodLabel(p)}</option>
+                ))}
+              </select>
+            )}
             <select
               value={format}
               onChange={(e) => setFormat(e.target.value as ExportFormat)}
