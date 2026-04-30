@@ -177,10 +177,10 @@
     color: var(--color-foreground);
   }
 
-  /* Reserve space for the mobile bottom nav so content never sits under it. */
+  /* Respect safe-area on mobile (sidebar moved to a left drawer). */
   @media (max-width: 767px) {
     body {
-      padding-bottom: calc(64px + env(safe-area-inset-bottom));
+      padding-bottom: env(safe-area-inset-bottom);
     }
   }
 
