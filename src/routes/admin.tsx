@@ -47,9 +47,9 @@ function AdminPage() {
   };
 
   const onReject = async (id: string) => {
-    if (!confirm("Rejeitar este utilizador? Esta ação elimina a conta.")) return;
+    if (!confirm("Negar acesso a este utilizador? A conta ficará marcada como recusada.")) return;
     setBusy(id);
-    try { await rejectUser({ data: { userId: id } }); toast.success("Utilizador rejeitado"); refresh(); }
+    try { await rejectUser({ data: { userId: id } }); toast.success("Acesso negado"); refresh(); }
     catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); }
     finally { setBusy(null); }
   };
@@ -67,7 +67,8 @@ function AdminPage() {
   }
 
   const pending = users.filter((u) => u.role === "pending");
-  const active = users.filter((u) => u.role !== "pending");
+  const denied = users.filter((u) => u.role === "denied");
+  const active = users.filter((u) => u.role === "cs" || u.role === "superuser");
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8 pb-24 md:pb-6">
