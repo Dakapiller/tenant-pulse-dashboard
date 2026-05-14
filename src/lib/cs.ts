@@ -73,6 +73,7 @@ export const OUTCOME_OPTIONS: { value: string; label: string }[] = [
 
 export function outcomeLabel(value: string | null | undefined): string {
   if (!value) return "—";
+  if (value === "cancelled_inactive") return "Anulada — não está ativo";
   return OUTCOME_OPTIONS.find((o) => o.value === value)?.label ?? value;
 }
 
@@ -399,6 +400,29 @@ export async function setClubStatus(
       changed_by: changedBy,
     } as never);
   if (e2) throw e2;
+  // If the new status makes the club inactive, cancel any pending tasks.
+  if (!isActiveStatus(newStatus)) {
+    await cancelPendingTasksForTenant(tenant);
+  }
+}
+
+/**
+ * Cancel all pending CS tasks for a tenant. Used when a club is moved to a
+ * non-active status (churned/closed/changed_owner) — pending tasks should
+ * not be actionable anymore but kept in history as "anuladas".
+ */
+export async function cancelPendingTasksForTenant(tenant: string): Promise<void> {
+  const { error } = await supabase
+    .from("cs_tasks")
+    .update({
+      status: "cancelled",
+      outcome: "cancelled_inactive",
+      note: "Não está ativo",
+      completed_at: new Date().toISOString(),
+    } as never)
+    .eq("tenant_name", tenant)
+    .eq("status", "pending");
+  if (error) throw error;
 }
 
 export function lastCompletedActivityAt(tasks: CSTask[]): string | null {
