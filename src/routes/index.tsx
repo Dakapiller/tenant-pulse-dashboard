@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Legend,
   PieChart, Pie, Cell,
 } from "recharts";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
@@ -15,6 +15,7 @@ import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 import { ClubLink } from "@/components/ClubLink";
 import { Activity, AlertTriangle, Building2, Euro, Sparkles, TrendingDown, Upload } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const Route = createFileRoute("/")({
   component: DashboardPage,
@@ -227,27 +228,52 @@ function DashboardPage() {
 
   // KPIs
   const kpis = useMemo(() => {
-    // Single source of truth: a club is active iff its CURRENT status is not
-    // churned/closed/changed_owner. Use the live status map (not the
-    // period-truncated `clubs.status`) so the count aligns with /clubs (281).
-    const allTenantNames = new Set<string>();
-    clubs.forEach((c) => allTenantNames.add(c.name));
-    statuses.forEach((s) => allTenantNames.add(s.tenant_name));
+    // "Ativo" = aparece no último upload mensal E status atual não é churned/closed/changed_owner.
+    // O período de referência é SEMPRE o último upload da BD (periods[0]),
+    // independente do filtro `selectedPeriod`.
+    const latestUploadPeriod = periods[0] ?? null;
+    const tenantsInLatestUpload = new Set<string>();
+    if (latestUploadPeriod) {
+      for (const s of snapshots) if (s.period === latestUploadPeriod) tenantsInLatestUpload.add(s.tenant_name);
+    }
     let activeClubs = 0;
-    for (const name of allTenantNames) {
+    for (const name of tenantsInLatestUpload) {
       const st = currentStatusByTenant.get(name) ?? "active";
       if (isActiveStatus(st)) activeClubs++;
     }
-    const churnedThisYear = (() => {
-      const year = new Date().getUTCFullYear();
-      const set = new Set<string>();
-      statuses.forEach((s) => {
-        if (s.club_status === "churned" && s.recorded_at && new Date(s.recorded_at).getUTCFullYear() === year) {
-          set.add(s.tenant_name);
+
+    // Churn este ano = (a) status churned/closed registado este ano OU
+    //                  (b) churn implícito: deixou de aparecer e a primeira ausência cai no ano corrente.
+    const year = new Date().getUTCFullYear();
+    const churnedSet = new Set<string>();
+    statuses.forEach((s) => {
+      if ((s.club_status === "churned" || s.club_status === "closed") && s.recorded_at && new Date(s.recorded_at).getUTCFullYear() === year) {
+        churnedSet.add(s.tenant_name);
+      }
+    });
+    if (latestUploadPeriod) {
+      // periods vem ordenado descendente. Para cada tenant ausente do último upload,
+      // o "primeiro mês ausente" é o período imediatamente seguinte ao seu último período presente.
+      const periodIndex = new Map<string, number>();
+      periods.forEach((p, i) => periodIndex.set(p, i));
+      for (const [name, hist] of tenantHistory) {
+        if (tenantsInLatestUpload.has(name)) continue;
+        if (churnedSet.has(name)) continue;
+        // changed_owner não conta como churn
+        const st = currentStatusByTenant.get(name) ?? "active";
+        if (st === "changed_owner") continue;
+        const lastPresent = hist[hist.length - 1]?.period;
+        if (!lastPresent) continue;
+        const idx = periodIndex.get(lastPresent);
+        if (idx === undefined || idx === 0) continue; // não tem período seguinte
+        const firstMissing = periods[idx - 1]; // periods desc → idx-1 é o mês seguinte
+        if (firstMissing && new Date(firstMissing).getUTCFullYear() === year) {
+          churnedSet.add(name);
         }
-      });
-      return set.size;
-    })();
+      }
+    }
+    const churnedThisYear = churnedSet.size;
+
     const highRisk = clubs.filter((c) => c.score < 30 && c.status !== "churned" && c.status !== "closed").length;
     const monthGmv = (() => {
       if (!latestPeriod) return 0;
@@ -258,7 +284,7 @@ function DashboardPage() {
       return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.revenue ?? 0), 0);
     })();
     return { activeClubs, churnedThisYear, highRisk, monthGmv, monthRevenue };
-  }, [clubs, statuses, includedSnapshots, latestPeriod, currentStatusByTenant]);
+  }, [clubs, statuses, snapshots, periods, includedSnapshots, latestPeriod, currentStatusByTenant, tenantHistory]);
   // (latestPeriod intentionally referenced inside activeClubs filter above)
 
   // Monthly trend series — current and prior-year overlay
@@ -452,18 +478,16 @@ function DashboardPage() {
         </label>
       </header>
 
-      {/* Row 1 — KPIs */}
       {/* Row 1 — KPIs (KPIs that depend on snapshots show skeletons until Phase 1 lands) */}
-      <section className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
-        <KpiCard icon={<Building2 className="h-4 w-4" />} label="Clubes ativos" value={snapshotsLoaded ? formatNumber(kpis.activeClubs) : "…"} />
-        <KpiCard icon={<TrendingDown className="h-4 w-4" />} label="Churned este ano" value={formatNumber(kpis.churnedThisYear)} tone="danger" />
-        <KpiCard icon={<AlertTriangle className="h-4 w-4" />} label="Em risco alto" value={snapshotsLoaded ? formatNumber(kpis.highRisk) : "…"} tone="warning" />
-        <KpiCard icon={<Euro className="h-4 w-4" />} label="GMV mês" value={snapshotsLoaded ? formatEuro(kpis.monthGmv) : "…"} />
-        <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita mês" value={snapshotsLoaded ? formatEuro(kpis.monthRevenue) : "…"} />
-      </section>
-      <p className="text-[11px] text-muted-foreground -mt-3 mb-6">
-        Clubes ativos = clubes cujo estado atual não é churned, fechado nem mudança de proprietário (independente do período selecionado).
-      </p>
+      <TooltipProvider delayDuration={150}>
+        <section className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+          <KpiCard icon={<Building2 className="h-4 w-4" />} label="Clubes ativos" value={snapshotsLoaded ? formatNumber(kpis.activeClubs) : "…"} tooltip="Clubes presentes no último upload mensal cujo estado atual não é churn, fechado nem mudança de dono." />
+          <KpiCard icon={<TrendingDown className="h-4 w-4" />} label="Churned este ano" value={formatNumber(kpis.churnedThisYear)} tone="danger" tooltip="Clubes marcados como churn ou fechados este ano, mais clubes que deixaram de aparecer no upload (churn implícito a partir do primeiro mês ausente)." />
+          <KpiCard icon={<AlertTriangle className="h-4 w-4" />} label="Em risco alto" value={snapshotsLoaded ? formatNumber(kpis.highRisk) : "…"} tone="warning" tooltip="Clubes com health score abaixo de 30 no período selecionado." />
+          <KpiCard icon={<Euro className="h-4 w-4" />} label="GMV mês" value={snapshotsLoaded ? formatEuro(kpis.monthGmv) : "…"} tooltip="Soma do GMV de todos os clubes ativos no período selecionado." />
+          <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita mês" value={snapshotsLoaded ? formatEuro(kpis.monthRevenue) : "…"} tooltip="Soma da receita de todos os clubes ativos no período selecionado." />
+        </section>
+      </TooltipProvider>
 
       {/* Row 2 — Charts (deferred until snapshots load) */}
       {!snapshotsLoaded ? (
@@ -483,7 +507,7 @@ function DashboardPage() {
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" />
                 <YAxis yAxisId="left" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" tickFormatter={(v) => formatNumber(Number(v))} />
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" tickFormatter={(v) => `€${Math.round(Number(v) / 1000)}k`} />
-                <Tooltip
+                <RTooltip
                   contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid oklch(0.93 0.01 250)" }}
                   formatter={(v, name) => name === "Jogos online" || name === "Jogos (ano anterior)" ? formatNumber(Number(v)) : formatEuro(Number(v))}
                 />
@@ -525,7 +549,7 @@ function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.01 250)" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" />
                 <YAxis tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" />
-                <Tooltip
+                <RTooltip
                   contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid oklch(0.93 0.01 250)" }}
                   formatter={(v) => formatNumber(Number(v))}
                   labelFormatter={(label, payload) => {
@@ -586,7 +610,7 @@ function DashboardPage() {
                     <Cell key={d.key} fill={STATUS_COLOR[d.key]} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v, n) => [formatNumber(Number(v)), String(n)]} />
+                <RTooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v, n) => [formatNumber(Number(v)), String(n)]} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
               </PieChart>
             </ResponsiveContainer>
@@ -685,13 +709,23 @@ function YoyBadge({ label, pct }: { label: string; pct: number | null }) {
   );
 }
 
-function KpiCard({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone?: "danger" | "warning" }) {
+function KpiCard({ icon, label, value, tone, tooltip }: { icon: React.ReactNode; label: string; value: string; tone?: "danger" | "warning"; tooltip?: string }) {
   const toneClass = tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-foreground";
+  const iconNode = tooltip ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`${toneClass} cursor-help`}>{icon}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[260px] text-xs leading-snug">{tooltip}</TooltipContent>
+    </Tooltip>
+  ) : (
+    <span className={toneClass}>{icon}</span>
+  );
   return (
     <div className="rounded-xl border border-border bg-background p-4">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span className="uppercase tracking-wide">{label}</span>
-        <span className={toneClass}>{icon}</span>
+        {iconNode}
       </div>
       <div className={`mt-2 text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</div>
     </div>
