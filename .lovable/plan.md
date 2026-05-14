@@ -1,31 +1,31 @@
-## Causa dos erros
+## Causa do "209 novos clubes"
 
-Os 270 erros `permission denied for function has_role` não vêm de sessão expirada nem de RLS mal escrita — vêm da própria função `public.has_role`. Foi criada como `SECURITY DEFINER` mas o ACL atual (verificado na BD) só permite execução a `postgres`, `service_role` e `sandbox_exec`. O role `authenticated` (com que a app fala) não pode executá-la, pelo que qualquer política RLS que a invoque rejeita a operação antes de a avaliar. Isto bloqueia todos os inserts em `tenant_snapshots` e operações similares feitas pela UI.
+Após verificar nomes do ficheiro vs BD (com `trim`), só **5 clubes** são realmente novos em Abril; 265 já existiam em Março. O número inflado da UI vem de dois bugs:
+
+**Bug 1 — limite de 1000 linhas na deteção de churn.** `src/routes/upload.tsx` faz `supabase.from("tenant_snapshots").select("tenant_name, period").neq("period", periodIso)` sem paginar. ~290 clubes × 16 meses ≈ 4600 linhas, mas o Supabase devolve no máx. 1000, pelo que muitos meses ficam de fora e clubes existentes aparecem como "novos".
+
+**Bug 2 (mais perigoso) — Rule 1 dispara para qualquer clube sem score logado.** `computeUploadDelta` em `src/lib/health.ts` considera "novo clube" sempre que `prevScore === null`. Como o scoring nunca foi invocado em uploads anteriores, praticamente nenhum clube tem entrada em `health_score_log` — pelo que ~265 clubes existentes seriam marcados como novos e receberiam score 100, apagando o `health_score` atual em `cs_tenant_status` e ignorando Rule 2.
 
 ## Passos
 
-### 1. Migração — GRANT EXECUTE
-```sql
-GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated, anon;
-GRANT EXECUTE ON FUNCTION public.has_role(uuid, text)            TO authenticated, anon;
-```
-Reversível, não toca em dados nem em políticas.
+### 1. `src/lib/health.ts`
+- Adicionar parâmetro `hasPrevSnapshot: boolean` a `computeUploadDelta`.
+- "Novo clube" passa a ser `!hasPrevSnapshot` (e não `prevScore === null`).
+- Quando `hasPrevSnapshot && prevScore === null`, usar baseline 100 silenciosamente e correr Rule 2 contra o snapshot anterior.
+- `applyUploadScoreChanges` passa `prevSnap !== null` ao invocar.
 
-### 2. Re-carregar `Tenant_Drilldown.xlsx` para Abril/2026
-Esperado depois da migração:
-- 270 snapshots inseridos em `tenant_snapshots` (período `2026-04-01`)
-- ~209 clubes novos → Regra 1 aplica score 100 e regista em `health_score_log`
-- ~15 clubes em falta → marcados como `possible_churn` (lógica de churn existente, preservada)
-- Restantes → Regra 2 vs snapshot de Março: variações >10% em GMV/Jogos/Receita disparam ±10 e criam tarefa pendente para a semana corrente (ou fazem merge se já houver tarefa para o clube nessa semana)
+### 2. `src/routes/upload.tsx`
+- Substituir a query única de `priorRows` por `fetchAllPaged` (já importado no ficheiro), iterando todos os snapshots com `period != periodIso`.
+- Selecionar só `tenant_name` (não precisamos de `period` para o cálculo de novos/missing).
 
-Histórico anterior intacto: continua tudo via `upsert` por `(tenant_name, period)` em snapshots e `update` na linha mais recente de `cs_tenant_status`. Registos manuais e os 11 `possible_churn` de 27/04 ficam como estão.
+### 3. Re-carregar Abril 2026
+Esperado:
+- 270 inserts
+- 5 novos clubes → Rule 1 (score 100)
+- 16 missing (281 − 265) → `possible_churn`
+- 265 restantes → Rule 2 vs Março, com tarefas onde aplicável
 
-### 3. Backfill opcional
-Pergunta para confirmares com **sim** ou **não** ao aprovar:
-- **Sim** → corro um script único que aplica Regras 1 e 2 a todos os períodos existentes (Jan 2025 → Mar 2026) por ordem cronológica, escrevendo entradas em `health_score_log` com `changed_at` igual ao período (não `now()`), sem criar tarefas retroativas.
-- **Não** → scoring começa "limpo" a partir de Abril 2026; histórico fica como está.
-
-## Notas técnicas
-- A lógica de scoring no upload já está implementada em `src/routes/upload.tsx` desde a iteração anterior — não é preciso mexer.
-- O tratamento de erro `42501` adicionado fica como salvaguarda mas deixa de ser acionado no fluxo normal.
-- Confirmação do problema: `SELECT proacl FROM pg_proc WHERE proname='has_role'` devolveu apenas `postgres`, `service_role`, `sandbox_exec` — sem `authenticated`.
+## Notas
+- Sem migrações; só código.
+- Os 11 nomes com whitespace no ficheiro continuam normalizados pelo trim implícito do XLSX e pelo armazenamento atual; vou também garantir `String(...).trim()` no parse para evitar drift futuro.
+- Não toco em registos manuais nem em snapshots históricos.
