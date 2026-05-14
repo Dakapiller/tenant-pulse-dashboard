@@ -249,7 +249,50 @@ function UploadPage() {
         // Best-effort; ignore churn detection errors
       }
 
-      setResult({ success, errors, newClubs, missingClubs });
+      // Apply Health Score Rules 1 + 2 (src/lib/health.ts) for tenants whose
+      // snapshot for this period is being inserted for the first time. Re-uploads
+      // of the same month are skipped to avoid double-counting deltas.
+      let scoring: { newScored: number; downs: number; ups: number; skipped: number } | undefined;
+      if (success > 0) {
+        try {
+          const { data: prevPeriodRow } = await supabase
+            .from("tenant_snapshots")
+            .select("period")
+            .lt("period", periodIso)
+            .order("period", { ascending: false })
+            .limit(1);
+          const prevPeriod = (prevPeriodRow as { period: string }[] | null)?.[0]?.period;
+          const prevByTenant = new Map<string, Snapshot>();
+          if (prevPeriod) {
+            const prevSnaps = await fetchAllPaged<Snapshot>((from, to) =>
+              supabase.from("tenant_snapshots").select("*").eq("period", prevPeriod).range(from, to),
+            );
+            prevSnaps.forEach((s) => prevByTenant.set(s.tenant_name, s));
+          }
+          const currentScores = await fetchHealthScores();
+          const toScore = (records as unknown as Snapshot[]).filter(
+            (r) => !alreadyHadThisPeriod.has(String(r.tenant_name)),
+          );
+          const skipped = records.length - toScore.length;
+          const scoreResults = await applyUploadScoreChanges(
+            periodIso,
+            currentWeekStart(),
+            toScore,
+            prevByTenant,
+            currentScores,
+          );
+          scoring = {
+            newScored: scoreResults.filter((r) => r.isNew).length,
+            downs: scoreResults.filter((r) => !r.isNew && r.delta < 0).length,
+            ups: scoreResults.filter((r) => !r.isNew && r.delta > 0).length,
+            skipped,
+          };
+        } catch (e) {
+          errors.push({ tenant: "—", message: `Falha ao aplicar regras de score: ${e instanceof Error ? e.message : "erro desconhecido"}` });
+        }
+      }
+
+      setResult({ success, errors, newClubs, missingClubs, scoring });
       await loadHistory();
     } catch (e) {
       errors.push({ tenant: "—", message: e instanceof Error ? e.message : "Erro desconhecido" });
