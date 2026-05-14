@@ -70,6 +70,7 @@ function UploadPage() {
     errors: { tenant: string; message: string }[];
     newClubs?: string[];
     missingClubs?: string[];
+    scoring?: { newScored: number; downs: number; ups: number; skipped: number };
   } | null>(null);
 
   async function loadHistory() {
