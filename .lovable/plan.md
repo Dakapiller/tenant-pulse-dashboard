@@ -1,31 +1,65 @@
-## Causa do "209 novos clubes"
+## Objetivo
 
-Após verificar nomes do ficheiro vs BD (com `trim`), só **5 clubes** são realmente novos em Abril; 265 já existiam em Março. O número inflado da UI vem de dois bugs:
+1. Corrigir o KPI **Clubes ativos** (e por arrasto **Churned este ano**) para refletir o que aparece no último upload mensal, contando como churn os clubes que deixaram de aparecer.
+2. Adicionar tooltips informativas no ícone (canto superior direito) de cada um dos 5 KPIs.
 
-**Bug 1 — limite de 1000 linhas na deteção de churn.** `src/routes/upload.tsx` faz `supabase.from("tenant_snapshots").select("tenant_name, period").neq("period", periodIso)` sem paginar. ~290 clubes × 16 meses ≈ 4600 linhas, mas o Supabase devolve no máx. 1000, pelo que muitos meses ficam de fora e clubes existentes aparecem como "novos".
+---
 
-**Bug 2 (mais perigoso) — Rule 1 dispara para qualquer clube sem score logado.** `computeUploadDelta` em `src/lib/health.ts` considera "novo clube" sempre que `prevScore === null`. Como o scoring nunca foi invocado em uploads anteriores, praticamente nenhum clube tem entrada em `health_score_log` — pelo que ~265 clubes existentes seriam marcados como novos e receberiam score 100, apagando o `health_score` atual em `cs_tenant_status` e ignorando Rule 2.
+## 1. Lógica de "ativo" / "churn implícito"
 
-## Passos
+### Regra atual (errada)
+`activeClubs` em `src/routes/index.tsx` percorre todos os tenants alguma vez vistos e conta como ativo se `currentStatusByTenant` ≠ churned/closed/changed_owner. Não exige presença no último upload — clubes que pararam de submeter dados continuam a contar como ativos.
 
-### 1. `src/lib/health.ts`
-- Adicionar parâmetro `hasPrevSnapshot: boolean` a `computeUploadDelta`.
-- "Novo clube" passa a ser `!hasPrevSnapshot` (e não `prevScore === null`).
-- Quando `hasPrevSnapshot && prevScore === null`, usar baseline 100 silenciosamente e correr Rule 2 contra o snapshot anterior.
-- `applyUploadScoreChanges` passa `prevSnap !== null` ao invocar.
+### Nova regra
+Um clube conta como **ativo** se cumpre AMBOS:
+- Apareceu no snapshot do **último período carregado** (`latestPeriod` da BD, não o `selectedPeriod`).
+- O `currentStatusByTenant` não é `churned`, `closed`, nem `changed_owner`.
 
-### 2. `src/routes/upload.tsx`
-- Substituir a query única de `priorRows` por `fetchAllPaged` (já importado no ficheiro), iterando todos os snapshots com `period != periodIso`.
-- Selecionar só `tenant_name` (não precisamos de `period` para o cálculo de novos/missing).
+Um clube conta como **churn** (para o KPI "Churned este ano") se:
+- Tem status atual `churned` **OU `closed`** registado em `cs_tenant_status` no ano corrente, **OU**
+- Não aparece no último período carregado mas apareceu em algum período anterior — churn implícito, com data = **primeiro mês em que deixou de aparecer** (primeira ausência consecutiva até hoje). Se essa data cair no ano corrente, conta.
 
-### 3. Re-carregar Abril 2026
-Esperado:
-- 270 inserts
-- 5 novos clubes → Rule 1 (score 100)
-- 16 missing (281 − 265) → `possible_churn`
-- 265 restantes → Rule 2 vs Março, com tarefas onde aplicável
+`changed_owner` não conta como churn (continua excluído de ativos mas não é churn).
 
-## Notas
-- Sem migrações; só código.
-- Os 11 nomes com whitespace no ficheiro continuam normalizados pelo trim implícito do XLSX e pelo armazenamento atual; vou também garantir `String(...).trim()` no parse para evitar drift futuro.
-- Não toco em registos manuais nem em snapshots históricos.
+### Implementação
+Em `src/routes/index.tsx`, dentro do `useMemo` dos `kpis`:
+
+- Construir `latestUploadPeriod = periods[0]` (o período mais recente da BD, independente do filtro).
+- Construir `tenantsInLatestUpload: Set<string>` a partir de `snapshots.filter(s => s.period === latestUploadPeriod)`.
+- `activeClubs` = nº de tenants em `tenantsInLatestUpload` cujo status atual passa em `isActiveStatus(...)`.
+- `churnedThisYear`:
+  - Tenants com status `churned` ou `closed` cuja `recorded_at` está no ano atual (já existe, alargar para incluir `closed`).
+  - **Mais** os tenants ausentes do último upload, cuja primeira ausência (ver helper abaixo) caia no ano atual e que não estejam já contados acima.
+- Helper `firstMissingPeriod(tenant, periods, tenantHistory)`: percorre `periods` (descendentes) e devolve o período mais antigo em que o tenant esteve ausente de forma contínua até `latestUploadPeriod`. Equivalente: a partir do último período presente do tenant (`lastPresent`), o "primeiro mês em falta" é o período imediatamente seguinte a `lastPresent` em `periods`. Se `lastPresent === latestUploadPeriod`, não há ausência.
+
+Esta nota informativa já presente abaixo dos KPIs (`Clubes ativos = clubes cujo estado atual…`) deve ser reescrita para refletir a nova regra.
+
+### Notas
+- Não mexer no resto da página (gráficos, distribuição por estado, evolução positiva continuam a usar `clubs` filtrado por `selectedPeriod`).
+- Não criar migrações — é tudo derivação no cliente.
+
+---
+
+## 2. Tooltips nos KPIs
+
+Adicionar `Tooltip` (já existe em `src/components/ui/tooltip.tsx`, baseado em Radix) ao ícone do canto superior direito de cada `KpiCard`.
+
+### Mudanças
+- Estender `KpiCard` em `src/routes/index.tsx` com prop `tooltip?: string`.
+- Quando presente, embrulhar o `<span>` do ícone num `Tooltip` + `TooltipTrigger asChild` + `TooltipContent` com o texto. Garantir `TooltipProvider` no root (verificar se já está em `__root.tsx`; se não, adicionar à página).
+- Cursor `help` no ícone.
+
+### Conteúdos (pt-PT, curtos, 1–2 linhas)
+- **Clubes ativos** — "Clubes presentes no último upload mensal cujo estado atual não é churn, fechado nem mudança de dono."
+- **Churned este ano** — "Clubes marcados como churn ou fechados este ano, mais clubes que deixaram de aparecer no upload (churn implícito a partir do primeiro mês ausente)."
+- **Em risco alto** — "Clubes com health score abaixo de 30 no período selecionado."
+- **GMV mês** — "Soma do GMV de todos os clubes ativos no período selecionado."
+- **Receita mês** — "Soma da receita de todos os clubes ativos no período selecionado."
+
+---
+
+## Detalhes técnicos
+
+- Ficheiros tocados: `src/routes/index.tsx` apenas (mais possível adição de `TooltipProvider` em `src/routes/__root.tsx` se ainda não estiver montado globalmente — confirmar antes).
+- Sem alterações de schema, sem migrações, sem mudanças em `src/lib/health.ts` ou `src/lib/cs.ts`.
+- A nota textual abaixo dos KPIs (linha 464–466) deve ser atualizada ou removida, já que os tooltips passam a transportar essa informação.
