@@ -158,6 +158,16 @@ function UploadPage() {
         records.push(rec);
       });
 
+      // Capture tenants that already have this period BEFORE upsert.
+      // Used to skip Rule 2 scoring on re-uploads of the same month.
+      const { data: existingThisPeriodRows } = await supabase
+        .from("tenant_snapshots")
+        .select("tenant_name")
+        .eq("period", periodIso);
+      const alreadyHadThisPeriod = new Set(
+        (existingThisPeriodRows as { tenant_name: string }[] | null)?.map((r) => r.tenant_name) ?? [],
+      );
+
       // Upsert in chunks for progress
       const CHUNK = 50;
       for (let i = 0; i < records.length; i += CHUNK) {
@@ -172,7 +182,10 @@ function UploadPage() {
               .from("tenant_snapshots")
               .upsert(rec as never, { onConflict: "tenant_name,period" });
             if (e2) {
-              errors.push({ tenant: String(rec.tenant_name), message: e2.message });
+              const friendly = /row-level security|permission denied|42501/i.test(e2.message)
+                ? `${e2.message} — sessão sem permissões de superuser. Sair e voltar a entrar pode resolver.`
+                : e2.message;
+              errors.push({ tenant: String(rec.tenant_name), message: friendly });
             } else {
               success += 1;
             }
