@@ -6,6 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, FileSpreadsheet, UploadCloud, XCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { applyUploadScoreChanges, fetchHealthScores } from "@/lib/health";
+import { currentWeekStart } from "@/lib/cs";
+import { fetchAllPaged, type Snapshot } from "@/lib/data";
 
 export const Route = createFileRoute("/upload")({
   component: UploadPage,
@@ -67,6 +70,7 @@ function UploadPage() {
     errors: { tenant: string; message: string }[];
     newClubs?: string[];
     missingClubs?: string[];
+    scoring?: { newScored: number; downs: number; ups: number; skipped: number };
   } | null>(null);
 
   async function loadHistory() {
@@ -154,6 +158,16 @@ function UploadPage() {
         records.push(rec);
       });
 
+      // Capture tenants that already have this period BEFORE upsert.
+      // Used to skip Rule 2 scoring on re-uploads of the same month.
+      const { data: existingThisPeriodRows } = await supabase
+        .from("tenant_snapshots")
+        .select("tenant_name")
+        .eq("period", periodIso);
+      const alreadyHadThisPeriod = new Set(
+        (existingThisPeriodRows as { tenant_name: string }[] | null)?.map((r) => r.tenant_name) ?? [],
+      );
+
       // Upsert in chunks for progress
       const CHUNK = 50;
       for (let i = 0; i < records.length; i += CHUNK) {
@@ -168,7 +182,10 @@ function UploadPage() {
               .from("tenant_snapshots")
               .upsert(rec as never, { onConflict: "tenant_name,period" });
             if (e2) {
-              errors.push({ tenant: String(rec.tenant_name), message: e2.message });
+              const friendly = /row-level security|permission denied|42501/i.test(e2.message)
+                ? `${e2.message} — sessão sem permissões de superuser. Sair e voltar a entrar pode resolver.`
+                : e2.message;
+              errors.push({ tenant: String(rec.tenant_name), message: friendly });
             } else {
               success += 1;
             }
@@ -232,7 +249,50 @@ function UploadPage() {
         // Best-effort; ignore churn detection errors
       }
 
-      setResult({ success, errors, newClubs, missingClubs });
+      // Apply Health Score Rules 1 + 2 (src/lib/health.ts) for tenants whose
+      // snapshot for this period is being inserted for the first time. Re-uploads
+      // of the same month are skipped to avoid double-counting deltas.
+      let scoring: { newScored: number; downs: number; ups: number; skipped: number } | undefined;
+      if (success > 0) {
+        try {
+          const { data: prevPeriodRow } = await supabase
+            .from("tenant_snapshots")
+            .select("period")
+            .lt("period", periodIso)
+            .order("period", { ascending: false })
+            .limit(1);
+          const prevPeriod = (prevPeriodRow as { period: string }[] | null)?.[0]?.period;
+          const prevByTenant = new Map<string, Snapshot>();
+          if (prevPeriod) {
+            const prevSnaps = await fetchAllPaged<Snapshot>((from, to) =>
+              supabase.from("tenant_snapshots").select("*").eq("period", prevPeriod).range(from, to),
+            );
+            prevSnaps.forEach((s) => prevByTenant.set(s.tenant_name, s));
+          }
+          const currentScores = await fetchHealthScores();
+          const toScore = (records as unknown as Snapshot[]).filter(
+            (r) => !alreadyHadThisPeriod.has(String(r.tenant_name)),
+          );
+          const skipped = records.length - toScore.length;
+          const scoreResults = await applyUploadScoreChanges(
+            periodIso,
+            currentWeekStart(),
+            toScore,
+            prevByTenant,
+            currentScores,
+          );
+          scoring = {
+            newScored: scoreResults.filter((r) => r.isNew).length,
+            downs: scoreResults.filter((r) => !r.isNew && r.delta < 0).length,
+            ups: scoreResults.filter((r) => !r.isNew && r.delta > 0).length,
+            skipped,
+          };
+        } catch (e) {
+          errors.push({ tenant: "—", message: `Falha ao aplicar regras de score: ${e instanceof Error ? e.message : "erro desconhecido"}` });
+        }
+      }
+
+      setResult({ success, errors, newClubs, missingClubs, scoring });
       await loadHistory();
     } catch (e) {
       errors.push({ tenant: "—", message: e instanceof Error ? e.message : "Erro desconhecido" });
@@ -350,6 +410,24 @@ function UploadPage() {
                     </ul>
                   </details>
                 )}
+              </div>
+            )}
+            {result.scoring && (
+              <div className="rounded-md border border-border p-3 text-sm space-y-1">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Health Score (Regras 1 e 2)</div>
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <span><span className="font-medium">{result.scoring.newScored}</span> novos clubes — score inicial 100</span>
+                  <span>·</span>
+                  <span><span className="font-medium">{result.scoring.downs}</span> com queda &gt;10% — −10 e tarefa criada</span>
+                  <span>·</span>
+                  <span><span className="font-medium">{result.scoring.ups}</span> com subida &gt;10% — +10 e tarefa criada</span>
+                  {result.scoring.skipped > 0 && (
+                    <>
+                      <span>·</span>
+                      <span className="text-muted-foreground">{result.scoring.skipped} ignorados (re-upload do mesmo mês)</span>
+                    </>
+                  )}
+                </div>
               </div>
             )}
             {result.errors.length > 0 && (
