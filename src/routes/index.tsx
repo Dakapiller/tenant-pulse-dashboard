@@ -484,7 +484,7 @@ function DashboardPage() {
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" />
                 <YAxis yAxisId="left" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" tickFormatter={(v) => formatNumber(Number(v))} />
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" tickFormatter={(v) => `€${Math.round(Number(v) / 1000)}k`} />
-                <Tooltip
+                <RTooltip
                   contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid oklch(0.93 0.01 250)" }}
                   formatter={(v, name) => name === "Jogos online" || name === "Jogos (ano anterior)" ? formatNumber(Number(v)) : formatEuro(Number(v))}
                 />
@@ -526,7 +526,7 @@ function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.01 250)" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" />
                 <YAxis tick={{ fontSize: 11 }} stroke="oklch(0.6 0.02 250)" />
-                <Tooltip
+                <RTooltip
                   contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid oklch(0.93 0.01 250)" }}
                   formatter={(v) => formatNumber(Number(v))}
                   labelFormatter={(label, payload) => {
@@ -587,7 +587,7 @@ function DashboardPage() {
                     <Cell key={d.key} fill={STATUS_COLOR[d.key]} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v, n) => [formatNumber(Number(v)), String(n)]} />
+                <RTooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v, n) => [formatNumber(Number(v)), String(n)]} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
               </PieChart>
             </ResponsiveContainer>
