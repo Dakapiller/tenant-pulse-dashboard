@@ -37,20 +37,19 @@ export const getMe = createServerFn({ method: "GET" })
       (email ? email.split("@")[0] : null);
 
     // Make sure the profile + role rows exist (idempotent — safe even though a trigger also creates them).
-    const isBootstrap = email.toLowerCase() === "andreduquec@gmail.com";
     await supabaseAdmin.from("user_profiles").upsert(
       {
         id: userId,
         email,
         display_name: fallbackName,
-        approved_at: isBootstrap ? new Date().toISOString() : null,
+        approved_at: null,
       },
       { onConflict: "id", ignoreDuplicates: false },
     );
     await supabaseAdmin.from("user_roles").upsert(
       {
         user_id: userId,
-        role: isBootstrap ? "superuser" : "pending",
+        role: "pending",
       },
       { onConflict: "user_id", ignoreDuplicates: true },
     );
