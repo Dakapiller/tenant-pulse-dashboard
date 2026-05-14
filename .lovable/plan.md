@@ -1,123 +1,72 @@
-## Objetivo
+## Diagnóstico
 
-Adicionar uma secção de **Ajuda / Knowledge Base** acessível via item no sidebar, com dois artigos:
-1. **Como funciona o Health Score** — conteúdo estático detalhado, baseado nas regras já implementadas em `src/lib/health.ts`.
-2. **Novidades por versão** — changelog dinâmico alimentado por uma tabela na BD, gerida por superusers.
+Investiguei o que aconteceu com o upload de Abril e encontrei **dois problemas independentes**:
 
----
+### 1. As regras de scoring NUNCA foram aplicadas em nenhum upload
 
-## 1. Base de dados
+O ficheiro `src/lib/health.ts` define `applyUploadScoreChanges()` (Regra 1: novo clube → 100; Regra 2: queda/subida >10% em GMV/Jogos/Receita → ±10), mas **`src/routes/upload.tsx` nunca chama esta função**. O upload faz apenas:
 
-Nova tabela `changelog_entries`:
+- Upsert em `tenant_snapshots`
+- Deteção de "novos clubes" e "clubes em falta" (churn)
 
-| coluna | tipo | notas |
-|---|---|---|
-| `id` | uuid PK | default `gen_random_uuid()` |
-| `version` | text | ex.: "1.4.0" ou "2026-04-30" — único |
-| `released_at` | date | data do deploy |
-| `title` | text | título curto da versão |
-| `summary` | text nullable | parágrafo introdutório opcional |
-| `entries` | jsonb | array de `{ type: "feature"\|"improvement"\|"fix", text: string }` |
-| `created_at` / `updated_at` | timestamptz | |
-| `created_by` | uuid nullable | referência informativa a `auth.users` |
+Resultado: **nenhum upload (de Janeiro 2025 até Março 2026) atualizou o `health_score`** segundo as regras. As regras existem na codebase mas nunca foram invocadas.
 
-**RLS:**
-- SELECT: qualquer utilizador autenticado (incluindo `pending`/`denied`? Não — só roles ≥ user, mas como a tabela não é sensível, basta `auth.uid() IS NOT NULL`).
-- INSERT/UPDATE/DELETE: apenas `has_role(auth.uid(), 'superuser')`.
+### 2. O upload de Abril 2026 NÃO chegou à base de dados
 
-**Seed inicial:** uma entrada "v1.0 — Lançamento inicial" com as funcionalidades atuais resumidas (dashboard, clubes, em risco, CS tasks, admin de utilizadores, autenticação com aprovação, score automático, etc.).
+A BD tem snapshots até **2026-03-01 (281 clubes)**. Não existe nenhuma linha para `period = 2026-04-01`. O ficheiro que carregaste agora tem 270 linhas e os cabeçalhos batem certo com o `COLUMN_MAP` (a coluna nova "B2C Refunds Commissions" é simplesmente ignorada, sem causar erro). Os últimos uploads bem-sucedidos foram em **2026-04-26/27**, todos para meses anteriores.
+
+A causa mais provável dos erros que viste: o upload é feito com a sessão do browser e a política RLS exige `superuser`. Se a sessão expirou ou o token não foi anexado, o upsert dá `new row violates row-level security policy` para cada chunk, **e a UI mostra "0 tenants registados" + lista de erros**, sem persistir nada. Sem o detalhe exato dos erros não consigo confirmar a 100%, mas o sintoma (zero linhas em Abril, erros em série) encaixa.
 
 ---
 
-## 2. Sidebar — novo item "Ajuda"
+## Plano de correção (uma só vez)
 
-Editar `src/components/Sidebar.tsx`:
-- Adicionar item `{ to: "/help", label: "Ajuda", icon: HelpCircle }` (lucide).
-- Posição: antes de "Admin" no desktop; também aparece no bottom nav móvel (substituir lógica de profile lá se necessário, ou adicionar).
-- Visível para **todos os utilizadores autenticados** (não é superuserOnly).
+### A. Ligar as regras de scoring ao upload (`src/routes/upload.tsx`)
 
----
+Depois do upsert dos snapshots e antes do return, chamar `applyUploadScoreChanges()` com:
 
-## 3. Rotas
+- `uploadedPeriod` = período carregado
+- `weekStart` = segunda-feira da semana atual (já calculada noutro lado; reutilizar `cs.ts`)
+- `current` = snapshots recém-inseridos (`records`)
+- `previousByTenant` = um snapshot por clube do período imediatamente anterior (uma query a `tenant_snapshots` com `period < uploadedPeriod` ordenado desc, primeira ocorrência por tenant)
+- `currentScores` = resultado de `fetchHealthScores()`
 
-Estrutura layout + filhos:
+Mostrar no resumo do upload (já há um bloco com novos/missing) três contadores extra:
 
-```text
-src/routes/help.tsx              -> /help (layout com sidebar dos artigos + Outlet, redireciona index para score)
-src/routes/help.index.tsx        -> /help (lista os artigos disponíveis)
-src/routes/help.score.tsx        -> /help/score (artigo do health score)
-src/routes/help.changelog.tsx    -> /help/changelog (lista de versões)
-```
+- N novos clubes → score 100 atribuído
+- N clubes com queda >10% → −10 + tarefa criada
+- N clubes com subida >10% → +10 + tarefa criada
 
-### `/help` (layout)
-- Header com título "Centro de ajuda".
-- Navegação lateral simples (em mobile vira lista no topo) com os artigos:
-  - Como funciona o Health Score
-  - Novidades por versão
-- `<Outlet />` para o conteúdo do artigo.
+**Garantias:**
+- Não apaga nenhum snapshot anterior (continuamos a usar `upsert` por `(tenant_name, period)`).
+- Não apaga registos manuais em `cs_tenant_status` (o `persistScoreChange` faz `update` da linha mais recente ou cria nova; o histórico fica intacto).
+- Re-uploads do mesmo mês são idempotentes para os snapshots, mas vão re-disparar a avaliação. Para evitar duplicar o efeito de scoring quando se re-carrega o mesmo mês, comparar primeiro se já existem entradas em `health_score_log` com `source='upload'` e `changed_at` no mês alvo — se sim, saltar Regra 2 para esse tenant (Regra 1 continua a aplicar-se a clubes verdadeiramente novos).
 
-### `/help/score` (estático)
-Conteúdo em português, estruturado em secções, baseado fielmente em `src/lib/health.ts`:
+### B. Re-executar Abril 2026
 
-- **O que é o Health Score** — número 0–100 por clube, indicador de saúde da relação.
-- **Níveis** — Em risco (<30), A monitorizar (30–59), Saudável (≥60). Tabela com badges visuais.
-- **Como o score muda** (4 regras):
-  1. Novo clube → 100.
-  2. Upload mensal: queda >5% em GMV/Jogos/Receita → −10 (gera tarefa CS); subida >5% nos três → +10 (gera tarefa de reforço); misto → sem alteração.
-  3. Resultado de tarefa CS: má relação −25, boa recetividade +10, muito satisfeito +25.
-  4. Ajuste manual via botão "Ajustar score" (com comentário obrigatório, ignora floor).
-- **Mínimo dinâmico (floor)** — very_satisfied nos últimos 3 meses → mínimo 80; good_receptivity nos últimos 2 meses → mínimo 60. Bad_relationship não impõe floor.
-- **Onde ver o histórico** — link para a aba de histórico do tenant.
-- **Flags informativas** — explicar que as flags de risco (queda 5%, tendência 4m, sem receita) são apenas descritivas e NÃO afetam o score.
+Depois de A estar feito:
 
-### `/help/changelog` (dinâmico)
-- Server function `getChangelog` (ou query direta à tabela via cliente browser, já que SELECT é livre para autenticados — opto por isto: simples e usa RLS).
-- Lista entradas ordenadas por `released_at` desc.
-- Cada entrada = card com: versão, data formatada PT, título, summary opcional, e lista agrupada por tipo (Funcionalidades / Melhorias / Correções) com ícones e cores.
-- **Se o utilizador for superuser:** botões "Nova entrada", "Editar", "Eliminar" inline.
+1. Carregar de novo o `Tenant_Drilldown_4.xlsx` selecionando **Abril / 2026**.
+2. Se voltar a falhar com erros de RLS, abrir consola do browser e copiar o erro exato — pode ser preciso refresh ao login para renovar o token. Como salvaguarda adicional, posso melhorar o tratamento de erro no upload para mostrar uma mensagem clara ("Sessão expirada, voltar a entrar") quando o erro for `42501` / `permission denied`.
+3. O upload vai:
+   - Inserir os 270 clubes de Abril sem mexer no histórico
+   - Marcar como "novos" os que não existiam antes (Regra 1)
+   - Marcar como `possible_churn` os que existiam em Março mas faltam em Abril (lógica de churn já existente, preservada)
+   - Aplicar Regra 2 aos restantes e criar tarefas pendentes para a semana corrente
 
-### Diálogo de criação/edição (superuser)
-Componente `ChangelogEntryDialog`:
-- Campos: versão, data, título, summary, e editor de itens (lista dinâmica com tipo + texto, botão "+ adicionar item").
-- Validações com Zod no cliente; insert/update via `supabase` (RLS garante).
+### C. Backfill opcional do scoring para o histórico
 
----
+As Regras 1 e 2 nunca correram desde o início. Se quiseres "alinhar" o `health_score` com o histórico real, posso correr uma única migração/script que:
 
-## 4. Memória de produto
+- Itera por ordem cronológica todos os períodos já existentes
+- Aplica `applyUploadScoreChanges` período a período
+- Escreve as entradas em `health_score_log` com `changed_at` igual ao período do snapshot (não `now()`), para o histórico ficar legível
+- Não cria tarefas retroativas (apenas atualiza scores)
 
-Quando o user me pedir "atualiza o changelog com X" no futuro, eu próprio insiro nova entrada na BD (via insert tool) — dispensa o user de o fazer manualmente, embora ele também possa.
-Vou guardar este protocolo em `mem://features/changelog`.
+Esta etapa é **opcional** — se preferires que o scoring comece "limpo" a partir de Abril 2026, saltamos C.
 
----
+## Notas técnicas
 
-## Detalhes técnicos
-
-- **Acesso à tabela:** uso o `supabase` browser client (RLS protege escrita). Não preciso de server function porque não há lógica sensível — apenas leitura/escrita governada por policies.
-- **Tipos:** após a migration, `src/integrations/supabase/types.ts` é regenerado automaticamente; os componentes usam os tipos gerados.
-- **i18n:** todo o texto em pt-PT, alinhado com o resto da app.
-- **Estilo:** reutilizo `Card`, `Badge`, `Button`, `Dialog`, `Textarea`, `Input` já existentes em `src/components/ui/*`. Sem novas dependências.
-- **Mobile:** o item "Ajuda" entra no bottom nav (já há 6 itens potencialmente — vou validar e, se necessário, mover "Ajuda" para dentro do menu de perfil em mobile para não saturar).
-
----
-
-## Ficheiros a criar / editar
-
-**Criar:**
-- `supabase/migrations/<timestamp>_changelog.sql` — tabela + RLS + seed inicial
-- `src/lib/changelog.ts` — fetch + mutate helpers + tipos
-- `src/routes/help.tsx` — layout
-- `src/routes/help.index.tsx` — landing
-- `src/routes/help.score.tsx` — artigo do score
-- `src/routes/help.changelog.tsx` — changelog dinâmico
-- `src/components/ChangelogEntryDialog.tsx` — diálogo create/edit
-
-**Editar:**
-- `src/components/Sidebar.tsx` — item "Ajuda"
-
----
-
-## Fora de âmbito (confirma se queres)
-
-- Pesquisa dentro da KB.
-- Mais artigos (ex.: "Como funcionam as flags de risco", "Como gerir tarefas CS"). Posso criar a estrutura para ser fácil adicionar mais — mas começo com 2.
-- Notificação "tens novidades" (badge no item Ajuda quando há entrada nova desde o último login). Pode ser uma 2ª iteração.
+- `applyUploadScoreChanges` já está implementado e respeita o "floor" dinâmico (`getScoreFloor`) baseado em outcomes recentes — não há risco de uma queda anular um `very_satisfied` recente.
+- O upload continua client-side com a `supabase` do browser; não muda nada na arquitetura nem nas RLS.
+- Os 11 clubes já marcados como `possible_churn` em 27/04 ficam intactos.
