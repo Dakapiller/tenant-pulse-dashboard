@@ -6,6 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, FileSpreadsheet, UploadCloud, XCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { applyUploadScoreChanges, fetchHealthScores } from "@/lib/health";
+import { currentWeekStart } from "@/lib/cs";
+import { fetchAllPaged, type Snapshot } from "@/lib/data";
 
 export const Route = createFileRoute("/upload")({
   component: UploadPage,
