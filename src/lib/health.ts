@@ -351,9 +351,12 @@ export function computeUploadDelta(
   prev: { games_online: number; gmv_all: number; revenue: number } | null,
   cur:  { games_online: number; gmv_all: number; revenue: number },
   prevScore: number | null,
+  hasPrevSnapshot: boolean,
 ): { delta: number; reason: string | null; taskCta: string | null; taskPriority: number | null; isNew: boolean } {
-  if (prevScore === null) {
-    // Rule 1 — new club
+  // Rule 1 — "new club" means no prior snapshot at all (first appearance ever),
+  // NOT just "no prior score logged". Many clubs predate the scoring rollout
+  // and therefore have no health_score_log entry — those must NOT be reset to 100.
+  if (!hasPrevSnapshot) {
     return { delta: 100, reason: "Novo clube — score inicial atribuído", taskCta: null, taskPriority: null, isNew: true };
   }
   if (!prev) return { delta: 0, reason: null, taskCta: null, taskPriority: null, isNew: false };
@@ -427,10 +430,14 @@ export async function applyUploadScoreChanges(
       prevSnap ? { games_online: Number(prevSnap.games_online ?? 0), gmv_all: Number(prevSnap.gmv_all ?? 0), revenue: Number(prevSnap.revenue ?? 0) } : null,
       { games_online: Number(cur.games_online ?? 0), gmv_all: Number(cur.gmv_all ?? 0), revenue: Number(cur.revenue ?? 0) },
       prevScore,
+      prevSnap !== null,
     );
     if (d.delta === 0 || d.reason === null) continue;
 
-    const baselinePrev = prevScore ?? 0;
+    // Existing clubs without a logged score default to 100 (the implicit baseline
+    // before the scoring rollout) — never to 0, which would treat any tweak as
+    // a +N delta from zero.
+    const baselinePrev = prevScore ?? 100;
     const newScore = await persistScoreChange(
       tenant,
       d.isNew ? 0 : baselinePrev,
