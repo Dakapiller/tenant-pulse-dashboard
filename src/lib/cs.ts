@@ -73,6 +73,7 @@ export const OUTCOME_OPTIONS: { value: string; label: string }[] = [
 
 export function outcomeLabel(value: string | null | undefined): string {
   if (!value) return "—";
+  if (value === "cancelled_inactive") return "Anulada — não está ativo";
   return OUTCOME_OPTIONS.find((o) => o.value === value)?.label ?? value;
 }
 
