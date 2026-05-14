@@ -16,7 +16,18 @@ const AUTO_CTA = "Verificar estado do clube e prevenir churn.";
 export const Route = createFileRoute("/api/public/hooks/generate-weekly-tasks")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        // Require shared secret to prevent unauthenticated abuse.
+        const expected = process.env.WEBHOOK_SECRET;
+        if (!expected) {
+          return new Response("Server misconfigured", { status: 500 });
+        }
+        const auth = request.headers.get("authorization") ?? "";
+        const provided = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+        if (!provided || provided !== expected) {
+          return new Response("Unauthorized", { status: 401 });
+        }
+
         const weekStart = currentWeekStart();
 
         // Latest cs_tenant_status row per tenant — gives us club_status, health_score, is_priority.
