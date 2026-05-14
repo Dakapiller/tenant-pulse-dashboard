@@ -412,6 +412,24 @@ function UploadPage() {
                 )}
               </div>
             )}
+            {result.scoring && (
+              <div className="rounded-md border border-border p-3 text-sm space-y-1">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Health Score (Regras 1 e 2)</div>
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <span><span className="font-medium">{result.scoring.newScored}</span> novos clubes — score inicial 100</span>
+                  <span>·</span>
+                  <span><span className="font-medium">{result.scoring.downs}</span> com queda &gt;10% — −10 e tarefa criada</span>
+                  <span>·</span>
+                  <span><span className="font-medium">{result.scoring.ups}</span> com subida &gt;10% — +10 e tarefa criada</span>
+                  {result.scoring.skipped > 0 && (
+                    <>
+                      <span>·</span>
+                      <span className="text-muted-foreground">{result.scoring.skipped} ignorados (re-upload do mesmo mês)</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             {result.errors.length > 0 && (
               <div className="rounded-md border border-danger/30 bg-danger/5 p-3">
                 <div className="flex items-center gap-2 text-sm text-danger font-medium mb-2">
