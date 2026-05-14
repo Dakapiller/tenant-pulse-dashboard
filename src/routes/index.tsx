@@ -15,6 +15,7 @@ import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 import { ClubLink } from "@/components/ClubLink";
 import { Activity, AlertTriangle, Building2, Euro, Sparkles, TrendingDown, Upload } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const Route = createFileRoute("/")({
   component: DashboardPage,
