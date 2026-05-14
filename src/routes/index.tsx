@@ -228,27 +228,52 @@ function DashboardPage() {
 
   // KPIs
   const kpis = useMemo(() => {
-    // Single source of truth: a club is active iff its CURRENT status is not
-    // churned/closed/changed_owner. Use the live status map (not the
-    // period-truncated `clubs.status`) so the count aligns with /clubs (281).
-    const allTenantNames = new Set<string>();
-    clubs.forEach((c) => allTenantNames.add(c.name));
-    statuses.forEach((s) => allTenantNames.add(s.tenant_name));
+    // "Ativo" = aparece no último upload mensal E status atual não é churned/closed/changed_owner.
+    // O período de referência é SEMPRE o último upload da BD (periods[0]),
+    // independente do filtro `selectedPeriod`.
+    const latestUploadPeriod = periods[0] ?? null;
+    const tenantsInLatestUpload = new Set<string>();
+    if (latestUploadPeriod) {
+      for (const s of snapshots) if (s.period === latestUploadPeriod) tenantsInLatestUpload.add(s.tenant_name);
+    }
     let activeClubs = 0;
-    for (const name of allTenantNames) {
+    for (const name of tenantsInLatestUpload) {
       const st = currentStatusByTenant.get(name) ?? "active";
       if (isActiveStatus(st)) activeClubs++;
     }
-    const churnedThisYear = (() => {
-      const year = new Date().getUTCFullYear();
-      const set = new Set<string>();
-      statuses.forEach((s) => {
-        if (s.club_status === "churned" && s.recorded_at && new Date(s.recorded_at).getUTCFullYear() === year) {
-          set.add(s.tenant_name);
+
+    // Churn este ano = (a) status churned/closed registado este ano OU
+    //                  (b) churn implícito: deixou de aparecer e a primeira ausência cai no ano corrente.
+    const year = new Date().getUTCFullYear();
+    const churnedSet = new Set<string>();
+    statuses.forEach((s) => {
+      if ((s.club_status === "churned" || s.club_status === "closed") && s.recorded_at && new Date(s.recorded_at).getUTCFullYear() === year) {
+        churnedSet.add(s.tenant_name);
+      }
+    });
+    if (latestUploadPeriod) {
+      // periods vem ordenado descendente. Para cada tenant ausente do último upload,
+      // o "primeiro mês ausente" é o período imediatamente seguinte ao seu último período presente.
+      const periodIndex = new Map<string, number>();
+      periods.forEach((p, i) => periodIndex.set(p, i));
+      for (const [name, hist] of tenantHistory) {
+        if (tenantsInLatestUpload.has(name)) continue;
+        if (churnedSet.has(name)) continue;
+        // changed_owner não conta como churn
+        const st = currentStatusByTenant.get(name) ?? "active";
+        if (st === "changed_owner") continue;
+        const lastPresent = hist[hist.length - 1]?.period;
+        if (!lastPresent) continue;
+        const idx = periodIndex.get(lastPresent);
+        if (idx === undefined || idx === 0) continue; // não tem período seguinte
+        const firstMissing = periods[idx - 1]; // periods desc → idx-1 é o mês seguinte
+        if (firstMissing && new Date(firstMissing).getUTCFullYear() === year) {
+          churnedSet.add(name);
         }
-      });
-      return set.size;
-    })();
+      }
+    }
+    const churnedThisYear = churnedSet.size;
+
     const highRisk = clubs.filter((c) => c.score < 30 && c.status !== "churned" && c.status !== "closed").length;
     const monthGmv = (() => {
       if (!latestPeriod) return 0;
@@ -259,7 +284,7 @@ function DashboardPage() {
       return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.revenue ?? 0), 0);
     })();
     return { activeClubs, churnedThisYear, highRisk, monthGmv, monthRevenue };
-  }, [clubs, statuses, includedSnapshots, latestPeriod, currentStatusByTenant]);
+  }, [clubs, statuses, snapshots, periods, includedSnapshots, latestPeriod, currentStatusByTenant, tenantHistory]);
   // (latestPeriod intentionally referenced inside activeClubs filter above)
 
   // Monthly trend series — current and prior-year overlay
