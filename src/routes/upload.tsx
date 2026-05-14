@@ -201,13 +201,15 @@ function UploadPage() {
       let missingClubs: string[] = [];
       try {
         const uploadedNames = new Set(records.map((r) => String(r.tenant_name)));
-        const { data: priorRows, error: priorErr } = await supabase
-          .from("tenant_snapshots")
-          .select("tenant_name, period")
-          .neq("period", periodIso);
-        if (!priorErr && priorRows) {
+        // Paginate: a single .select() is capped at 1000 rows, but we have
+        // ~290 clubs × many months = thousands of rows. Without pagination,
+        // many tenants from older months are missed → falsely flagged as new.
+        const priorRows = await fetchAllPaged<{ tenant_name: string }>((from, to) =>
+          supabase.from("tenant_snapshots").select("tenant_name").neq("period", periodIso).range(from, to),
+        );
+        {
           const priorNames = new Set<string>();
-          (priorRows as { tenant_name: string }[]).forEach((r) => priorNames.add(r.tenant_name));
+          priorRows.forEach((r) => priorNames.add(r.tenant_name));
           newClubs = [...uploadedNames].filter((n) => !priorNames.has(n));
           missingClubs = [...priorNames].filter((n) => !uploadedNames.has(n));
 
