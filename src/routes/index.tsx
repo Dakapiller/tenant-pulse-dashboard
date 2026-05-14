@@ -709,13 +709,23 @@ function YoyBadge({ label, pct }: { label: string; pct: number | null }) {
   );
 }
 
-function KpiCard({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone?: "danger" | "warning" }) {
+function KpiCard({ icon, label, value, tone, tooltip }: { icon: React.ReactNode; label: string; value: string; tone?: "danger" | "warning"; tooltip?: string }) {
   const toneClass = tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-foreground";
+  const iconNode = tooltip ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`${toneClass} cursor-help`}>{icon}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[260px] text-xs leading-snug">{tooltip}</TooltipContent>
+    </Tooltip>
+  ) : (
+    <span className={toneClass}>{icon}</span>
+  );
   return (
     <div className="rounded-xl border border-border bg-background p-4">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span className="uppercase tracking-wide">{label}</span>
-        <span className={toneClass}>{icon}</span>
+        {iconNode}
       </div>
       <div className={`mt-2 text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</div>
     </div>
