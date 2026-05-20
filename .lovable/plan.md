@@ -1,51 +1,37 @@
-## Plano: integrar bugs resolvidos no histórico + atualizar página de ajuda
+## Diagnóstico
 
-### 1. `src/routes/cs.history.tsx` — incluir bugs resolvidos no feed global
+Hoje é 2026-05-20. A semana corrente arranca a 2026-05-18.
 
-- Importar `fetchBugsByStatuses`, `BUG_SEVERITY_LABEL`, tipo `BugReport` de `@/lib/bugs`.
-- No `useEffect` inicial, fazer `Promise.all` com `fetchBugsByStatuses(["solved"])` em paralelo a `fetchTasksByStatusesPage` e `fetchAllCSStatuses`. Guardar em `bugs` state.
-- Criar tipo discriminado `HistoryEntry = { kind: "task"; task: CSTask } | { kind: "bug"; bug: BugReport }` e construir `entries` unificadas a partir de `tasks` e `bugs.filter(b => b.solved_at)`.
-- Adaptar `effectiveTs`, `filtered`, `grouped` para lidar com ambos os tipos (timestamp do bug = `solved_at`).
-- Filtro de outcome: bugs só aparecem quando `outcome === "all"` (não têm outcome).
-- Filtro de data e pesquisa por clube: aplicam-se igualmente aos bugs.
-- Sumário `Total ações`: incluir bugs resolvidos na contagem; `Clubes contactados` une os dois conjuntos.
-- Render: novo `StatusBadge` para bugs (badge azul "Bug resolvido" + severidade pequena), com link clicável (ícone external-link) para `bug.link`, abrindo em nova tab. Reutilizar mesma estrutura grouped/collapsible das tarefas.
-- Paginação: por simplicidade, carregar todos os bugs resolvidos no primeiro fetch (volume reduzido). O "Carregar mais 50" continua a aplicar-se só às tarefas.
+Estado atual em `cs_tasks` (status `pending`):
 
-### 2. `src/routes/tenant.$name.tsx` — entrada "Bug resolvido" na timeline do clube
+| Semana | Pendentes | Clubes distintos |
+|---|---|---|
+| 2026-05-11 (semana passada) | **182** | 182 |
+| 2026-05-18 (semana corrente) | 82 | 82 |
 
-- Importar `fetchBugsForTenant` e tipo `BugReport` de `@/lib/bugs`.
-- Acrescentar `bugs` ao state e ao `Promise.all` do `useEffect`.
-- Passar `bugs` para `CSHistory` como nova prop.
-- Em `CSHistory`, alargar o tipo `Entry` com campo opcional `kind: "task" | "bug"` e `link?: string`, `severity?: BugSeverity`.
-- Para cada bug com `solved_at`, criar entrada com:
-  - `date = solved_at`
-  - badge azul "Bug resolvido" (em vez do badge de outcome)
-  - texto principal: título do bug + chip de severidade
-  - link clicável para `bug.link` (external icon)
-  - nota = `bug.note`
-- Ordenação por data desc continua igual.
-- Texto do estado vazio mantém-se ("Sem interações de CS registadas").
+Cada clube tem no máximo uma tarefa por semana. O que se passou: o gerador semanal cria uma nova tarefa "Acompanhamento semanal automático" todas as semanas, mas **não cancela** as tarefas pendentes da semana anterior. Resultado: as 182 da semana 05-11 ficaram "atrasadas" no calendário, e 72 desses clubes têm também a tarefa nova de 05-18 a coexistir.
 
-### 3. `src/routes/help.score.tsx` — refletir Regra 5
+Não há tarefas órfãs/duplicadas dentro da mesma semana — a regra "1 tarefa por clube" mantém-se *por semana*; o problema é acumulação entre semanas.
 
-Trata-se de presentation: a página de ajuda atualmente lista 4 regras e diz "apenas quatro formas". Atualizar para 5:
+## Plano
 
-- Substituir parágrafo introdutório "quatro formas (e **apenas quatro**)" por "cinco formas (e **apenas cinco**)".
-- Adicionar novo `<Card>` **Regra 5 — Bug resolvido** depois da Regra 4:
-  - Texto: "Quando um bug reportado pela equipa de CS é marcado como **Resolvido** na lista de Bug Reports, o clube afetado recebe automaticamente **+5 pontos** de health score. O bónus aplica-se apenas na primeira transição para Resolvido — reabrir e voltar a resolver o mesmo bug não soma de novo. Estados `Não será corrigido` e `Em curso` não têm impacto no score."
-- Atualizar secção "Mínimo dinâmico (floor)" mantendo lista actual mas mencionar que o bónus de bug **respeita o mínimo dinâmico e o teto de 100** (igual às outras regras automáticas).
-- Atualizar a frase final "as quatro regras acima" na secção "Flags informativas vs. score" → "as cinco regras acima".
+**1. Limpar as pendentes atrasadas (única ação pedida)**
 
-### 4. Memória do projeto
+Marcar como `cancelled` todas as `cs_tasks` com:
+- `status = 'pending'`
+- `week_start = '2026-05-11'`
 
-A Core memory já inclui "Health Score (0-100) regido por 5 regras". Confirmar — sem alterações.
+Total: 182 linhas. Não toco nas 82 da semana corrente (05-18) nem nas `completed`/`cancelled` existentes. Sem impacto no health score (cancelamento não pontua).
 
-### Ficheiros a editar
-- `src/routes/cs.history.tsx`
-- `src/routes/tenant.$name.tsx`
-- `src/routes/help.score.tsx`
+Execução via `supabase--insert` (UPDATE).
 
-### Fora de scope
-- Página de ajuda separada para Bug Reports (pode ser adicionada depois se o user pedir).
-- Notificações ou recálculos retroativos de bugs resolvidos pré-existentes.
+**2. Validação**
+
+Após o update, confirmar via `read_query` que a semana 05-11 já não tem `pending` e que o calendário deixa de mostrar os 182 atrasados.
+
+## Fora deste plano (a confirmar contigo)
+
+A causa-raiz é o gerador semanal não fechar as pendentes anteriores. Se quiseres, num passo seguinte posso:
+- Ajustar a lógica de geração semanal para que, ao criar a tarefa da nova semana, marque automaticamente como `cancelled` qualquer `pending` anterior do mesmo clube (com nota "anulada por nova semana"), evitando que isto se repita.
+
+Diz-me se queres incluir já esse fix ou se preferes só a limpeza agora.
