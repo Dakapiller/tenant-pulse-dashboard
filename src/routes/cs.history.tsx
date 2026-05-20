@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
-import { Calendar as CalendarIcon, ChevronDown, Eye, EyeOff, Search, X } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronDown, ExternalLink, Eye, EyeOff, Search, X } from "lucide-react";
 import { ClubLink } from "@/components/ClubLink";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -18,6 +18,7 @@ import {
   type CSTask,
   type CSTenantStatus,
 } from "@/lib/cs";
+import { fetchBugsByStatuses, BUG_SEVERITY_LABEL, type BugReport } from "@/lib/bugs";
 import { FLAG_META, type RiskFlag } from "@/lib/risk";
 import { cn } from "@/lib/utils";
 
