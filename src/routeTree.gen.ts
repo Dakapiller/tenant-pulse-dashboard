@@ -26,6 +26,7 @@ import { Route as HelpChangelogRouteImport } from './routes/help.changelog'
 import { Route as CsTasksRouteImport } from './routes/cs.tasks'
 import { Route as CsHistoryRouteImport } from './routes/cs.history'
 import { Route as CsFeedbackRouteImport } from './routes/cs.feedback'
+import { Route as CsBugsRouteImport } from './routes/cs.bugs'
 
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
@@ -112,6 +113,11 @@ const CsFeedbackRoute = CsFeedbackRouteImport.update({
   path: '/feedback',
   getParentRoute: () => CsRoute,
 } as any)
+const CsBugsRoute = CsBugsRouteImport.update({
+  id: '/bugs',
+  path: '/bugs',
+  getParentRoute: () => CsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/upload': typeof UploadRoute
+  '/cs/bugs': typeof CsBugsRoute
   '/cs/feedback': typeof CsFeedbackRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/upload': typeof UploadRoute
+  '/cs/bugs': typeof CsBugsRoute
   '/cs/feedback': typeof CsFeedbackRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
@@ -162,6 +170,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/upload': typeof UploadRoute
+  '/cs/bugs': typeof CsBugsRoute
   '/cs/feedback': typeof CsFeedbackRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/upload'
+    | '/cs/bugs'
     | '/cs/feedback'
     | '/cs/history'
     | '/cs/tasks'
@@ -201,6 +211,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/upload'
+    | '/cs/bugs'
     | '/cs/feedback'
     | '/cs/history'
     | '/cs/tasks'
@@ -220,6 +231,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/upload'
+    | '/cs/bugs'
     | '/cs/feedback'
     | '/cs/history'
     | '/cs/tasks'
@@ -364,16 +376,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CsFeedbackRouteImport
       parentRoute: typeof CsRoute
     }
+    '/cs/bugs': {
+      id: '/cs/bugs'
+      path: '/bugs'
+      fullPath: '/cs/bugs'
+      preLoaderRoute: typeof CsBugsRouteImport
+      parentRoute: typeof CsRoute
+    }
   }
 }
 
 interface CsRouteChildren {
+  CsBugsRoute: typeof CsBugsRoute
   CsFeedbackRoute: typeof CsFeedbackRoute
   CsHistoryRoute: typeof CsHistoryRoute
   CsTasksRoute: typeof CsTasksRoute
 }
 
 const CsRouteChildren: CsRouteChildren = {
+  CsBugsRoute: CsBugsRoute,
   CsFeedbackRoute: CsFeedbackRoute,
   CsHistoryRoute: CsHistoryRoute,
   CsTasksRoute: CsTasksRoute,
