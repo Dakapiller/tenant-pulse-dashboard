@@ -727,14 +727,22 @@ export function formatFlagsLabel(flags: string[] | null | undefined): string {
 }
 
 /**
- * Weekly task generation (new rules — flag count is NOT a trigger):
- *   • health_score < 40           → always generate
- *   • is_priority = true          → always generate
- *   • no contact in last 3 months AND health_score in [40, 70]
- *                                 → generate, capped at 10 clubs/week
- * Excluded clubs (churned/closed/changed_owner) are skipped. The descriptive
- * flags (when present) are still embedded in the task body so the CS team has
- * concrete talking points; they no longer drive the trigger.
+ * Weekly task generation — **cap global de 10 tarefas/semana**.
+ *
+ * Buckets (ordem de prioridade):
+ *   0) low_score      → health_score < 40
+ *   1) priority       → is_priority = true
+ *   2) stale_contact  → sem contacto há >3m E score em [40, 70]
+ *
+ * Regras:
+ *   - Dedup por tenant antes do slice (um clube ocupa **1 vaga**, mantendo o
+ *     bucket de maior prioridade).
+ *   - Ordenação: bucketOrder asc, depois score asc (mais urgente primeiro).
+ *   - Insert dos primeiros 10 candidatos.
+ *   - Clubes excluídos (churned/closed/changed_owner) são saltados.
+ *
+ * Os flags informativos (quando existem) são embebidos no corpo da tarefa
+ * como talking points; não são gatilhos de geração.
  */
 async function generateWeeklyTasks(
   snapshots: Snapshot[],
@@ -761,6 +769,7 @@ async function generateWeeklyTasks(
 
   const threeMonthsAgoIso = new Date(Date.now() - 1000 * 60 * 60 * 24 * 92).toISOString();
 
+  type Bucket = "low_score" | "priority" | "stale_contact";
   type Candidate = {
     tenant_name: string;
     reason: string;
@@ -768,12 +777,13 @@ async function generateWeeklyTasks(
     priority: number;
     flags: string[];
     week_start: string;
-    bucket: "low_score" | "priority" | "stale_contact";
+    bucket: Bucket;
+    bucketOrder: number;
+    score: number; // for sort tiebreak (lower = more urgent)
   };
-  const always: Candidate[] = [];
-  const stale: Candidate[] = [];
+  const candidates: Candidate[] = [];
 
-  // Build the universe of clubs we know about (snapshots OR statuses OR priority).
+  // Universe of clubs we know about.
   const allTenants = new Set<string>();
   histByTenant.forEach((_, n) => allTenants.add(n));
   statuses.forEach((s) => allTenants.add(s.tenant_name));
@@ -789,21 +799,19 @@ async function generateWeeklyTasks(
     const lastContact = lastContactMap.get(name) ?? null;
     const noRecentContact = !lastContact || lastContact < threeMonthsAgoIso;
 
-    // Decide bucket.
-    let bucket: Candidate["bucket"] | null = null;
-    if (score !== undefined && score < 40) bucket = "low_score";
-    else if (isPriority) bucket = "priority";
+    let bucket: Bucket | null = null;
+    let bucketOrder = 0;
+    if (score !== undefined && score < 40) { bucket = "low_score"; bucketOrder = 0; }
+    else if (isPriority) { bucket = "priority"; bucketOrder = 1; }
     else if (
       noRecentContact &&
       score !== undefined &&
       score >= 40 &&
       score <= 70
-    ) bucket = "stale_contact";
+    ) { bucket = "stale_contact"; bucketOrder = 2; }
 
     if (!bucket) continue;
 
-    // Build a helpful body. If informational flags exist, list them as bullets;
-    // otherwise fall back to a generic check-in message based on the bucket.
     const risk = computeRiskWithCS(hist, stats);
     const reasonLines: string[] = [];
     const ctaLines: string[] = [];
@@ -822,28 +830,41 @@ async function generateWeeklyTasks(
       ctaLines.push(FLAG_CTA[f].cta);
     }
 
-    const candidate: Candidate = {
+    candidates.push({
       tenant_name: name,
       reason: reasonLines.join("\n"),
       cta: ctaLines.join("\n"),
-      // Priority used for sorting/UI badges only — not a score input.
-      // Lower health = higher urgency; use 100 - score so it stays in [0,100].
+      // Priority é só para UI/sort interno do front. Lower health = higher urgency.
       priority: score !== undefined ? Math.max(0, Math.min(100, 100 - score)) : 50,
       flags: [...risk.flags],
       week_start: weekStart,
       bucket,
-    };
-    if (bucket === "stale_contact") stale.push(candidate);
-    else always.push(candidate);
+      bucketOrder,
+      score: score ?? 100,
+    });
   }
 
-  // Cap stale-contact bucket at 10 clubs/week (lowest score first).
-  stale.sort((a, b) => b.priority - a.priority);
-  const staleCapped = stale.slice(0, 10);
+  // Sort first so dedup keeps the highest-priority bucket per tenant.
+  candidates.sort((a, b) => {
+    if (a.bucketOrder !== b.bucketOrder) return a.bucketOrder - b.bucketOrder;
+    return a.score - b.score;
+  });
 
-  const tasks = [...always, ...staleCapped].map(({ bucket: _b, ...rest }) => rest);
+  // Dedup by tenant — same club consumes only 1 slot.
+  const seen = new Set<string>();
+  const deduped: Candidate[] = [];
+  for (const c of candidates) {
+    if (seen.has(c.tenant_name)) continue;
+    seen.add(c.tenant_name);
+    deduped.push(c);
+  }
+
+  const tasks = deduped
+    .slice(0, 10)
+    .map(({ bucket: _b, bucketOrder: _o, score: _s, ...rest }) => rest);
   if (tasks.length > 0) await insertCSTasks(tasks);
 }
+
 
 function BulkCompleteBar({
   count, onApply, onCancel,
