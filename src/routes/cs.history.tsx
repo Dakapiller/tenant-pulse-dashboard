@@ -47,6 +47,34 @@ function outcomeBadgeClass(outcome: string | null | undefined): string {
   }
 }
 
+/** Badge for a task in history: uses status precedence (cancelled wins over outcome). */
+function StatusBadge({ task, className }: { task: CSTask; className?: string }) {
+  if (task.status === "cancelled") {
+    const tip = task.outcome ? outcomeLabel(task.outcome) : undefined;
+    return (
+      <span
+        title={tip}
+        className={cn(
+          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground border border-border line-through decoration-muted-foreground/40",
+          className,
+        )}
+      >
+        {taskStatusLabel(task)}
+      </span>
+    );
+  }
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", outcomeBadgeClass(task.outcome), className)}>
+      {outcomeLabel(task.outcome)}
+    </span>
+  );
+}
+
+/** Effective timestamp for ordering/filtering: completed_at for completed tasks, created_at for cancelled (no completed_at). */
+function effectiveTs(t: CSTask): string {
+  return t.completed_at ?? t.created_at ?? "";
+}
+
 function formatFlagsLabel(flags: string[] | null | undefined): string {
   if (!flags || flags.length === 0) return "—";
   return flags.map((f) => FLAG_META[f as RiskFlag]?.label ?? f).join(" + ");
@@ -82,7 +110,7 @@ function CSHistoryPage() {
     (async () => {
       try {
         const [page, sts] = await Promise.all([
-          fetchCompletedCSTasksPage(0, PAGE),
+          fetchTasksByStatusesPage(["completed", "cancelled"], 0, PAGE),
           fetchAllCSStatuses(),
         ]);
         if (cancelled) return;
@@ -103,11 +131,16 @@ function CSHistoryPage() {
     const toTs = dateTo ? endOfDay(dateTo).getTime() : Infinity;
     const q = debouncedSearch.trim().toLowerCase();
     return tasks.filter((t) => {
-      if (!t.completed_at) return false;
-      const ts = new Date(t.completed_at).getTime();
+      const eff = effectiveTs(t);
+      if (!eff) return false;
+      const ts = new Date(eff).getTime();
       if (ts < fromTs || ts > toTs) return false;
       if (!showInactive && excluded.has(t.tenant_name)) return false;
-      if (outcome !== "all" && t.outcome !== outcome) return false;
+      // Outcome filter only applies to completed tasks (cancelled tasks don't have a meaningful outcome).
+      if (outcome !== "all") {
+        if (t.status !== "completed") return false;
+        if (t.outcome !== outcome) return false;
+      }
       if (q && !t.tenant_name.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -120,18 +153,21 @@ function CSHistoryPage() {
       map.get(t.tenant_name)!.push(t);
     }
     const arr = Array.from(map.entries()).map(([tenant, list]) => {
-      const sorted = [...list].sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""));
+      const sorted = [...list].sort((a, b) => effectiveTs(b).localeCompare(effectiveTs(a)));
       return { tenant, tasks: sorted, last: sorted[0] };
     });
-    arr.sort((a, b) => (b.last.completed_at ?? "").localeCompare(a.last.completed_at ?? ""));
+    arr.sort((a, b) => effectiveTs(b.last).localeCompare(effectiveTs(a.last)));
     return arr;
   }, [filtered]);
 
   const summary = useMemo(() => {
-    const totalActions = filtered.length;
-    const clubs = new Set(filtered.map((t) => t.tenant_name)).size;
+    // Only count completed tasks in summary metrics — cancelled tasks (incl. cleanup)
+    // are shown for context but should not distort throughput numbers.
+    const completedOnly = filtered.filter((t) => t.status === "completed");
+    const totalActions = completedOnly.length;
+    const clubs = new Set(completedOnly.map((t) => t.tenant_name)).size;
     const counts: Record<string, number> = {};
-    for (const t of filtered) {
+    for (const t of completedOnly) {
       const key = t.outcome ?? "—";
       counts[key] = (counts[key] ?? 0) + 1;
     }
@@ -152,7 +188,7 @@ function CSHistoryPage() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const next = await fetchCompletedCSTasksPage(tasks.length, PAGE);
+      const next = await fetchTasksByStatusesPage(["completed", "cancelled"], tasks.length, PAGE);
       setTasks((prev) => [...prev, ...next]);
       setHasMore(next.length === PAGE);
     } finally {
@@ -185,7 +221,7 @@ function CSHistoryPage() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Histórico CS</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Tarefas concluídas, agrupadas por clube. {tasks.length} carregada{tasks.length === 1 ? "" : "s"}{hasMore ? "" : " · fim"}.
+          Tarefas concluídas e anuladas, agrupadas por clube. {tasks.length} carregada{tasks.length === 1 ? "" : "s"}{hasMore ? "" : " · fim"}.
         </p>
       </header>
 
@@ -313,17 +349,15 @@ function CSHistoryPage() {
                                 {list.length} {list.length === 1 ? "ação" : "ações"}
                               </span>
                             </div>
-                            <span className={cn("md:hidden mt-2 inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium", outcomeBadgeClass(last.outcome))}>
-                              {outcomeLabel(last.outcome)}
+                            <span className="md:hidden mt-2">
+                              <StatusBadge task={last} />
                             </span>
                           </div>
                         </div>
                         <div className="hidden md:flex items-center gap-3 shrink-0">
-                          <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", outcomeBadgeClass(last.outcome))}>
-                            {outcomeLabel(last.outcome)}
-                          </span>
+                          <StatusBadge task={last} />
                           <span className="text-xs text-muted-foreground">
-                            {last.completed_at ? format(new Date(last.completed_at), "dd MMM yyyy", { locale: pt }) : ""}
+                            {effectiveTs(last) ? format(new Date(effectiveTs(last)), "dd MMM yyyy", { locale: pt }) : ""}
                           </span>
                         </div>
                       </button>
@@ -335,11 +369,9 @@ function CSHistoryPage() {
                           <li key={t.id} className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-xs text-muted-foreground">
-                                {t.completed_at ? format(new Date(t.completed_at), "dd MMM yyyy", { locale: pt }) : "—"}
+                                {effectiveTs(t) ? format(new Date(effectiveTs(t)), "dd MMM yyyy", { locale: pt }) : "—"}
                               </span>
-                              <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0", outcomeBadgeClass(t.outcome))}>
-                                {outcomeLabel(t.outcome)}
-                              </span>
+                              <StatusBadge task={t} className="shrink-0" />
                             </div>
                             {t.flags && t.flags.length > 0 && (
                               <div>
@@ -368,15 +400,13 @@ function CSHistoryPage() {
                             {list.map((t) => (
                               <tr key={t.id} className="border-b border-border/50 last:border-0 align-top">
                                 <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
-                                  {t.completed_at ? format(new Date(t.completed_at), "dd MMM yyyy", { locale: pt }) : "—"}
+                                  {effectiveTs(t) ? format(new Date(effectiveTs(t)), "dd MMM yyyy", { locale: pt }) : "—"}
                                 </td>
                                 <td className="py-2 pr-3">
                                   <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{formatFlagsLabel(t.flags)}</span>
                                 </td>
                                 <td className="py-2 pr-3 whitespace-nowrap">
-                                  <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", outcomeBadgeClass(t.outcome))}>
-                                    {outcomeLabel(t.outcome)}
-                                  </span>
+                                  <StatusBadge task={t} />
                                 </td>
                                 <td className="py-2 text-muted-foreground">
                                   {t.note ? <span className="italic">“{t.note}”</span> : <span className="text-muted-foreground/60">—</span>}
