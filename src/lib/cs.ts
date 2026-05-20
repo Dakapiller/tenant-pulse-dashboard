@@ -71,11 +71,31 @@ export const OUTCOME_OPTIONS: { value: string; label: string }[] = [
   { value: "very_satisfied", label: "Cliente ficou muito satisfeito, agradeceu contacto" },
 ];
 
+/**
+ * Label do **resultado** de uma tarefa (lê `outcome`).
+ *
+ * Precedência UI: usar **apenas** em tooltips ou na linha de detalhe para descrever
+ * o que aconteceu. Para o badge de estado (Pendente/Concluída/Anulada) usar
+ * `taskStatusLabel` que lê `status`. Nunca misturar os dois no mesmo elemento.
+ */
 export function outcomeLabel(value: string | null | undefined): string {
   if (!value) return "—";
   if (value === "cancelled_inactive") return "Anulada — não está ativo";
+  if (value === "cancelled_manual") return "Anulada";
+  if (value === "cancelled_cleanup") return "Anulada (limpeza)";
   return OUTCOME_OPTIONS.find((o) => o.value === value)?.label ?? value;
 }
+
+/**
+ * Label do **estado** de uma tarefa (lê `status`).
+ * Ver `outcomeLabel` para a regra de precedência.
+ */
+export function taskStatusLabel(t: { status: string }): "Pendente" | "Concluída" | "Anulada" {
+  if (t.status === "completed") return "Concluída";
+  if (t.status === "cancelled") return "Anulada";
+  return "Pendente";
+}
+
 
 // ISO date (YYYY-MM-DD) for the Monday of the current week (UTC).
 export function currentWeekStart(date: Date = new Date()): string {
@@ -191,6 +211,32 @@ export async function fetchCompletedCSTasksPage(offset: number, limit: number): 
   if (error) throw error;
   return (data ?? []) as CSTask[];
 }
+
+/**
+ * Server-paginated page of tasks matching any of the given statuses.
+ * Ordered by `coalesce(completed_at, created_at)` desc so that cancelled
+ * tasks (which intentionally have no `completed_at`) are sortable alongside
+ * completed ones using their creation timestamp.
+ */
+export async function fetchTasksByStatusesPage(
+  statuses: string[],
+  offset: number,
+  limit: number,
+): Promise<CSTask[]> {
+  if (statuses.length === 0) return [];
+  const { data, error } = await supabase
+    .from("cs_tasks")
+    .select("*")
+    .in("status", statuses)
+    // We can't order by coalesce on the server; fetch by completed_at desc and
+    // sort by the effective timestamp client-side below.
+    .order("completed_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw error;
+  return (data ?? []) as CSTask[];
+}
+
 
 export async function fetchCSTasksForTenant(tenant: string): Promise<CSTask[]> {
   const { data, error } = await supabase
@@ -335,7 +381,39 @@ export async function postponeCSTask(taskId: string, target: Date | string): Pro
   if (error) throw error;
 }
 
-// --------- Club status helpers ---------
+/**
+ * Cancel a single pending task manually (CS marca como anulada).
+ * Não preenche `completed_at` (anulada ≠ concluída — não conta para métricas
+ * de histórico de ações concluídas).
+ */
+export async function cancelCSTask(taskId: string, note: string): Promise<void> {
+  await cancelCSTasksBatch([taskId], note);
+}
+
+/**
+ * Cancel many pending tasks in one batch with the same note.
+ * Valida o motivo (1–200 chars) **no cliente** antes do UPDATE; chamadas
+ * diretas à API que contornem o frontend recebem erro explícito.
+ */
+export async function cancelCSTasksBatch(taskIds: string[], note: string): Promise<void> {
+  if (taskIds.length === 0) return;
+  const trimmed = (note ?? "").trim();
+  if (trimmed.length < 1 || trimmed.length > 200) {
+    throw new Error("Motivo de anulação obrigatório (1–200 caracteres).");
+  }
+  const { error } = await supabase
+    .from("cs_tasks")
+    .update({
+      status: "cancelled",
+      outcome: "cancelled_manual",
+      note: trimmed,
+    } as never)
+    .in("id", taskIds)
+    .eq("status", "pending");
+  if (error) throw error;
+}
+
+
 
 export async function fetchClubStatusLogs(): Promise<ClubStatusLog[]> {
   const { data, error } = await supabase

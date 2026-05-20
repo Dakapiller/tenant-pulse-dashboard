@@ -14,6 +14,7 @@ import {
   insertCSTasks,
   completeCSTask,
   completeCSTasksBatch,
+  cancelCSTasksBatch,
   postponeCSTask,
   currentWeekStart,
   scoreWithDelta,
@@ -27,8 +28,9 @@ import { computeRiskWithCS, FLAG_CTA, FLAG_META, type RiskFlag } from "@/lib/ris
 import { fetchHealthScores } from "@/lib/health";
 import { formatEuro, formatNumber, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta } from "@/components/DataTable";
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Clock, Eye, EyeOff, ListChecks, Plus } from "lucide-react";
+import { AlertTriangle, ArrowRight, Ban, CheckCircle2, ChevronDown, ChevronRight, Clock, Eye, EyeOff, ListChecks, Plus } from "lucide-react";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
+
 
 export const Route = createFileRoute("/cs/tasks")({
   component: CSTasksPage,
@@ -49,6 +51,12 @@ function CSTasksPage() {
   const [selectedTenant, setSelectedTenant] = useState<string>("");
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [showInactive, setShowInactive] = useState(false);
+  // Vista da secção de pendentes: agrupada por clube (default) ou flat por tarefa.
+  const [pendingView, setPendingView] = useState<"club" | "task">("club");
+  // Selecção de tarefas individuais (modo "task").
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  // Filtros chip do modo "task".
+  const [taskFilter, setTaskFilter] = useState<"all" | "thisWeek" | "overdue" | "manual" | "auto">("all");
 
   const weekStart = useMemo(() => currentWeekStart(), []);
   const didGenerateRef = useRef(false);
@@ -423,90 +431,129 @@ function CSTasksPage() {
 
         <section className="rounded-xl border border-border overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-3">
-            <div className="flex items-center gap-2">
-              <ListChecks className="h-4 w-4" />
-              <h2 className="text-base font-semibold">Tarefas pendentes</h2>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <ListChecks className="h-4 w-4" />
+                <h2 className="text-base font-semibold">Tarefas pendentes</h2>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {visibleRows.reduce((acc, r) => acc + r.pending.length, 0)} desta semana
+                {" · "}
+                {visibleRows.reduce((acc, r) => acc + r.overdue.length, 0) + visibleOverdueOnly.reduce((acc, r) => acc + r.overdue.length, 0)} atrasadas
+                {" · "}
+                {visibleRows.length + visibleOverdueOnly.length} clubes
+              </span>
             </div>
-            {inactiveRowsCount > 0 && (
-              <button
-                onClick={() => setShowInactive((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-surface"
-              >
-                {showInactive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                {showInactive ? "Ocultar inativos" : `Mostrar inativos (${inactiveRowsCount})`}
-              </button>
-            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="inline-flex rounded-md border border-border bg-background p-0.5" role="tablist" aria-label="Vista">
+                <button
+                  onClick={() => { setPendingView("club"); setSelectedTaskIds(new Set()); }}
+                  className={`px-3 py-1.5 text-xs rounded ${pendingView === "club" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+                >Por clube</button>
+                <button
+                  onClick={() => { setPendingView("task"); setSelectedKeys(new Set()); }}
+                  className={`px-3 py-1.5 text-xs rounded ${pendingView === "task" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+                  title="Gestão em massa por tarefa"
+                >Por tarefa</button>
+              </div>
+              {inactiveRowsCount > 0 && (
+                <button
+                  onClick={() => setShowInactive((v) => !v)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-surface"
+                >
+                  {showInactive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {showInactive ? "Ocultar inativos" : `Mostrar inativos (${inactiveRowsCount})`}
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="p-5">
-            {visibleRows.length === 0 ? (
-              <div className="text-sm text-muted-foreground text-center py-8">
-                Sem clubes com tarefas pendentes.
-              </div>
-            ) : (
-              <div className="rounded-lg border border-border overflow-hidden">
-                <DataTable<typeof rows[number]>
-                  rows={visibleRows}
-                  rowKey={(r) => r.name}
-                  defaultSort={{ key: "score", dir: "desc" }}
-                  pageSize={50}
-                  onRowClick={(r) => setExpanded(expanded === r.name ? null : r.name)}
-                  rowClassName={(r) => expanded === r.name ? "bg-surface/40" : ""}
-                  selectable
-                  selectedKeys={selectedKeys}
-                  onSelectionChange={setSelectedKeys}
-                  isRowSelectable={(r) => r.pending.length > 0}
-                  expandedRow={(r) => expanded === r.name ? (
-                    <ExpandedClubPanel row={r} onComplete={handleClubComplete} onPostpone={handleClubPostpone} />
-                  ) : null}
-                  columns={[
-                    {
-                      key: "name", header: "Clube",
-                      sortValue: (r) => r.name,
-                      filterValue: (r) => r.name, filter: { kind: "text" },
-                      render: (r) => (<ClubLink name={r.name} className="font-semibold hover:underline" />),
-                    },
-                    {
-                      key: "score", header: "Saúde",
-                      sortValue: (r) => r.score,
-                      filter: { kind: "select", options: [
-                        { value: "high", label: "Alto" }, { value: "medium", label: "Médio" }, { value: "healthy", label: "Saudável" },
-                      ]},
-                      filterValue: (r) => r.level,
-                      render: (r) => (
-                        <span className="inline-flex items-center gap-1.5">
-                          <RiskBadge level={r.level} score={r.score} />
-                          <ScoreDelta delta={r.scoreDelta} previous={r.prevScore} current={r.score} />
-                        </span>
-                      ),
-                    },
-                    {
-                      key: "pending", header: "Pendentes",
-                      sortValue: (r) => r.pending.length,
-                      render: (r) => (
-                        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-danger/10 text-danger font-medium">
-                          {r.pending.length} pendentes
-                        </span>
-                      ),
-                    },
-                    {
-                      key: "expand", header: "",
-                      align: "right",
-                      render: (r) => expanded === r.name
-                        ? <ChevronDown className="h-4 w-4 inline" />
-                        : <ChevronRight className="h-4 w-4 inline" />,
-                    },
-                  ]}
-                />
-              </div>
-            )}
-          </div>
+          {pendingView === "club" ? (
+            <div className="p-5">
+              {visibleRows.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-8">
+                  Sem clubes com tarefas pendentes.
+                </div>
+              ) : (
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <DataTable<typeof rows[number]>
+                    rows={visibleRows}
+                    rowKey={(r) => r.name}
+                    defaultSort={{ key: "score", dir: "desc" }}
+                    pageSize={50}
+                    onRowClick={(r) => setExpanded(expanded === r.name ? null : r.name)}
+                    rowClassName={(r) => expanded === r.name ? "bg-surface/40" : ""}
+                    selectable
+                    selectedKeys={selectedKeys}
+                    onSelectionChange={setSelectedKeys}
+                    isRowSelectable={(r) => r.pending.length > 0}
+                    expandedRow={(r) => expanded === r.name ? (
+                      <ExpandedClubPanel row={r} onComplete={handleClubComplete} onPostpone={handleClubPostpone} />
+                    ) : null}
+                    columns={[
+                      {
+                        key: "name", header: "Clube",
+                        sortValue: (r) => r.name,
+                        filterValue: (r) => r.name, filter: { kind: "text" },
+                        render: (r) => (<ClubLink name={r.name} className="font-semibold hover:underline" />),
+                      },
+                      {
+                        key: "score", header: "Saúde",
+                        sortValue: (r) => r.score,
+                        filter: { kind: "select", options: [
+                          { value: "high", label: "Alto" }, { value: "medium", label: "Médio" }, { value: "healthy", label: "Saudável" },
+                        ]},
+                        filterValue: (r) => r.level,
+                        render: (r) => (
+                          <span className="inline-flex items-center gap-1.5">
+                            <RiskBadge level={r.level} score={r.score} />
+                            <ScoreDelta delta={r.scoreDelta} previous={r.prevScore} current={r.score} />
+                          </span>
+                        ),
+                      },
+                      {
+                        key: "pending", header: "Pendentes",
+                        sortValue: (r) => r.pending.length,
+                        render: (r) => (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-danger/10 text-danger font-medium">
+                            {r.pending.length} pendentes
+                          </span>
+                        ),
+                      },
+                      {
+                        key: "expand", header: "",
+                        align: "right",
+                        render: (r) => expanded === r.name
+                          ? <ChevronDown className="h-4 w-4 inline" />
+                          : <ChevronRight className="h-4 w-4 inline" />,
+                      },
+                    ]}
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            <PendingTasksFlatView
+              tasks={pendingTasks}
+              excluded={excluded}
+              showInactive={showInactive}
+              weekStart={weekStart}
+              filter={taskFilter}
+              onFilterChange={setTaskFilter}
+              selectedIds={selectedTaskIds}
+              onSelectionChange={setSelectedTaskIds}
+            />
+          )}
         </section>
 
-        {selectedKeys.size > 0 && (
-          <BulkCompleteBar
+        {pendingView === "club" && selectedKeys.size > 0 && (
+          <BulkActionBar
             count={selectedKeys.size}
-            onApply={async (outcome, note) => {
+            label={`${selectedKeys.size} ${selectedKeys.size === 1 ? "clube selecionado" : "clubes selecionados"}`}
+            // No modo "clube" só faz sentido concluir em massa (anular tem de ter granularidade fina).
+            allowCancel={false}
+            allowPostpone={false}
+            onComplete={async (outcome, note) => {
               const names = Array.from(selectedKeys);
               for (const name of names) {
                 const r = rows.find((x) => x.name === name);
@@ -521,9 +568,46 @@ function CSTasksPage() {
             onCancel={() => setSelectedKeys(new Set())}
           />
         )}
+
+        {pendingView === "task" && selectedTaskIds.size > 0 && (
+          <BulkActionBar
+            count={selectedTaskIds.size}
+            label={`${selectedTaskIds.size} ${selectedTaskIds.size === 1 ? "tarefa selecionada" : "tarefas selecionadas"}`}
+            allowCancel
+            allowPostpone
+            onComplete={async (outcome, note) => {
+              const ids = Array.from(selectedTaskIds);
+              // Group by tenant to call completeCSTasksBatch (one cs_tenant_status row per tenant).
+              const byTenant = new Map<string, string[]>();
+              for (const id of ids) {
+                const t = pendingTasks.find((x) => x.id === id);
+                if (!t) continue;
+                if (!byTenant.has(t.tenant_name)) byTenant.set(t.tenant_name, []);
+                byTenant.get(t.tenant_name)!.push(id);
+              }
+              for (const [tenant, taskIds] of byTenant) {
+                await completeCSTasksBatch(tenant, taskIds, outcome, note.trim() || null);
+              }
+              setSelectedTaskIds(new Set());
+              await reloadPending();
+            }}
+            onCancelTasks={async (note) => {
+              await cancelCSTasksBatch(Array.from(selectedTaskIds), note);
+              setSelectedTaskIds(new Set());
+              await reloadPending();
+            }}
+            onPostponeTasks={async (target) => {
+              for (const id of selectedTaskIds) await postponeCSTask(id, target);
+              setSelectedTaskIds(new Set());
+              await reloadPending();
+            }}
+            onCancel={() => setSelectedTaskIds(new Set())}
+          />
+        )}
     </div>
   );
 }
+
 
 function ExpandedClubPanel({
   row, onComplete, onPostpone,
@@ -727,14 +811,22 @@ export function formatFlagsLabel(flags: string[] | null | undefined): string {
 }
 
 /**
- * Weekly task generation (new rules — flag count is NOT a trigger):
- *   • health_score < 40           → always generate
- *   • is_priority = true          → always generate
- *   • no contact in last 3 months AND health_score in [40, 70]
- *                                 → generate, capped at 10 clubs/week
- * Excluded clubs (churned/closed/changed_owner) are skipped. The descriptive
- * flags (when present) are still embedded in the task body so the CS team has
- * concrete talking points; they no longer drive the trigger.
+ * Weekly task generation — **cap global de 10 tarefas/semana**.
+ *
+ * Buckets (ordem de prioridade):
+ *   0) low_score      → health_score < 40
+ *   1) priority       → is_priority = true
+ *   2) stale_contact  → sem contacto há >3m E score em [40, 70]
+ *
+ * Regras:
+ *   - Dedup por tenant antes do slice (um clube ocupa **1 vaga**, mantendo o
+ *     bucket de maior prioridade).
+ *   - Ordenação: bucketOrder asc, depois score asc (mais urgente primeiro).
+ *   - Insert dos primeiros 10 candidatos.
+ *   - Clubes excluídos (churned/closed/changed_owner) são saltados.
+ *
+ * Os flags informativos (quando existem) são embebidos no corpo da tarefa
+ * como talking points; não são gatilhos de geração.
  */
 async function generateWeeklyTasks(
   snapshots: Snapshot[],
@@ -761,6 +853,7 @@ async function generateWeeklyTasks(
 
   const threeMonthsAgoIso = new Date(Date.now() - 1000 * 60 * 60 * 24 * 92).toISOString();
 
+  type Bucket = "low_score" | "priority" | "stale_contact";
   type Candidate = {
     tenant_name: string;
     reason: string;
@@ -768,12 +861,13 @@ async function generateWeeklyTasks(
     priority: number;
     flags: string[];
     week_start: string;
-    bucket: "low_score" | "priority" | "stale_contact";
+    bucket: Bucket;
+    bucketOrder: number;
+    score: number; // for sort tiebreak (lower = more urgent)
   };
-  const always: Candidate[] = [];
-  const stale: Candidate[] = [];
+  const candidates: Candidate[] = [];
 
-  // Build the universe of clubs we know about (snapshots OR statuses OR priority).
+  // Universe of clubs we know about.
   const allTenants = new Set<string>();
   histByTenant.forEach((_, n) => allTenants.add(n));
   statuses.forEach((s) => allTenants.add(s.tenant_name));
@@ -789,21 +883,19 @@ async function generateWeeklyTasks(
     const lastContact = lastContactMap.get(name) ?? null;
     const noRecentContact = !lastContact || lastContact < threeMonthsAgoIso;
 
-    // Decide bucket.
-    let bucket: Candidate["bucket"] | null = null;
-    if (score !== undefined && score < 40) bucket = "low_score";
-    else if (isPriority) bucket = "priority";
+    let bucket: Bucket | null = null;
+    let bucketOrder = 0;
+    if (score !== undefined && score < 40) { bucket = "low_score"; bucketOrder = 0; }
+    else if (isPriority) { bucket = "priority"; bucketOrder = 1; }
     else if (
       noRecentContact &&
       score !== undefined &&
       score >= 40 &&
       score <= 70
-    ) bucket = "stale_contact";
+    ) { bucket = "stale_contact"; bucketOrder = 2; }
 
     if (!bucket) continue;
 
-    // Build a helpful body. If informational flags exist, list them as bullets;
-    // otherwise fall back to a generic check-in message based on the bucket.
     const risk = computeRiskWithCS(hist, stats);
     const reasonLines: string[] = [];
     const ctaLines: string[] = [];
@@ -822,75 +914,324 @@ async function generateWeeklyTasks(
       ctaLines.push(FLAG_CTA[f].cta);
     }
 
-    const candidate: Candidate = {
+    candidates.push({
       tenant_name: name,
       reason: reasonLines.join("\n"),
       cta: ctaLines.join("\n"),
-      // Priority used for sorting/UI badges only — not a score input.
-      // Lower health = higher urgency; use 100 - score so it stays in [0,100].
+      // Priority é só para UI/sort interno do front. Lower health = higher urgency.
       priority: score !== undefined ? Math.max(0, Math.min(100, 100 - score)) : 50,
       flags: [...risk.flags],
       week_start: weekStart,
       bucket,
-    };
-    if (bucket === "stale_contact") stale.push(candidate);
-    else always.push(candidate);
+      bucketOrder,
+      score: score ?? 100,
+    });
   }
 
-  // Cap stale-contact bucket at 10 clubs/week (lowest score first).
-  stale.sort((a, b) => b.priority - a.priority);
-  const staleCapped = stale.slice(0, 10);
+  // Sort first so dedup keeps the highest-priority bucket per tenant.
+  candidates.sort((a, b) => {
+    if (a.bucketOrder !== b.bucketOrder) return a.bucketOrder - b.bucketOrder;
+    return a.score - b.score;
+  });
 
-  const tasks = [...always, ...staleCapped].map(({ bucket: _b, ...rest }) => rest);
+  // Dedup by tenant — same club consumes only 1 slot.
+  const seen = new Set<string>();
+  const deduped: Candidate[] = [];
+  for (const c of candidates) {
+    if (seen.has(c.tenant_name)) continue;
+    seen.add(c.tenant_name);
+    deduped.push(c);
+  }
+
+  const tasks = deduped
+    .slice(0, 10)
+    .map(({ bucket: _b, bucketOrder: _o, score: _s, ...rest }) => rest);
   if (tasks.length > 0) await insertCSTasks(tasks);
 }
 
-function BulkCompleteBar({
-  count, onApply, onCancel,
+
+/**
+ * Barra fixa de ações em massa, com 3 modos: Concluir, Anular, Adiar.
+ * O modo "Concluir" está sempre disponível; "Anular" e "Adiar" só aparecem
+ * quando o caller os passa (no modo de seleção por clube só faz sentido
+ * concluir; no modo por tarefa estão todos disponíveis).
+ */
+function BulkActionBar({
+  count, label, allowCancel, allowPostpone,
+  onComplete, onCancelTasks, onPostponeTasks, onCancel,
 }: {
   count: number;
-  onApply: (outcome: string, note: string) => Promise<void>;
+  label: string;
+  allowCancel: boolean;
+  allowPostpone: boolean;
+  onComplete: (outcome: string, note: string) => Promise<void>;
+  onCancelTasks?: (note: string) => Promise<void>;
+  onPostponeTasks?: (target: string) => Promise<void>;
   onCancel: () => void;
 }) {
+  const [mode, setMode] = useState<"complete" | "cancel" | "postpone">("complete");
   const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
   const [note, setNote] = useState("");
+  const [cancelNote, setCancelNote] = useState("");
+  const [target, setTarget] = useState<string>(() => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + 7);
+    return currentWeekStart(d);
+  });
   const [busy, setBusy] = useState(false);
+
+  void count;
+  const cancelValid = cancelNote.trim().length >= 1 && cancelNote.trim().length <= 200;
+
   return (
     <div
       className="fixed left-0 right-0 bottom-0 z-40 lg:left-60 border-t border-border bg-background/95 backdrop-blur shadow-lg"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="mx-auto max-w-[1400px] px-4 py-3 flex items-center gap-3 flex-wrap">
-        <span className="text-sm font-medium">
-          {count} {count === 1 ? "clube selecionado" : "clubes selecionados"}
-        </span>
-        <div className="flex items-center gap-2 flex-wrap ml-auto">
-          <select
-            value={outcome}
-            onChange={(e) => setOutcome(e.target.value)}
-            className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background"
-          >
-            {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Nota opcional…"
-            className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background min-w-[180px]"
-          />
-          <button
-            onClick={async () => {
-              setBusy(true);
-              try { await onApply(outcome, note); } finally { setBusy(false); }
-            }}
-            disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
-          >
-            <CheckCircle2 className="h-4 w-4" /> {busy ? "A guardar…" : "Marcar todas como feitas"}
-          </button>
-          <button onClick={onCancel} className="text-sm text-muted-foreground hover:text-foreground px-2 py-2">Cancelar</button>
+      <div className="mx-auto max-w-[1400px] px-4 py-3 space-y-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-medium">{label}</span>
+          {(allowCancel || allowPostpone) && (
+            <div className="inline-flex rounded-md border border-border bg-background p-0.5">
+              <button
+                onClick={() => setMode("complete")}
+                className={`px-2.5 py-1 text-xs rounded ${mode === "complete" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+              >Concluir</button>
+              {allowCancel && (
+                <button
+                  onClick={() => setMode("cancel")}
+                  className={`px-2.5 py-1 text-xs rounded ${mode === "cancel" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+                >Anular</button>
+              )}
+              {allowPostpone && (
+                <button
+                  onClick={() => setMode("postpone")}
+                  className={`px-2.5 py-1 text-xs rounded ${mode === "postpone" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+                >Adiar</button>
+              )}
+            </div>
+          )}
+          <button onClick={onCancel} className="text-sm text-muted-foreground hover:text-foreground px-2 py-2 ml-auto">Cancelar</button>
         </div>
+
+        {mode === "complete" && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={outcome}
+              onChange={(e) => setOutcome(e.target.value)}
+              className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background"
+            >
+              {OUTCOME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Nota opcional…"
+              className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background min-w-[180px] flex-1"
+            />
+            <button
+              onClick={async () => {
+                setBusy(true);
+                try { await onComplete(outcome, note); setNote(""); } finally { setBusy(false); }
+              }}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              <CheckCircle2 className="h-4 w-4" /> {busy ? "A guardar…" : "Concluir"}
+            </button>
+          </div>
+        )}
+
+        {mode === "cancel" && allowCancel && onCancelTasks && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              value={cancelNote}
+              onChange={(e) => setCancelNote(e.target.value)}
+              placeholder="Motivo da anulação (obrigatório, 1–200 chars)…"
+              maxLength={200}
+              className="px-2 py-1.5 text-base sm:text-sm rounded-md border border-border bg-background min-w-[260px] flex-1"
+            />
+            <span className="text-[11px] text-muted-foreground">{cancelNote.trim().length}/200</span>
+            <button
+              onClick={async () => {
+                if (!cancelValid) return;
+                setBusy(true);
+                try { await onCancelTasks(cancelNote); setCancelNote(""); } finally { setBusy(false); }
+              }}
+              disabled={busy || !cancelValid}
+              className="inline-flex items-center gap-1.5 rounded-md bg-danger text-background px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              <Ban className="h-4 w-4" /> {busy ? "A guardar…" : "Anular"}
+            </button>
+          </div>
+        )}
+
+        {mode === "postpone" && allowPostpone && onPostponeTasks && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-[11px] uppercase tracking-wide text-muted-foreground">Adiar para</label>
+            <input
+              type="date"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              className="px-2 py-1.5 text-sm rounded-md border border-border bg-background"
+            />
+            <span className="text-[11px] text-muted-foreground">
+              → semana de {currentWeekStart(new Date(target))}
+            </span>
+            <button
+              onClick={async () => {
+                setBusy(true);
+                try { await onPostponeTasks(target); } finally { setBusy(false); }
+              }}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 ml-auto"
+            >
+              <Clock className="h-4 w-4" /> {busy ? "A guardar…" : "Adiar"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+/** Flat per-task view of pending tasks with chip filters and per-task selection. */
+function PendingTasksFlatView({
+  tasks, excluded, showInactive, weekStart, filter, onFilterChange,
+  selectedIds, onSelectionChange,
+}: {
+  tasks: CSTask[];
+  excluded: Set<string>;
+  showInactive: boolean;
+  weekStart: string;
+  filter: "all" | "thisWeek" | "overdue" | "manual" | "auto";
+  onFilterChange: (f: "all" | "thisWeek" | "overdue" | "manual" | "auto") => void;
+  selectedIds: Set<string>;
+  onSelectionChange: (next: Set<string>) => void;
+}) {
+  type TaskRow = CSTask & { ageDays: number; isOverdue: boolean; isManual: boolean };
+
+  const rows: TaskRow[] = useMemo(() => {
+    const now = Date.now();
+    return tasks
+      .filter((t) => showInactive || !excluded.has(t.tenant_name))
+      .map((t) => {
+        const ageDays = Math.max(0, Math.floor((now - new Date(t.created_at).getTime()) / 86_400_000));
+        const isOverdue = t.week_start < weekStart;
+        const isManual = (t.flags ?? []).includes("manual");
+        return { ...t, ageDays, isOverdue, isManual };
+      })
+      .filter((r) => {
+        if (filter === "thisWeek") return r.week_start === weekStart;
+        if (filter === "overdue") return r.isOverdue;
+        if (filter === "manual") return r.isManual;
+        if (filter === "auto") return !r.isManual;
+        return true;
+      });
+  }, [tasks, excluded, showInactive, weekStart, filter]);
+
+  const chips: { value: typeof filter; label: string; count: number }[] = useMemo(() => {
+    const base = tasks.filter((t) => showInactive || !excluded.has(t.tenant_name));
+    return [
+      { value: "all", label: "Todas", count: base.length },
+      { value: "thisWeek", label: "Esta semana", count: base.filter((t) => t.week_start === weekStart).length },
+      { value: "overdue", label: "Atrasadas", count: base.filter((t) => t.week_start < weekStart).length },
+      { value: "manual", label: "Manuais", count: base.filter((t) => (t.flags ?? []).includes("manual")).length },
+      { value: "auto", label: "Automáticas", count: base.filter((t) => !(t.flags ?? []).includes("manual")).length },
+    ];
+  }, [tasks, excluded, showInactive, weekStart]);
+
+  return (
+    <div className="p-5 space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        {chips.map((c) => (
+          <button
+            key={c.value}
+            onClick={() => onFilterChange(c.value)}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              filter === c.value
+                ? "bg-foreground text-background border-foreground"
+                : "bg-background text-foreground border-border hover:bg-surface"
+            }`}
+          >
+            {c.label}
+            <span className={`text-[10px] ${filter === c.value ? "opacity-80" : "text-muted-foreground"}`}>{c.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="text-sm text-muted-foreground text-center py-8">Sem tarefas neste filtro.</div>
+      ) : (
+        <div className="rounded-lg border border-border overflow-hidden">
+          <DataTable<TaskRow>
+            rows={rows}
+            rowKey={(r) => r.id}
+            pageSize={100}
+            selectable
+            selectedKeys={selectedIds}
+            onSelectionChange={onSelectionChange}
+            defaultSort={{ key: "ageDays", dir: "desc" }}
+            columns={[
+              {
+                key: "tenant", header: "Clube",
+                sortValue: (r) => r.tenant_name,
+                filterValue: (r) => r.tenant_name, filter: { kind: "text" },
+                render: (r) => (<ClubLink name={r.tenant_name} className="font-medium hover:underline" />),
+              },
+              {
+                key: "reason", header: "Motivo",
+                sortValue: (r) => r.reason ?? "",
+                render: (r) => {
+                  const first = (r.reason ?? "").split("\n")[0] || "—";
+                  return (
+                    <div className="max-w-[420px]">
+                      <div className="text-sm truncate" title={r.reason ?? ""}>{first}</div>
+                      {r.flags && r.flags.length > 0 && (
+                        <div className="mt-0.5 flex flex-wrap gap-1">
+                          {r.flags.map((f, i) => (
+                            <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                              {FLAG_META[f as RiskFlag]?.label ?? f}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                },
+              },
+              {
+                key: "week", header: "Semana",
+                sortValue: (r) => r.week_start,
+                render: (r) => (
+                  <span className={`text-xs ${r.isOverdue ? "text-danger font-medium" : "text-muted-foreground"}`}>
+                    {r.week_start}{r.isOverdue ? " · atrasada" : ""}
+                  </span>
+                ),
+              },
+              {
+                key: "ageDays", header: "Idade",
+                sortValue: (r) => r.ageDays,
+                render: (r) => (<span className="text-xs text-muted-foreground">{r.ageDays}d</span>),
+              },
+              {
+                key: "source", header: "Origem",
+                sortValue: (r) => (r.isManual ? "manual" : "auto"),
+                filter: { kind: "select", options: [
+                  { value: "manual", label: "Manual" }, { value: "auto", label: "Automática" },
+                ]},
+                filterValue: (r) => (r.isManual ? "manual" : "auto"),
+                render: (r) => (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${r.isManual ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                    {r.isManual ? "Manual" : "Auto"}
+                  </span>
+                ),
+              },
+            ]}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+

@@ -11,9 +11,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
   fetchAllCSStatuses,
-  fetchCompletedCSTasksPage,
+  fetchTasksByStatusesPage,
   excludedTenants,
   outcomeLabel,
+  taskStatusLabel,
   type CSTask,
   type CSTenantStatus,
 } from "@/lib/cs";
