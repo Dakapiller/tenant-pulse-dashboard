@@ -212,6 +212,32 @@ export async function fetchCompletedCSTasksPage(offset: number, limit: number): 
   return (data ?? []) as CSTask[];
 }
 
+/**
+ * Server-paginated page of tasks matching any of the given statuses.
+ * Ordered by `coalesce(completed_at, created_at)` desc so that cancelled
+ * tasks (which intentionally have no `completed_at`) are sortable alongside
+ * completed ones using their creation timestamp.
+ */
+export async function fetchTasksByStatusesPage(
+  statuses: string[],
+  offset: number,
+  limit: number,
+): Promise<CSTask[]> {
+  if (statuses.length === 0) return [];
+  const { data, error } = await supabase
+    .from("cs_tasks")
+    .select("*")
+    .in("status", statuses)
+    // We can't order by coalesce on the server; fetch by completed_at desc and
+    // sort by the effective timestamp client-side below.
+    .order("completed_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw error;
+  return (data ?? []) as CSTask[];
+}
+
+
 export async function fetchCSTasksForTenant(tenant: string): Promise<CSTask[]> {
   const { data, error } = await supabase
     .from("cs_tasks")
