@@ -48,8 +48,34 @@ function outcomeBadgeClass(outcome: string | null | undefined): string {
   }
 }
 
-/** Badge for a task in history: uses status precedence (cancelled wins over outcome). */
-function StatusBadge({ task, className }: { task: CSTask; className?: string }) {
+/**
+ * Unified history entry: a completed/cancelled CS task OR a resolved bug.
+ * Discriminated by `kind` so badges, filters and grouping can branch on type.
+ */
+type HistoryEntry =
+  | { kind: "task"; id: string; tenant: string; ts: string; task: CSTask }
+  | { kind: "bug"; id: string; tenant: string; ts: string; bug: BugReport };
+
+function entryTs(e: HistoryEntry): string {
+  return e.ts;
+}
+
+/** Badge for a unified history entry. */
+function EntryBadge({ entry, className }: { entry: HistoryEntry; className?: string }) {
+  if (entry.kind === "bug") {
+    return (
+      <span
+        title={`Severidade: ${BUG_SEVERITY_LABEL[entry.bug.severity]}`}
+        className={cn(
+          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary border border-primary/20",
+          className,
+        )}
+      >
+        Bug resolvido
+      </span>
+    );
+  }
+  const task = entry.task;
   if (task.status === "cancelled") {
     const tip = task.outcome ? outcomeLabel(task.outcome) : undefined;
     return (
@@ -71,8 +97,8 @@ function StatusBadge({ task, className }: { task: CSTask; className?: string }) 
   );
 }
 
-/** Effective timestamp for ordering/filtering: completed_at for completed tasks, created_at for cancelled (no completed_at). */
-function effectiveTs(t: CSTask): string {
+/** Effective timestamp for ordering/filtering tasks: completed_at, else created_at. */
+function taskTs(t: CSTask): string {
   return t.completed_at ?? t.created_at ?? "";
 }
 
