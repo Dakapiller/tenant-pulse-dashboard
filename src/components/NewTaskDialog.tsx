@@ -369,7 +369,7 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
             </div>
 
             {/* ============ TASK / FUTURE TASK ============ */}
-            {tab !== "feedback" && (
+            {(tab === "task" || tab === "future") && (
               <>
                 <div>
                   <label className="block text-xs uppercase tracking-wide text-muted-foreground mb-1.5">
