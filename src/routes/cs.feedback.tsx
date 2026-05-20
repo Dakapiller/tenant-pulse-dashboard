@@ -26,7 +26,7 @@ export const Route = createFileRoute("/cs/feedback")({
 
 const STATUS_BADGE_CLASS: Record<FeedbackStatus, string> = {
   blocker: "bg-danger/15 text-danger border-danger/30",
-  must_have: "bg-warning/15 text-warning-foreground border-warning/30",
+  must_have: "bg-warning/15 text-warning border-warning/30",
   good_to_have: "bg-muted text-muted-foreground border-border",
 };
 
