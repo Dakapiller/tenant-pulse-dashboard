@@ -51,6 +51,12 @@ function CSTasksPage() {
   const [selectedTenant, setSelectedTenant] = useState<string>("");
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [showInactive, setShowInactive] = useState(false);
+  // Vista da secção de pendentes: agrupada por clube (default) ou flat por tarefa.
+  const [pendingView, setPendingView] = useState<"club" | "task">("club");
+  // Selecção de tarefas individuais (modo "task").
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  // Filtros chip do modo "task".
+  const [taskFilter, setTaskFilter] = useState<"all" | "thisWeek" | "overdue" | "manual" | "auto">("all");
 
   const weekStart = useMemo(() => currentWeekStart(), []);
   const didGenerateRef = useRef(false);
