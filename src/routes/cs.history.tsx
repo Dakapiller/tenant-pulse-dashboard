@@ -353,9 +353,15 @@ function CSHistoryPage() {
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Resultado mais comum</div>
           {summary.topOutcome ? (
             <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium", outcomeBadgeClass(summary.topOutcome))}>
-                {outcomeLabel(summary.topOutcome)}
-              </span>
+              {summary.topOutcome === "bug_solved" ? (
+                <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                  Bug resolvido
+                </span>
+              ) : (
+                <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium", outcomeBadgeClass(summary.topOutcome))}>
+                  {outcomeLabel(summary.topOutcome)}
+                </span>
+              )}
               <span className="text-sm text-muted-foreground">{summary.topCount} ações</span>
             </div>
           ) : (
