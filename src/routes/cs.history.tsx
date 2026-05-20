@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
-import { Calendar as CalendarIcon, ChevronDown, Eye, EyeOff, Search, X } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronDown, ExternalLink, Eye, EyeOff, Search, X } from "lucide-react";
 import { ClubLink } from "@/components/ClubLink";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -18,6 +18,7 @@ import {
   type CSTask,
   type CSTenantStatus,
 } from "@/lib/cs";
+import { fetchBugsByStatuses, BUG_SEVERITY_LABEL, type BugReport } from "@/lib/bugs";
 import { FLAG_META, type RiskFlag } from "@/lib/risk";
 import { cn } from "@/lib/utils";
 
@@ -47,8 +48,34 @@ function outcomeBadgeClass(outcome: string | null | undefined): string {
   }
 }
 
-/** Badge for a task in history: uses status precedence (cancelled wins over outcome). */
-function StatusBadge({ task, className }: { task: CSTask; className?: string }) {
+/**
+ * Unified history entry: a completed/cancelled CS task OR a resolved bug.
+ * Discriminated by `kind` so badges, filters and grouping can branch on type.
+ */
+type HistoryEntry =
+  | { kind: "task"; id: string; tenant: string; ts: string; task: CSTask }
+  | { kind: "bug"; id: string; tenant: string; ts: string; bug: BugReport };
+
+function entryTs(e: HistoryEntry): string {
+  return e.ts;
+}
+
+/** Badge for a unified history entry. */
+function EntryBadge({ entry, className }: { entry: HistoryEntry; className?: string }) {
+  if (entry.kind === "bug") {
+    return (
+      <span
+        title={`Severidade: ${BUG_SEVERITY_LABEL[entry.bug.severity]}`}
+        className={cn(
+          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary border border-primary/20",
+          className,
+        )}
+      >
+        Bug resolvido
+      </span>
+    );
+  }
+  const task = entry.task;
   if (task.status === "cancelled") {
     const tip = task.outcome ? outcomeLabel(task.outcome) : undefined;
     return (
@@ -70,8 +97,8 @@ function StatusBadge({ task, className }: { task: CSTask; className?: string }) 
   );
 }
 
-/** Effective timestamp for ordering/filtering: completed_at for completed tasks, created_at for cancelled (no completed_at). */
-function effectiveTs(t: CSTask): string {
+/** Effective timestamp for ordering/filtering tasks: completed_at, else created_at. */
+function taskTs(t: CSTask): string {
   return t.completed_at ?? t.created_at ?? "";
 }
 
@@ -91,6 +118,7 @@ function endOfDay(d: Date): Date {
 function CSHistoryPage() {
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
+  const [bugs, setBugs] = useState<BugReport[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -109,13 +137,15 @@ function CSHistoryPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [page, sts] = await Promise.all([
+        const [page, sts, bgs] = await Promise.all([
           fetchTasksByStatusesPage(["completed", "cancelled"], 0, PAGE),
           fetchAllCSStatuses(),
+          fetchBugsByStatuses(["solved"]),
         ]);
         if (cancelled) return;
         setTasks(page);
         setStatuses(sts);
+        setBugs(bgs);
         setHasMore(page.length === PAGE);
       } finally {
         if (!cancelled) setLoading(false);
@@ -126,49 +156,61 @@ function CSHistoryPage() {
 
   const excluded = useMemo(() => excludedTenants(statuses), [statuses]);
 
-  const filtered = useMemo(() => {
+  // Build unified entries (tasks + resolved bugs) and apply filters.
+  const filtered = useMemo<HistoryEntry[]>(() => {
     const fromTs = dateFrom ? dateFrom.getTime() : -Infinity;
     const toTs = dateTo ? endOfDay(dateTo).getTime() : Infinity;
     const q = debouncedSearch.trim().toLowerCase();
-    return tasks.filter((t) => {
-      const eff = effectiveTs(t);
-      if (!eff) return false;
-      const ts = new Date(eff).getTime();
+
+    const taskEntries: HistoryEntry[] = tasks
+      .map<HistoryEntry | null>((t) => {
+        const ts = taskTs(t);
+        if (!ts) return null;
+        return { kind: "task", id: `t-${t.id}`, tenant: t.tenant_name, ts, task: t };
+      })
+      .filter((e): e is HistoryEntry => e !== null);
+
+    const bugEntries: HistoryEntry[] = bugs
+      .filter((b) => !!b.solved_at)
+      .map<HistoryEntry>((b) => ({ kind: "bug", id: `b-${b.id}`, tenant: b.tenant_name, ts: b.solved_at!, bug: b }));
+
+    return [...taskEntries, ...bugEntries].filter((e) => {
+      const ts = new Date(e.ts).getTime();
       if (ts < fromTs || ts > toTs) return false;
-      if (!showInactive && excluded.has(t.tenant_name)) return false;
-      // Outcome filter only applies to completed tasks (cancelled tasks don't have a meaningful outcome).
+      if (!showInactive && excluded.has(e.tenant)) return false;
+      // Outcome filter only applies to completed tasks; bugs and cancelled tasks are excluded when a specific outcome is chosen.
       if (outcome !== "all") {
-        if (t.status !== "completed") return false;
-        if (t.outcome !== outcome) return false;
+        if (e.kind !== "task") return false;
+        if (e.task.status !== "completed") return false;
+        if (e.task.outcome !== outcome) return false;
       }
-      if (q && !t.tenant_name.toLowerCase().includes(q)) return false;
+      if (q && !e.tenant.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [tasks, dateFrom, dateTo, debouncedSearch, showInactive, excluded, outcome]);
+  }, [tasks, bugs, dateFrom, dateTo, debouncedSearch, showInactive, excluded, outcome]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, CSTask[]>();
-    for (const t of filtered) {
-      if (!map.has(t.tenant_name)) map.set(t.tenant_name, []);
-      map.get(t.tenant_name)!.push(t);
+    const map = new Map<string, HistoryEntry[]>();
+    for (const e of filtered) {
+      if (!map.has(e.tenant)) map.set(e.tenant, []);
+      map.get(e.tenant)!.push(e);
     }
     const arr = Array.from(map.entries()).map(([tenant, list]) => {
-      const sorted = [...list].sort((a, b) => effectiveTs(b).localeCompare(effectiveTs(a)));
-      return { tenant, tasks: sorted, last: sorted[0] };
+      const sorted = [...list].sort((a, b) => entryTs(b).localeCompare(entryTs(a)));
+      return { tenant, entries: sorted, last: sorted[0] };
     });
-    arr.sort((a, b) => effectiveTs(b.last).localeCompare(effectiveTs(a.last)));
+    arr.sort((a, b) => entryTs(b.last).localeCompare(entryTs(a.last)));
     return arr;
   }, [filtered]);
 
   const summary = useMemo(() => {
-    // Only count completed tasks in summary metrics — cancelled tasks (incl. cleanup)
-    // are shown for context but should not distort throughput numbers.
-    const completedOnly = filtered.filter((t) => t.status === "completed");
-    const totalActions = completedOnly.length;
-    const clubs = new Set(completedOnly.map((t) => t.tenant_name)).size;
+    // Count completed tasks + resolved bugs; ignore cancelled tasks (context only).
+    const meaningful = filtered.filter((e) => e.kind === "bug" || e.task.status === "completed");
+    const totalActions = meaningful.length;
+    const clubs = new Set(meaningful.map((e) => e.tenant)).size;
     const counts: Record<string, number> = {};
-    for (const t of completedOnly) {
-      const key = t.outcome ?? "—";
+    for (const e of meaningful) {
+      const key = e.kind === "bug" ? "bug_solved" : (e.task.outcome ?? "—");
       counts[key] = (counts[key] ?? 0) + 1;
     }
     let topOutcome: string | null = null;
@@ -181,8 +223,10 @@ function CSHistoryPage() {
 
   const inactiveCount = useMemo(() => {
     if (showInactive) return 0;
-    return tasks.filter((t) => excluded.has(t.tenant_name)).length;
-  }, [tasks, excluded, showInactive]);
+    const taskCount = tasks.filter((t) => excluded.has(t.tenant_name)).length;
+    const bugCount = bugs.filter((b) => b.solved_at && excluded.has(b.tenant_name)).length;
+    return taskCount + bugCount;
+  }, [tasks, bugs, excluded, showInactive]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
@@ -309,9 +353,15 @@ function CSHistoryPage() {
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Resultado mais comum</div>
           {summary.topOutcome ? (
             <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium", outcomeBadgeClass(summary.topOutcome))}>
-                {outcomeLabel(summary.topOutcome)}
-              </span>
+              {summary.topOutcome === "bug_solved" ? (
+                <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                  Bug resolvido
+                </span>
+              ) : (
+                <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium", outcomeBadgeClass(summary.topOutcome))}>
+                  {outcomeLabel(summary.topOutcome)}
+                </span>
+              )}
               <span className="text-sm text-muted-foreground">{summary.topCount} ações</span>
             </div>
           ) : (
@@ -333,7 +383,7 @@ function CSHistoryPage() {
           </div>
         ) : (
           <ul className="divide-y divide-border">
-            {grouped.map(({ tenant, tasks: list, last }) => {
+            {grouped.map(({ tenant, entries: list, last }) => {
               const open = !!openClubs[tenant];
               return (
                 <li key={tenant}>
@@ -350,14 +400,14 @@ function CSHistoryPage() {
                               </span>
                             </div>
                             <span className="md:hidden mt-2">
-                              <StatusBadge task={last} />
+                              <EntryBadge entry={last} />
                             </span>
                           </div>
                         </div>
                         <div className="hidden md:flex items-center gap-3 shrink-0">
-                          <StatusBadge task={last} />
+                          <EntryBadge entry={last} />
                           <span className="text-xs text-muted-foreground">
-                            {effectiveTs(last) ? format(new Date(effectiveTs(last)), "dd MMM yyyy", { locale: pt }) : ""}
+                            {format(new Date(entryTs(last)), "dd MMM yyyy", { locale: pt })}
                           </span>
                         </div>
                       </button>
@@ -365,24 +415,44 @@ function CSHistoryPage() {
                     <CollapsibleContent>
                       {/* Mobile: stacked cards */}
                       <ul className="md:hidden px-4 pb-4 space-y-2">
-                        {list.map((t) => (
-                          <li key={t.id} className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs text-muted-foreground">
-                                {effectiveTs(t) ? format(new Date(effectiveTs(t)), "dd MMM yyyy", { locale: pt }) : "—"}
-                              </span>
-                              <StatusBadge task={t} className="shrink-0" />
-                            </div>
-                            {t.flags && t.flags.length > 0 && (
-                              <div>
-                                <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{formatFlagsLabel(t.flags)}</span>
+                        {list.map((e) => {
+                          const note = e.kind === "bug" ? e.bug.note : e.task.note;
+                          const flags = e.kind === "task" ? (e.task.flags ?? []) : [];
+                          return (
+                            <li key={e.id} className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(entryTs(e)), "dd MMM yyyy", { locale: pt })}
+                                </span>
+                                <EntryBadge entry={e} className="shrink-0" />
                               </div>
-                            )}
-                            {t.note && (
-                              <p className="text-xs italic text-muted-foreground break-words">“{t.note}”</p>
-                            )}
-                          </li>
-                        ))}
+                              {e.kind === "bug" && (
+                                <div className="text-xs flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium">{e.bug.title}</span>
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">
+                                    {BUG_SEVERITY_LABEL[e.bug.severity]}
+                                  </span>
+                                  <a
+                                    href={e.bug.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                                  >
+                                    <ExternalLink className="h-3 w-3" /> abrir
+                                  </a>
+                                </div>
+                              )}
+                              {flags.length > 0 && (
+                                <div>
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{formatFlagsLabel(flags)}</span>
+                                </div>
+                              )}
+                              {note && (
+                                <p className="text-xs italic text-muted-foreground break-words">“{note}”</p>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
 
                       {/* Desktop: table */}
@@ -391,28 +461,48 @@ function CSHistoryPage() {
                           <thead>
                             <tr className="text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
                               <th className="text-left font-medium py-2 pr-3 whitespace-nowrap">Data</th>
-                              <th className="text-left font-medium py-2 pr-3">Flag(s)</th>
+                              <th className="text-left font-medium py-2 pr-3">Detalhe</th>
                               <th className="text-left font-medium py-2 pr-3 whitespace-nowrap">Resultado</th>
                               <th className="text-left font-medium py-2">Comentário</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {list.map((t) => (
-                              <tr key={t.id} className="border-b border-border/50 last:border-0 align-top">
-                                <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
-                                  {effectiveTs(t) ? format(new Date(effectiveTs(t)), "dd MMM yyyy", { locale: pt }) : "—"}
-                                </td>
-                                <td className="py-2 pr-3">
-                                  <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{formatFlagsLabel(t.flags)}</span>
-                                </td>
-                                <td className="py-2 pr-3 whitespace-nowrap">
-                                  <StatusBadge task={t} />
-                                </td>
-                                <td className="py-2 text-muted-foreground">
-                                  {t.note ? <span className="italic">“{t.note}”</span> : <span className="text-muted-foreground/60">—</span>}
-                                </td>
-                              </tr>
-                            ))}
+                            {list.map((e) => {
+                              const note = e.kind === "bug" ? e.bug.note : e.task.note;
+                              return (
+                                <tr key={e.id} className="border-b border-border/50 last:border-0 align-top">
+                                  <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
+                                    {format(new Date(entryTs(e)), "dd MMM yyyy", { locale: pt })}
+                                  </td>
+                                  <td className="py-2 pr-3">
+                                    {e.kind === "bug" ? (
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-medium">{e.bug.title}</span>
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">
+                                          {BUG_SEVERITY_LABEL[e.bug.severity]}
+                                        </span>
+                                        <a
+                                          href={e.bug.link}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                        >
+                                          <ExternalLink className="h-3 w-3" /> abrir
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{formatFlagsLabel(e.task.flags)}</span>
+                                    )}
+                                  </td>
+                                  <td className="py-2 pr-3 whitespace-nowrap">
+                                    <EntryBadge entry={e} />
+                                  </td>
+                                  <td className="py-2 text-muted-foreground">
+                                    {note ? <span className="italic">“{note}”</span> : <span className="text-muted-foreground/60">—</span>}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>

@@ -7,8 +7,9 @@ import { fetchSnapshotsForTenant, type Snapshot } from "@/lib/data";
 import { computeRiskWithCS, riskHistory, FLAG_META } from "@/lib/risk";
 import { fetchHealthScoreForTenant, healthLevel } from "@/lib/health";
 import { fetchCSStatusesForTenant, fetchCSTasksForTenant, outcomeLabel, taskStatusLabel, type CSTenantStatus, type CSTask } from "@/lib/cs";
+import { fetchBugsForTenant, BUG_SEVERITY_LABEL, type BugReport } from "@/lib/bugs";
 import { formatEuro, formatNumber, formatPercent, periodLabel, periodShort } from "@/lib/format";
-import { ArrowLeft, MessageSquare } from "lucide-react";
+import { ArrowLeft, ExternalLink, MessageSquare } from "lucide-react";
 import { RiskBadge } from "./index";
 
 export const Route = createFileRoute("/tenant/$name")({
@@ -20,6 +21,7 @@ function TenantDetail() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [csStatuses, setCsStatuses] = useState<CSTenantStatus[]>([]);
   const [csTasks, setCsTasks] = useState<CSTask[]>([]);
+  const [bugs, setBugs] = useState<BugReport[]>([]);
   const [healthScore, setHealthScore] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,16 +32,18 @@ function TenantDetail() {
     setLoading(true);
     (async () => {
       try {
-        const [data, sts, tks, hs] = await Promise.all([
+        const [data, sts, tks, bgs, hs] = await Promise.all([
           fetchSnapshotsForTenant(name),
           fetchCSStatusesForTenant(name),
           fetchCSTasksForTenant(name),
+          fetchBugsForTenant(name),
           fetchHealthScoreForTenant(name),
         ]);
         if (cancelled) return;
         setSnapshots(data);
         setCsStatuses(sts);
         setCsTasks(tks);
+        setBugs(bgs);
         setHealthScore(hs);
         if (data.length > 0) setPeriod(data[data.length - 1].period);
       } catch (e) {
@@ -244,13 +248,13 @@ function TenantDetail() {
         <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
           <MessageSquare className="h-4 w-4" /> Histórico CS
         </h3>
-        <CSHistory tasks={csTasks} statuses={csStatuses} />
+        <CSHistory tasks={csTasks} statuses={csStatuses} bugs={bugs} />
       </section>
     </div>
   );
 }
 
-function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantStatus[] }) {
+function CSHistory({ tasks, statuses, bugs }: { tasks: CSTask[]; statuses: CSTenantStatus[]; bugs: BugReport[] }) {
   // Include both completed and cancelled tasks in the per-tenant history.
   // Cancelled tasks show as "Anulada" via taskStatusLabel (status takes precedence over outcome).
   const historyTasks = tasks.filter((t) => t.status === "completed" || t.status === "cancelled");
@@ -258,12 +262,15 @@ function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantSta
   type Entry = {
     key: string;
     date: string;
-    statusLabel: string | null; // when set, takes precedence over outcome (e.g. "Anulada")
+    kind: "task" | "bug";
+    statusLabel: string | null; // when set, takes precedence over outcome (e.g. "Anulada", "Bug resolvido")
     statusTip?: string | null;
     outcome: string | null;
     note: string | null;
     reason: string | null;
     flags: string[];
+    bugLink?: string;
+    bugSeverity?: BugReport["severity"];
   };
 
   const entries: Entry[] = [];
@@ -272,6 +279,7 @@ function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantSta
     entries.push({
       key: `t-${t.id}`,
       date: t.completed_at ?? t.created_at,
+      kind: "task",
       statusLabel: isCancelled ? taskStatusLabel(t) : null,
       statusTip: isCancelled && t.outcome ? outcomeLabel(t.outcome) : null,
       outcome: t.outcome,
@@ -296,11 +304,28 @@ function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantSta
     entries.push({
       key: `s-${s.id}`,
       date: s.recorded_at,
+      kind: "task",
       statusLabel: null,
       outcome: s.relationship_status,
       note: s.note,
       reason: null,
       flags: [],
+    });
+  });
+
+  // Bugs resolved enter the timeline as their own entries.
+  bugs.filter((b) => b.status === "solved" && b.solved_at).forEach((b) => {
+    entries.push({
+      key: `b-${b.id}`,
+      date: b.solved_at!,
+      kind: "bug",
+      statusLabel: "Bug resolvido",
+      outcome: null,
+      note: b.note,
+      reason: b.title,
+      flags: [],
+      bugLink: b.link,
+      bugSeverity: b.severity,
     });
   });
 
@@ -318,7 +343,11 @@ function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantSta
             <div className="text-xs text-muted-foreground">
               {new Date(e.date).toLocaleString("pt-PT", { dateStyle: "medium", timeStyle: "short" })}
             </div>
-            {e.statusLabel ? (
+            {e.kind === "bug" ? (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium">
+                Bug resolvido
+              </span>
+            ) : e.statusLabel ? (
               <span
                 title={e.statusTip ?? undefined}
                 className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border font-medium line-through decoration-muted-foreground/40"
@@ -329,7 +358,26 @@ function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantSta
               <span className="text-xs px-2 py-0.5 rounded-full bg-surface font-medium">{outcomeLabel(e.outcome)}</span>
             )}
           </div>
-          {e.reason && <div className="text-sm mt-1.5">{e.reason}</div>}
+          {e.reason && (
+            <div className="text-sm mt-1.5 flex items-center gap-2 flex-wrap">
+              <span>{e.reason}</span>
+              {e.kind === "bug" && e.bugSeverity && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">
+                  {BUG_SEVERITY_LABEL[e.bugSeverity]}
+                </span>
+              )}
+              {e.kind === "bug" && e.bugLink && (
+                <a
+                  href={e.bugLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" /> abrir
+                </a>
+              )}
+            </div>
+          )}
           {e.flags.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {e.flags.map((f) => (
