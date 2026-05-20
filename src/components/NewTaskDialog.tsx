@@ -189,6 +189,16 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
           statusTag,
           note: feedbackNote,
         });
+      } else if (tab === "bug") {
+        await insertBugReport({
+          tenant: selectedTenant,
+          title: bugTitle,
+          link: bugLink,
+          severity: bugSeverity,
+          status: bugStatus,
+          reportedAt: bugReportedAt,
+          note: bugNote,
+        });
       } else {
         if (reason.trim().length === 0) throw new Error("Razão obrigatória.");
         if (cta.trim().length === 0) throw new Error("CTA obrigatório.");
@@ -225,6 +235,7 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
   const tabs: { value: DialogTab; label: string; icon: typeof ListChecks }[] = [
     { value: "task", label: "Tarefa", icon: ListChecks },
     { value: "future", label: "Tarefa futura", icon: CalendarIcon },
+    { value: "bug", label: "Bug Report", icon: Bug },
     { value: "feedback", label: "Product Feedback", icon: Lightbulb },
   ];
 
@@ -232,12 +243,14 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
     task: "Nova tarefa",
     future: "Nova tarefa futura",
     feedback: "Novo product feedback",
+    bug: "Novo bug report",
   };
 
   const submitLabelByTab: Record<DialogTab, string> = {
     task: markCompleted ? "Registar concluída" : "Criar tarefa",
     future: "Agendar tarefa",
     feedback: "Registar feedback",
+    bug: "Registar bug",
   };
 
   return (
