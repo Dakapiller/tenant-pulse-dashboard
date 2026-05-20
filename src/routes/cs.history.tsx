@@ -47,6 +47,34 @@ function outcomeBadgeClass(outcome: string | null | undefined): string {
   }
 }
 
+/** Badge for a task in history: uses status precedence (cancelled wins over outcome). */
+function StatusBadge({ task, className }: { task: CSTask; className?: string }) {
+  if (task.status === "cancelled") {
+    const tip = task.outcome ? outcomeLabel(task.outcome) : undefined;
+    return (
+      <span
+        title={tip}
+        className={cn(
+          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground border border-border line-through decoration-muted-foreground/40",
+          className,
+        )}
+      >
+        {taskStatusLabel(task)}
+      </span>
+    );
+  }
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", outcomeBadgeClass(task.outcome), className)}>
+      {outcomeLabel(task.outcome)}
+    </span>
+  );
+}
+
+/** Effective timestamp for ordering/filtering: completed_at for completed tasks, created_at for cancelled (no completed_at). */
+function effectiveTs(t: CSTask): string {
+  return t.completed_at ?? t.created_at ?? "";
+}
+
 function formatFlagsLabel(flags: string[] | null | undefined): string {
   if (!flags || flags.length === 0) return "—";
   return flags.map((f) => FLAG_META[f as RiskFlag]?.label ?? f).join(" + ");
