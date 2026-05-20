@@ -1,5 +1,7 @@
+import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/data";
+
 
 export const FEEDBACK_CATEGORIES = [
   "Calendário",
@@ -226,3 +228,59 @@ export function exportFeedbackAggregatedCSV(groups: FeedbackGroup[]): void {
   }
   downloadCSV(`product-feedback-agregado-${new Date().toISOString().slice(0, 10)}.csv`, rows);
 }
+
+
+
+// ----------------- XLSX export -----------------
+
+function downloadXLSX(filename: string, sheetName: string, rows: (string | number)[][]): void {
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, filename);
+}
+
+export function exportFeedbackDetailedXLSX(items: ProductFeedback[]): void {
+  const rows: (string | number)[][] = [
+    ["Clube", "Data do report", "Categoria", "Funcionalidade", "Status", "Nota"],
+  ];
+  for (const f of items) {
+    rows.push([
+      f.tenant_name,
+      f.reported_at,
+      f.category,
+      f.feature_name,
+      STATUS_LABEL[f.status_tag],
+      f.note ?? "",
+    ]);
+  }
+  downloadXLSX(
+    `product-feedback-detalhado-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    "Detalhado",
+    rows,
+  );
+}
+
+export function exportFeedbackAggregatedXLSX(groups: FeedbackGroup[]): void {
+  const rows: (string | number)[][] = [
+    ["Categoria", "Funcionalidade", "Nº clubes", "Blocker", "Must have", "Good to have", "Clubes"],
+  ];
+  for (const g of groups) {
+    rows.push([
+      g.category,
+      g.featureName,
+      g.clubs.size,
+      g.blocker,
+      g.must,
+      g.good,
+      Array.from(g.clubs).sort().join("; "),
+    ]);
+  }
+  downloadXLSX(
+    `product-feedback-agregado-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    "Agregado",
+    rows,
+  );
+}
+
+

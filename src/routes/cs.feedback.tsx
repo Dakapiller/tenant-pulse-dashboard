@@ -6,6 +6,8 @@ import {
   fetchAllFeedback,
   exportFeedbackDetailedCSV,
   exportFeedbackAggregatedCSV,
+  exportFeedbackDetailedXLSX,
+  exportFeedbackAggregatedXLSX,
   groupFeedback,
   STATUS_LABEL,
   FEEDBACK_CATEGORIES,
@@ -147,11 +149,38 @@ function FeedbackPage() {
                       Uma linha por funcionalidade
                     </span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportFeedbackDetailedXLSX(filtered);
+                      setExportOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface border-t border-border"
+                  >
+                    Excel — detalhado
+                    <span className="block text-[11px] text-muted-foreground">
+                      .xlsx · uma linha por report
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportFeedbackAggregatedXLSX(groups);
+                      setExportOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface border-t border-border"
+                  >
+                    Excel — agregado
+                    <span className="block text-[11px] text-muted-foreground">
+                      .xlsx · uma linha por funcionalidade
+                    </span>
+                  </button>
                 </div>
               </>
             )}
           </div>
         </div>
+
 
         {/* Filters */}
         <div className="rounded-lg border border-border bg-background p-3 grid grid-cols-1 md:grid-cols-5 gap-2">

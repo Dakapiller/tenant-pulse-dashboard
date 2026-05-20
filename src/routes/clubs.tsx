@@ -184,12 +184,13 @@ function ClubsPage() {
     return result;
   }, [snapshots, statuses, tasks, statusLogs, weekStart, latestPeriod, healthScores, priorityMap]);
 
-  const missingCount = rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed").length;
+  const isInactive = (s: ClubStatus) => s === "churned" || s === "closed" || s === "changed_owner";
+  const missingCount = rows.filter((r) => r.missingFromLatest && !isInactive(r.status)).length;
   const newCount = rows.filter((r) => r.isNew).length;
-  const inactiveCount = rows.filter((r) => r.status === "churned" || r.status === "closed").length;
-  const pendingCount = rows.filter((r) => r.pending > 0 && r.status !== "churned" && r.status !== "closed").length;
+  const inactiveCount = rows.filter((r) => isInactive(r.status)).length;
+  const pendingCount = rows.filter((r) => r.pending > 0 && !isInactive(r.status)).length;
   const visibleRows = useMemo(() => {
-    let r = showInactive ? rows : rows.filter((x) => x.status !== "churned" && x.status !== "closed");
+    let r = showInactive ? rows : rows.filter((x) => !isInactive(x.status));
     if (filterNewOnly) r = r.filter((x) => x.isNew);
     if (filterPendingOnly) r = r.filter((x) => x.pending > 0);
     if (search.level) r = r.filter((x) => x.level === search.level);
@@ -474,7 +475,7 @@ function ClubsPage() {
 
       {missingOpen && (
         <MissingClubsModal
-          rows={rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed")}
+          rows={rows.filter((r) => r.missingFromLatest && r.status !== "churned" && r.status !== "closed" && r.status !== "changed_owner")}
           onApply={async (names, next, competitor) => {
             if (next === "churned") {
               const toChurn = names.filter((n) => {

@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as CsRouteImport } from './routes/cs'
 import { Route as ClubsRouteImport } from './routes/clubs'
+import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as AtRiskRouteImport } from './routes/at-risk'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -54,6 +55,11 @@ const CsRoute = CsRouteImport.update({
 const ClubsRoute = ClubsRouteImport.update({
   id: '/clubs',
   path: '/clubs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarRoute = CalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AtRiskRoute = AtRiskRouteImport.update({
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/at-risk': typeof AtRiskRoute
+  '/calendar': typeof CalendarRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
   '/help': typeof HelpRouteWithChildren
@@ -129,6 +136,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/at-risk': typeof AtRiskRoute
+  '/calendar': typeof CalendarRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
   '/login': typeof LoginRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/at-risk': typeof AtRiskRoute
+  '/calendar': typeof CalendarRoute
   '/clubs': typeof ClubsRoute
   '/cs': typeof CsRouteWithChildren
   '/help': typeof HelpRouteWithChildren
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/at-risk'
+    | '/calendar'
     | '/clubs'
     | '/cs'
     | '/help'
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/at-risk'
+    | '/calendar'
     | '/clubs'
     | '/cs'
     | '/login'
@@ -202,6 +213,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/at-risk'
+    | '/calendar'
     | '/clubs'
     | '/cs'
     | '/help'
@@ -221,6 +233,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AtRiskRoute: typeof AtRiskRoute
+  CalendarRoute: typeof CalendarRoute
   ClubsRoute: typeof ClubsRoute
   CsRoute: typeof CsRouteWithChildren
   HelpRoute: typeof HelpRouteWithChildren
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       path: '/clubs'
       fullPath: '/clubs'
       preLoaderRoute: typeof ClubsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendar': {
+      id: '/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof CalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/at-risk': {
@@ -379,6 +399,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AtRiskRoute: AtRiskRoute,
+  CalendarRoute: CalendarRoute,
   ClubsRoute: ClubsRoute,
   CsRoute: CsRouteWithChildren,
   HelpRoute: HelpRouteWithChildren,

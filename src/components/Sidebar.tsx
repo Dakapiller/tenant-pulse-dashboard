@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Upload, LayoutDashboard, AlertTriangle, Activity, Users, Building2, Shield, LogOut, UserCircle, HelpCircle, Menu, X } from "lucide-react";
+import { Upload, LayoutDashboard, AlertTriangle, Activity, Users, Building2, Shield, LogOut, UserCircle, HelpCircle, Menu, X, CalendarDays } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { VersionBadge } from "@/components/VersionBadge";
 import { useEffect, useState } from "react";
@@ -13,6 +13,7 @@ type NavItem = {
 };
 
 const allItems: readonly NavItem[] = [
+  { to: "/calendar", label: "Calendário", icon: CalendarDays },
   { to: "/", label: "Visão geral", icon: LayoutDashboard },
   { to: "/clubs", label: "Clubes", icon: Building2 },
   { to: "/upload", label: "Carregar", icon: Upload, superuserOnly: true },
