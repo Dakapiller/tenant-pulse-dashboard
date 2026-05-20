@@ -95,6 +95,15 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
   const [statusTag, setStatusTag] = useState<FeedbackStatus>("must_have");
   const [feedbackNote, setFeedbackNote] = useState("");
 
+  // ---- "bug" ----
+  const [bugTitle, setBugTitle] = useState("");
+  const [bugLink, setBugLink] = useState("");
+  const [bugSeverity, setBugSeverity] = useState<BugSeverity>("major");
+  const [bugStatus, setBugStatus] = useState<BugStatus>("open");
+  const [bugReportedAt, setBugReportedAt] = useState<string>(todayISO());
+  const [bugNote, setBugNote] = useState("");
+
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
