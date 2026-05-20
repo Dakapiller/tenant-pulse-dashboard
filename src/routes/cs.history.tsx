@@ -383,7 +383,7 @@ function CSHistoryPage() {
           </div>
         ) : (
           <ul className="divide-y divide-border">
-            {grouped.map(({ tenant, tasks: list, last }) => {
+            {grouped.map(({ tenant, entries: list, last }) => {
               const open = !!openClubs[tenant];
               return (
                 <li key={tenant}>
@@ -400,14 +400,14 @@ function CSHistoryPage() {
                               </span>
                             </div>
                             <span className="md:hidden mt-2">
-                              <StatusBadge task={last} />
+                              <EntryBadge entry={last} />
                             </span>
                           </div>
                         </div>
                         <div className="hidden md:flex items-center gap-3 shrink-0">
-                          <StatusBadge task={last} />
+                          <EntryBadge entry={last} />
                           <span className="text-xs text-muted-foreground">
-                            {effectiveTs(last) ? format(new Date(effectiveTs(last)), "dd MMM yyyy", { locale: pt }) : ""}
+                            {format(new Date(entryTs(last)), "dd MMM yyyy", { locale: pt })}
                           </span>
                         </div>
                       </button>
@@ -415,24 +415,44 @@ function CSHistoryPage() {
                     <CollapsibleContent>
                       {/* Mobile: stacked cards */}
                       <ul className="md:hidden px-4 pb-4 space-y-2">
-                        {list.map((t) => (
-                          <li key={t.id} className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs text-muted-foreground">
-                                {effectiveTs(t) ? format(new Date(effectiveTs(t)), "dd MMM yyyy", { locale: pt }) : "—"}
-                              </span>
-                              <StatusBadge task={t} className="shrink-0" />
-                            </div>
-                            {t.flags && t.flags.length > 0 && (
-                              <div>
-                                <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{formatFlagsLabel(t.flags)}</span>
+                        {list.map((e) => {
+                          const note = e.kind === "bug" ? e.bug.note : e.task.note;
+                          const flags = e.kind === "task" ? (e.task.flags ?? []) : [];
+                          return (
+                            <li key={e.id} className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(entryTs(e)), "dd MMM yyyy", { locale: pt })}
+                                </span>
+                                <EntryBadge entry={e} className="shrink-0" />
                               </div>
-                            )}
-                            {t.note && (
-                              <p className="text-xs italic text-muted-foreground break-words">“{t.note}”</p>
-                            )}
-                          </li>
-                        ))}
+                              {e.kind === "bug" && (
+                                <div className="text-xs flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium">{e.bug.title}</span>
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">
+                                    {BUG_SEVERITY_LABEL[e.bug.severity]}
+                                  </span>
+                                  <a
+                                    href={e.bug.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                                  >
+                                    <ExternalLink className="h-3 w-3" /> abrir
+                                  </a>
+                                </div>
+                              )}
+                              {flags.length > 0 && (
+                                <div>
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{formatFlagsLabel(flags)}</span>
+                                </div>
+                              )}
+                              {note && (
+                                <p className="text-xs italic text-muted-foreground break-words">“{note}”</p>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
 
                       {/* Desktop: table */}
@@ -441,28 +461,48 @@ function CSHistoryPage() {
                           <thead>
                             <tr className="text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
                               <th className="text-left font-medium py-2 pr-3 whitespace-nowrap">Data</th>
-                              <th className="text-left font-medium py-2 pr-3">Flag(s)</th>
+                              <th className="text-left font-medium py-2 pr-3">Detalhe</th>
                               <th className="text-left font-medium py-2 pr-3 whitespace-nowrap">Resultado</th>
                               <th className="text-left font-medium py-2">Comentário</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {list.map((t) => (
-                              <tr key={t.id} className="border-b border-border/50 last:border-0 align-top">
-                                <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
-                                  {effectiveTs(t) ? format(new Date(effectiveTs(t)), "dd MMM yyyy", { locale: pt }) : "—"}
-                                </td>
-                                <td className="py-2 pr-3">
-                                  <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{formatFlagsLabel(t.flags)}</span>
-                                </td>
-                                <td className="py-2 pr-3 whitespace-nowrap">
-                                  <StatusBadge task={t} />
-                                </td>
-                                <td className="py-2 text-muted-foreground">
-                                  {t.note ? <span className="italic">“{t.note}”</span> : <span className="text-muted-foreground/60">—</span>}
-                                </td>
-                              </tr>
-                            ))}
+                            {list.map((e) => {
+                              const note = e.kind === "bug" ? e.bug.note : e.task.note;
+                              return (
+                                <tr key={e.id} className="border-b border-border/50 last:border-0 align-top">
+                                  <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
+                                    {format(new Date(entryTs(e)), "dd MMM yyyy", { locale: pt })}
+                                  </td>
+                                  <td className="py-2 pr-3">
+                                    {e.kind === "bug" ? (
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-medium">{e.bug.title}</span>
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">
+                                          {BUG_SEVERITY_LABEL[e.bug.severity]}
+                                        </span>
+                                        <a
+                                          href={e.bug.link}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                        >
+                                          <ExternalLink className="h-3 w-3" /> abrir
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{formatFlagsLabel(e.task.flags)}</span>
+                                    )}
+                                  </td>
+                                  <td className="py-2 pr-3 whitespace-nowrap">
+                                    <EntryBadge entry={e} />
+                                  </td>
+                                  <td className="py-2 text-muted-foreground">
+                                    {note ? <span className="italic">“{note}”</span> : <span className="text-muted-foreground/60">—</span>}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
