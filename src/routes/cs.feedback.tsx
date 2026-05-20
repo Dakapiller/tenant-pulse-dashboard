@@ -6,6 +6,8 @@ import {
   fetchAllFeedback,
   exportFeedbackDetailedCSV,
   exportFeedbackAggregatedCSV,
+  exportFeedbackDetailedXLSX,
+  exportFeedbackAggregatedXLSX,
   groupFeedback,
   STATUS_LABEL,
   FEEDBACK_CATEGORIES,
