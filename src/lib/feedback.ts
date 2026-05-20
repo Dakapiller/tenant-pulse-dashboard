@@ -225,7 +225,11 @@ export function exportFeedbackAggregatedCSV(groups: FeedbackGroup[]): void {
       String(g.good),
       Array.from(g.clubs).sort().join("; "),
     ]);
+  }
+  downloadCSV(`product-feedback-agregado-${new Date().toISOString().slice(0, 10)}.csv`, rows);
 }
+
+
 
 // ----------------- XLSX export -----------------
 
