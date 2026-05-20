@@ -180,7 +180,7 @@ function CSHistoryPage() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const next = await fetchCompletedCSTasksPage(tasks.length, PAGE);
+      const next = await fetchTasksByStatusesPage(["completed", "cancelled"], tasks.length, PAGE);
       setTasks((prev) => [...prev, ...next]);
       setHasMore(next.length === PAGE);
     } finally {
