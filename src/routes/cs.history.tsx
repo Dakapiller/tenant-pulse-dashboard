@@ -369,11 +369,9 @@ function CSHistoryPage() {
                           <li key={t.id} className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-xs text-muted-foreground">
-                                {t.completed_at ? format(new Date(t.completed_at), "dd MMM yyyy", { locale: pt }) : "—"}
+                                {effectiveTs(t) ? format(new Date(effectiveTs(t)), "dd MMM yyyy", { locale: pt }) : "—"}
                               </span>
-                              <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0", outcomeBadgeClass(t.outcome))}>
-                                {outcomeLabel(t.outcome)}
-                              </span>
+                              <StatusBadge task={t} className="shrink-0" />
                             </div>
                             {t.flags && t.flags.length > 0 && (
                               <div>
