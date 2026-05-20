@@ -349,17 +349,15 @@ function CSHistoryPage() {
                                 {list.length} {list.length === 1 ? "ação" : "ações"}
                               </span>
                             </div>
-                            <span className={cn("md:hidden mt-2 inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium", outcomeBadgeClass(last.outcome))}>
-                              {outcomeLabel(last.outcome)}
+                            <span className="md:hidden mt-2">
+                              <StatusBadge task={last} />
                             </span>
                           </div>
                         </div>
                         <div className="hidden md:flex items-center gap-3 shrink-0">
-                          <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", outcomeBadgeClass(last.outcome))}>
-                            {outcomeLabel(last.outcome)}
-                          </span>
+                          <StatusBadge task={last} />
                           <span className="text-xs text-muted-foreground">
-                            {last.completed_at ? format(new Date(last.completed_at), "dd MMM yyyy", { locale: pt }) : ""}
+                            {effectiveTs(last) ? format(new Date(effectiveTs(last)), "dd MMM yyyy", { locale: pt }) : ""}
                           </span>
                         </div>
                       </button>
