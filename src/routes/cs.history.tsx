@@ -118,6 +118,7 @@ function endOfDay(d: Date): Date {
 function CSHistoryPage() {
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
+  const [bugs, setBugs] = useState<BugReport[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -136,13 +137,15 @@ function CSHistoryPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [page, sts] = await Promise.all([
+        const [page, sts, bgs] = await Promise.all([
           fetchTasksByStatusesPage(["completed", "cancelled"], 0, PAGE),
           fetchAllCSStatuses(),
+          fetchBugsByStatuses(["solved"]),
         ]);
         if (cancelled) return;
         setTasks(page);
         setStatuses(sts);
+        setBugs(bgs);
         setHasMore(page.length === PAGE);
       } finally {
         if (!cancelled) setLoading(false);
@@ -153,49 +156,61 @@ function CSHistoryPage() {
 
   const excluded = useMemo(() => excludedTenants(statuses), [statuses]);
 
-  const filtered = useMemo(() => {
+  // Build unified entries (tasks + resolved bugs) and apply filters.
+  const filtered = useMemo<HistoryEntry[]>(() => {
     const fromTs = dateFrom ? dateFrom.getTime() : -Infinity;
     const toTs = dateTo ? endOfDay(dateTo).getTime() : Infinity;
     const q = debouncedSearch.trim().toLowerCase();
-    return tasks.filter((t) => {
-      const eff = effectiveTs(t);
-      if (!eff) return false;
-      const ts = new Date(eff).getTime();
+
+    const taskEntries: HistoryEntry[] = tasks
+      .map<HistoryEntry | null>((t) => {
+        const ts = taskTs(t);
+        if (!ts) return null;
+        return { kind: "task", id: `t-${t.id}`, tenant: t.tenant_name, ts, task: t };
+      })
+      .filter((e): e is HistoryEntry => e !== null);
+
+    const bugEntries: HistoryEntry[] = bugs
+      .filter((b) => !!b.solved_at)
+      .map<HistoryEntry>((b) => ({ kind: "bug", id: `b-${b.id}`, tenant: b.tenant_name, ts: b.solved_at!, bug: b }));
+
+    return [...taskEntries, ...bugEntries].filter((e) => {
+      const ts = new Date(e.ts).getTime();
       if (ts < fromTs || ts > toTs) return false;
-      if (!showInactive && excluded.has(t.tenant_name)) return false;
-      // Outcome filter only applies to completed tasks (cancelled tasks don't have a meaningful outcome).
+      if (!showInactive && excluded.has(e.tenant)) return false;
+      // Outcome filter only applies to completed tasks; bugs and cancelled tasks are excluded when a specific outcome is chosen.
       if (outcome !== "all") {
-        if (t.status !== "completed") return false;
-        if (t.outcome !== outcome) return false;
+        if (e.kind !== "task") return false;
+        if (e.task.status !== "completed") return false;
+        if (e.task.outcome !== outcome) return false;
       }
-      if (q && !t.tenant_name.toLowerCase().includes(q)) return false;
+      if (q && !e.tenant.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [tasks, dateFrom, dateTo, debouncedSearch, showInactive, excluded, outcome]);
+  }, [tasks, bugs, dateFrom, dateTo, debouncedSearch, showInactive, excluded, outcome]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, CSTask[]>();
-    for (const t of filtered) {
-      if (!map.has(t.tenant_name)) map.set(t.tenant_name, []);
-      map.get(t.tenant_name)!.push(t);
+    const map = new Map<string, HistoryEntry[]>();
+    for (const e of filtered) {
+      if (!map.has(e.tenant)) map.set(e.tenant, []);
+      map.get(e.tenant)!.push(e);
     }
     const arr = Array.from(map.entries()).map(([tenant, list]) => {
-      const sorted = [...list].sort((a, b) => effectiveTs(b).localeCompare(effectiveTs(a)));
-      return { tenant, tasks: sorted, last: sorted[0] };
+      const sorted = [...list].sort((a, b) => entryTs(b).localeCompare(entryTs(a)));
+      return { tenant, entries: sorted, last: sorted[0] };
     });
-    arr.sort((a, b) => effectiveTs(b.last).localeCompare(effectiveTs(a.last)));
+    arr.sort((a, b) => entryTs(b.last).localeCompare(entryTs(a.last)));
     return arr;
   }, [filtered]);
 
   const summary = useMemo(() => {
-    // Only count completed tasks in summary metrics — cancelled tasks (incl. cleanup)
-    // are shown for context but should not distort throughput numbers.
-    const completedOnly = filtered.filter((t) => t.status === "completed");
-    const totalActions = completedOnly.length;
-    const clubs = new Set(completedOnly.map((t) => t.tenant_name)).size;
+    // Count completed tasks + resolved bugs; ignore cancelled tasks (context only).
+    const meaningful = filtered.filter((e) => e.kind === "bug" || e.task.status === "completed");
+    const totalActions = meaningful.length;
+    const clubs = new Set(meaningful.map((e) => e.tenant)).size;
     const counts: Record<string, number> = {};
-    for (const t of completedOnly) {
-      const key = t.outcome ?? "—";
+    for (const e of meaningful) {
+      const key = e.kind === "bug" ? "bug_solved" : (e.task.outcome ?? "—");
       counts[key] = (counts[key] ?? 0) + 1;
     }
     let topOutcome: string | null = null;
@@ -208,8 +223,10 @@ function CSHistoryPage() {
 
   const inactiveCount = useMemo(() => {
     if (showInactive) return 0;
-    return tasks.filter((t) => excluded.has(t.tenant_name)).length;
-  }, [tasks, excluded, showInactive]);
+    const taskCount = tasks.filter((t) => excluded.has(t.tenant_name)).length;
+    const bugCount = bugs.filter((b) => b.solved_at && excluded.has(b.tenant_name)).length;
+    return taskCount + bugCount;
+  }, [tasks, bugs, excluded, showInactive]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
