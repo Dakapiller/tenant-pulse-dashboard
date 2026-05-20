@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Search, Info, ListChecks, Calendar as CalendarIcon, Lightbulb } from "lucide-react";
+import { X, Search, Info, ListChecks, Calendar as CalendarIcon, Lightbulb, Bug } from "lucide-react";
 import {
   insertManualCSTask,
   insertManualCSTaskCompleted,
@@ -14,6 +14,13 @@ import {
   type FeedbackCategory,
   type FeedbackStatus,
 } from "@/lib/feedback";
+import {
+  BUG_SEVERITY_OPTIONS,
+  BUG_STATUS_OPTIONS,
+  insertBugReport,
+  type BugSeverity,
+  type BugStatus,
+} from "@/lib/bugs";
 import {
   Tooltip,
   TooltipContent,
@@ -31,8 +38,9 @@ interface Props {
   activeClubs?: string[];
 }
 
-type DialogTab = "task" | "future" | "feedback";
+type DialogTab = "task" | "future" | "feedback" | "bug";
 type FutureMode = "1w" | "1m" | "custom";
+
 
 const PRIORITY_OPTIONS = [
   { value: 30, label: "Baixa" },
