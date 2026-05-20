@@ -381,7 +381,39 @@ export async function postponeCSTask(taskId: string, target: Date | string): Pro
   if (error) throw error;
 }
 
-// --------- Club status helpers ---------
+/**
+ * Cancel a single pending task manually (CS marca como anulada).
+ * Não preenche `completed_at` (anulada ≠ concluída — não conta para métricas
+ * de histórico de ações concluídas).
+ */
+export async function cancelCSTask(taskId: string, note: string): Promise<void> {
+  await cancelCSTasksBatch([taskId], note);
+}
+
+/**
+ * Cancel many pending tasks in one batch with the same note.
+ * Valida o motivo (1–200 chars) **no cliente** antes do UPDATE; chamadas
+ * diretas à API que contornem o frontend recebem erro explícito.
+ */
+export async function cancelCSTasksBatch(taskIds: string[], note: string): Promise<void> {
+  if (taskIds.length === 0) return;
+  const trimmed = (note ?? "").trim();
+  if (trimmed.length < 1 || trimmed.length > 200) {
+    throw new Error("Motivo de anulação obrigatório (1–200 caracteres).");
+  }
+  const { error } = await supabase
+    .from("cs_tasks")
+    .update({
+      status: "cancelled",
+      outcome: "cancelled_manual",
+      note: trimmed,
+    } as never)
+    .in("id", taskIds)
+    .eq("status", "pending");
+  if (error) throw error;
+}
+
+
 
 export async function fetchClubStatusLogs(): Promise<ClubStatusLog[]> {
   const { data, error } = await supabase
