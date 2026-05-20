@@ -7,8 +7,9 @@ import { fetchSnapshotsForTenant, type Snapshot } from "@/lib/data";
 import { computeRiskWithCS, riskHistory, FLAG_META } from "@/lib/risk";
 import { fetchHealthScoreForTenant, healthLevel } from "@/lib/health";
 import { fetchCSStatusesForTenant, fetchCSTasksForTenant, outcomeLabel, taskStatusLabel, type CSTenantStatus, type CSTask } from "@/lib/cs";
+import { fetchBugsForTenant, BUG_SEVERITY_LABEL, type BugReport } from "@/lib/bugs";
 import { formatEuro, formatNumber, formatPercent, periodLabel, periodShort } from "@/lib/format";
-import { ArrowLeft, MessageSquare } from "lucide-react";
+import { ArrowLeft, ExternalLink, MessageSquare } from "lucide-react";
 import { RiskBadge } from "./index";
 
 export const Route = createFileRoute("/tenant/$name")({
@@ -20,6 +21,7 @@ function TenantDetail() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [csStatuses, setCsStatuses] = useState<CSTenantStatus[]>([]);
   const [csTasks, setCsTasks] = useState<CSTask[]>([]);
+  const [bugs, setBugs] = useState<BugReport[]>([]);
   const [healthScore, setHealthScore] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,16 +32,18 @@ function TenantDetail() {
     setLoading(true);
     (async () => {
       try {
-        const [data, sts, tks, hs] = await Promise.all([
+        const [data, sts, tks, bgs, hs] = await Promise.all([
           fetchSnapshotsForTenant(name),
           fetchCSStatusesForTenant(name),
           fetchCSTasksForTenant(name),
+          fetchBugsForTenant(name),
           fetchHealthScoreForTenant(name),
         ]);
         if (cancelled) return;
         setSnapshots(data);
         setCsStatuses(sts);
         setCsTasks(tks);
+        setBugs(bgs);
         setHealthScore(hs);
         if (data.length > 0) setPeriod(data[data.length - 1].period);
       } catch (e) {
@@ -244,13 +248,13 @@ function TenantDetail() {
         <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
           <MessageSquare className="h-4 w-4" /> Histórico CS
         </h3>
-        <CSHistory tasks={csTasks} statuses={csStatuses} />
+        <CSHistory tasks={csTasks} statuses={csStatuses} bugs={bugs} />
       </section>
     </div>
   );
 }
 
-function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantStatus[] }) {
+function CSHistory({ tasks, statuses, bugs }: { tasks: CSTask[]; statuses: CSTenantStatus[]; bugs: BugReport[] }) {
   // Include both completed and cancelled tasks in the per-tenant history.
   // Cancelled tasks show as "Anulada" via taskStatusLabel (status takes precedence over outcome).
   const historyTasks = tasks.filter((t) => t.status === "completed" || t.status === "cancelled");
