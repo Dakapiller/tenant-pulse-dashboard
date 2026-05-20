@@ -197,6 +197,42 @@ export type Database = {
         }
         Relationships: []
       }
+      product_feedback: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          feature_name: string
+          id: string
+          note: string | null
+          reported_at: string
+          status_tag: string
+          tenant_name: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          created_by?: string | null
+          feature_name: string
+          id?: string
+          note?: string | null
+          reported_at?: string
+          status_tag: string
+          tenant_name: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          feature_name?: string
+          id?: string
+          note?: string | null
+          reported_at?: string
+          status_tag?: string
+          tenant_name?: string
+        }
+        Relationships: []
+      }
       tenant_snapshots: {
         Row: {
           b2b_commissions: number | null

@@ -244,6 +244,49 @@ export async function insertManualCSTask(input: {
   if (error) throw error;
 }
 
+/** Create a manual CS task already marked as completed. Used when CS logs
+ *  an interaction that happened in the past, just for historical record. */
+export async function insertManualCSTaskCompleted(input: {
+  tenant: string;
+  reason: string;
+  cta: string;
+  priority: number;
+  weekStart: string;
+  outcome: string;
+  note?: string | null;
+}): Promise<void> {
+  const reason = input.reason.trim();
+  const cta = input.cta.trim();
+  if (!input.tenant) throw new Error("Clube obrigatório.");
+  if (reason.length === 0 || reason.length > 500) throw new Error("Razão entre 1 e 500 caracteres.");
+  if (cta.length === 0 || cta.length > 200) throw new Error("CTA entre 1 e 200 caracteres.");
+  if (![30, 60, 90].includes(input.priority)) throw new Error("Prioridade inválida.");
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("cs_tasks")
+    .insert({
+      tenant_name: input.tenant,
+      reason,
+      cta,
+      priority: input.priority,
+      flags: ["manual"],
+      week_start: input.weekStart,
+      status: "completed",
+      outcome: input.outcome,
+      note: input.note?.trim() || null,
+      completed_at: now,
+    } as never)
+    .select("id")
+    .single();
+  if (error) throw error;
+  void data;
+  const { error: e2 } = await supabase
+    .from("cs_tenant_status")
+    .insert({ tenant_name: input.tenant, relationship_status: input.outcome, note: input.note?.trim() || null });
+  if (e2) throw e2;
+  await applyTaskOutcome(input.tenant, input.outcome);
+}
+
 export async function completeCSTask(taskId: string, tenant: string, outcome: string, note: string | null): Promise<void> {
   const { error: e1 } = await supabase
     .from("cs_tasks")

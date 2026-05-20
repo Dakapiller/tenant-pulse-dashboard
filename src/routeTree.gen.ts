@@ -24,6 +24,7 @@ import { Route as HelpScoreRouteImport } from './routes/help.score'
 import { Route as HelpChangelogRouteImport } from './routes/help.changelog'
 import { Route as CsTasksRouteImport } from './routes/cs.tasks'
 import { Route as CsHistoryRouteImport } from './routes/cs.history'
+import { Route as CsFeedbackRouteImport } from './routes/cs.feedback'
 
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
@@ -100,6 +101,11 @@ const CsHistoryRoute = CsHistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => CsRoute,
 } as any)
+const CsFeedbackRoute = CsFeedbackRouteImport.update({
+  id: '/feedback',
+  path: '/feedback',
+  getParentRoute: () => CsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/upload': typeof UploadRoute
+  '/cs/feedback': typeof CsFeedbackRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
   '/help/changelog': typeof HelpChangelogRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/upload': typeof UploadRoute
+  '/cs/feedback': typeof CsFeedbackRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
   '/help/changelog': typeof HelpChangelogRoute
@@ -145,6 +153,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/upload': typeof UploadRoute
+  '/cs/feedback': typeof CsFeedbackRoute
   '/cs/history': typeof CsHistoryRoute
   '/cs/tasks': typeof CsTasksRoute
   '/help/changelog': typeof HelpChangelogRoute
@@ -164,6 +173,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/upload'
+    | '/cs/feedback'
     | '/cs/history'
     | '/cs/tasks'
     | '/help/changelog'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/upload'
+    | '/cs/feedback'
     | '/cs/history'
     | '/cs/tasks'
     | '/help/changelog'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/upload'
+    | '/cs/feedback'
     | '/cs/history'
     | '/cs/tasks'
     | '/help/changelog'
@@ -325,15 +337,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CsHistoryRouteImport
       parentRoute: typeof CsRoute
     }
+    '/cs/feedback': {
+      id: '/cs/feedback'
+      path: '/feedback'
+      fullPath: '/cs/feedback'
+      preLoaderRoute: typeof CsFeedbackRouteImport
+      parentRoute: typeof CsRoute
+    }
   }
 }
 
 interface CsRouteChildren {
+  CsFeedbackRoute: typeof CsFeedbackRoute
   CsHistoryRoute: typeof CsHistoryRoute
   CsTasksRoute: typeof CsTasksRoute
 }
 
 const CsRouteChildren: CsRouteChildren = {
+  CsFeedbackRoute: CsFeedbackRoute,
   CsHistoryRoute: CsHistoryRoute,
   CsTasksRoute: CsTasksRoute,
 }
@@ -369,12 +390,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

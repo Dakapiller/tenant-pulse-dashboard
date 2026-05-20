@@ -1,8 +1,9 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { ListChecks, History } from "lucide-react";
+import { ListChecks, History, Lightbulb } from "lucide-react";
 
 const items = [
   { to: "/cs/tasks", label: "Tarefas", icon: ListChecks },
+  { to: "/cs/feedback", label: "Product Feedback", icon: Lightbulb },
   { to: "/cs/history", label: "Histórico", icon: History },
 ] as const;
 
