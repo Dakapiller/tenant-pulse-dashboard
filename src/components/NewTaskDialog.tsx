@@ -637,6 +637,134 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
               </>
             )}
 
+            {/* ============ BUG REPORT ============ */}
+            {tab === "bug" && (
+              <>
+                <div>
+                  <label className="block text-xs uppercase tracking-wide text-muted-foreground mb-1.5">
+                    Título{" "}
+                    <span className="text-muted-foreground/60 normal-case">
+                      ({bugTitle.length}/200)
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={bugTitle}
+                    onChange={(e) => setBugTitle(e.target.value.slice(0, 200))}
+                    placeholder="Resumo do bug (ex.: Pagamento Multibanco falha em iOS)"
+                    className="w-full px-3 py-2.5 rounded-md border border-border bg-background text-sm min-h-11 focus:outline-none focus:ring-2 focus:ring-foreground/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wide text-muted-foreground mb-1.5">
+                    Link do bug report
+                  </label>
+                  <input
+                    type="url"
+                    value={bugLink}
+                    onChange={(e) => setBugLink(e.target.value.slice(0, 2000))}
+                    placeholder="https://… (Linear, Jira, GitHub, Notion…)"
+                    className="w-full px-3 py-2.5 rounded-md border border-border bg-background text-sm min-h-11 focus:outline-none focus:ring-2 focus:ring-foreground/20"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-muted-foreground mb-1.5">
+                      Data do report
+                    </label>
+                    <input
+                      type="date"
+                      value={bugReportedAt}
+                      max={todayISO()}
+                      onChange={(e) => setBugReportedAt(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-md border border-border bg-background text-sm min-h-11"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-muted-foreground mb-1.5">
+                      Estado inicial
+                    </label>
+                    <select
+                      value={bugStatus}
+                      onChange={(e) => setBugStatus(e.target.value as BugStatus)}
+                      className="w-full px-3 py-2.5 rounded-md border border-border bg-background text-sm min-h-11"
+                    >
+                      {BUG_STATUS_OPTIONS.filter((s) => s.value === "open" || s.value === "in_progress").map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wide text-muted-foreground mb-1.5">
+                    Severidade
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {BUG_SEVERITY_OPTIONS.map((o) => {
+                      const active = bugSeverity === o.value;
+                      return (
+                        <button
+                          key={o.value}
+                          type="button"
+                          onClick={() => setBugSeverity(o.value)}
+                          className={
+                            "relative px-2 py-2 rounded-md border text-xs transition-colors " +
+                            (active
+                              ? "border-foreground bg-foreground text-background"
+                              : "border-border hover:bg-surface")
+                          }
+                        >
+                          <span className="block">{o.label}</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                role="button"
+                                tabIndex={-1}
+                                onClick={(e) => e.stopPropagation()}
+                                className="absolute top-1 right-1 inline-flex h-4 w-4 items-center justify-center opacity-70 hover:opacity-100"
+                              >
+                                <Info className="h-3 w-3" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[240px] text-xs">
+                              {o.tooltip}
+                            </TooltipContent>
+                          </Tooltip>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wide text-muted-foreground mb-1.5">
+                    Nota{" "}
+                    <span className="text-muted-foreground/60 normal-case">
+                      ({bugNote.length}/1000)
+                    </span>
+                  </label>
+                  <textarea
+                    value={bugNote}
+                    onChange={(e) => setBugNote(e.target.value.slice(0, 1000))}
+                    rows={3}
+                    placeholder="Passos para reproduzir, impacto, contexto adicional…"
+                    className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20"
+                  />
+                </div>
+
+                <div className="rounded-md border border-primary/20 bg-primary/5 text-xs text-muted-foreground px-3 py-2">
+                  Quando este bug for marcado como <span className="font-medium text-foreground">Resolvido</span>, o health score do clube sobe automaticamente <span className="font-medium text-foreground">+5</span>.
+                </div>
+              </>
+            )}
+
+
+
             {error && (
               <div className="rounded-md border border-danger/30 bg-danger/10 text-danger text-sm px-3 py-2">
                 {error}
