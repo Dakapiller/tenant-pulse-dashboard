@@ -1,6 +1,6 @@
 // Health score system. The score lives on `cs_tenant_status.health_score`
 // and EVERY change is logged in `health_score_log`. The score can ONLY change
-// through these three rules (enforced in the apply* helpers below):
+// through these rules (enforced in the apply* helpers below):
 //
 //   Rule 1 — New club → 100 (initial baseline)
 //   Rule 2 — Upload delta:
@@ -11,6 +11,10 @@
 //              bad_relationship   → −25
 //              good_receptivity   → +10
 //              very_satisfied     → +25
+//   Rule 4 — Dynamic floor (applied inside persistScoreChange):
+//              very_satisfied   in last ~3 months → floor 80
+//              good_receptivity in last ~2 months → floor 60
+//   Rule 5 — Bug resolvido → +5 (uma única vez por bug, na 1ª transição para "solved")
 //
 // Score is always clamped to [0, 100].
 
@@ -18,7 +22,8 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Snapshot } from "@/lib/data";
 
 export type HealthLevel = "risk" | "monitor" | "healthy";
-export type HealthSource = "upload" | "task";
+export type HealthSource = "upload" | "task" | "manual" | "manual_bulk" | "bug";
+
 
 export interface HealthScoreLog {
   id: string;
@@ -275,6 +280,19 @@ export async function applyTaskOutcome(tenant: string, outcome: string): Promise
   const cur = (await fetchHealthScoreForTenant(tenant)) ?? 100;
   await persistScoreChange(tenant, cur, cur + delta, outcomeReason(outcome), "task");
 }
+
+/**
+ * Rule 5 — Bug resolvido → +5. Aplicar APENAS uma vez por bug (na 1ª transição
+ * para "solved"). O caller (`updateBugStatus`) é responsável por garantir essa
+ * idempotência; este helper apenas credita o delta. Respeita clamp [0,100] e
+ * o piso dinâmico via `persistScoreChange`.
+ */
+export async function applyBugSolvedBonus(tenant: string, bugTitle: string): Promise<void> {
+  const cur = (await fetchHealthScoreForTenant(tenant)) ?? 100;
+  const safeTitle = bugTitle.trim().slice(0, 120) || "(sem título)";
+  await persistScoreChange(tenant, cur, cur + 5, `Bug resolvido: ${safeTitle}`, "bug");
+}
+
 
 /**
  * Manual override of a tenant's health_score by a CS user. Bypasses the
