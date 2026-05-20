@@ -275,7 +275,7 @@ function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantSta
       statusLabel: isCancelled ? taskStatusLabel(t) : null,
       statusTip: isCancelled && t.outcome ? outcomeLabel(t.outcome) : null,
       outcome: t.outcome,
-      note: isCancelled ? t.note : null,
+      note: isCancelled ? (t.note ?? null) : null,
       reason: t.reason,
       flags: t.flags ?? [],
     });
