@@ -131,11 +131,16 @@ function CSHistoryPage() {
     const toTs = dateTo ? endOfDay(dateTo).getTime() : Infinity;
     const q = debouncedSearch.trim().toLowerCase();
     return tasks.filter((t) => {
-      if (!t.completed_at) return false;
-      const ts = new Date(t.completed_at).getTime();
+      const eff = effectiveTs(t);
+      if (!eff) return false;
+      const ts = new Date(eff).getTime();
       if (ts < fromTs || ts > toTs) return false;
       if (!showInactive && excluded.has(t.tenant_name)) return false;
-      if (outcome !== "all" && t.outcome !== outcome) return false;
+      // Outcome filter only applies to completed tasks (cancelled tasks don't have a meaningful outcome).
+      if (outcome !== "all") {
+        if (t.status !== "completed") return false;
+        if (t.outcome !== outcome) return false;
+      }
       if (q && !t.tenant_name.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -148,18 +153,21 @@ function CSHistoryPage() {
       map.get(t.tenant_name)!.push(t);
     }
     const arr = Array.from(map.entries()).map(([tenant, list]) => {
-      const sorted = [...list].sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""));
+      const sorted = [...list].sort((a, b) => effectiveTs(b).localeCompare(effectiveTs(a)));
       return { tenant, tasks: sorted, last: sorted[0] };
     });
-    arr.sort((a, b) => (b.last.completed_at ?? "").localeCompare(a.last.completed_at ?? ""));
+    arr.sort((a, b) => effectiveTs(b.last).localeCompare(effectiveTs(a.last)));
     return arr;
   }, [filtered]);
 
   const summary = useMemo(() => {
-    const totalActions = filtered.length;
-    const clubs = new Set(filtered.map((t) => t.tenant_name)).size;
+    // Only count completed tasks in summary metrics — cancelled tasks (incl. cleanup)
+    // are shown for context but should not distort throughput numbers.
+    const completedOnly = filtered.filter((t) => t.status === "completed");
+    const totalActions = completedOnly.length;
+    const clubs = new Set(completedOnly.map((t) => t.tenant_name)).size;
     const counts: Record<string, number> = {};
-    for (const t of filtered) {
+    for (const t of completedOnly) {
       const key = t.outcome ?? "—";
       counts[key] = (counts[key] ?? 0) + 1;
     }
