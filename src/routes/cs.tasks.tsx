@@ -431,90 +431,129 @@ function CSTasksPage() {
 
         <section className="rounded-xl border border-border overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-3">
-            <div className="flex items-center gap-2">
-              <ListChecks className="h-4 w-4" />
-              <h2 className="text-base font-semibold">Tarefas pendentes</h2>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <ListChecks className="h-4 w-4" />
+                <h2 className="text-base font-semibold">Tarefas pendentes</h2>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {visibleRows.reduce((acc, r) => acc + r.pending.length, 0)} desta semana
+                {" · "}
+                {visibleRows.reduce((acc, r) => acc + r.overdue.length, 0) + visibleOverdueOnly.reduce((acc, r) => acc + r.overdue.length, 0)} atrasadas
+                {" · "}
+                {visibleRows.length + visibleOverdueOnly.length} clubes
+              </span>
             </div>
-            {inactiveRowsCount > 0 && (
-              <button
-                onClick={() => setShowInactive((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-surface"
-              >
-                {showInactive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                {showInactive ? "Ocultar inativos" : `Mostrar inativos (${inactiveRowsCount})`}
-              </button>
-            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="inline-flex rounded-md border border-border bg-background p-0.5" role="tablist" aria-label="Vista">
+                <button
+                  onClick={() => { setPendingView("club"); setSelectedTaskIds(new Set()); }}
+                  className={`px-3 py-1.5 text-xs rounded ${pendingView === "club" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+                >Por clube</button>
+                <button
+                  onClick={() => { setPendingView("task"); setSelectedKeys(new Set()); }}
+                  className={`px-3 py-1.5 text-xs rounded ${pendingView === "task" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+                  title="Gestão em massa por tarefa"
+                >Por tarefa</button>
+              </div>
+              {inactiveRowsCount > 0 && (
+                <button
+                  onClick={() => setShowInactive((v) => !v)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-surface"
+                >
+                  {showInactive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {showInactive ? "Ocultar inativos" : `Mostrar inativos (${inactiveRowsCount})`}
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="p-5">
-            {visibleRows.length === 0 ? (
-              <div className="text-sm text-muted-foreground text-center py-8">
-                Sem clubes com tarefas pendentes.
-              </div>
-            ) : (
-              <div className="rounded-lg border border-border overflow-hidden">
-                <DataTable<typeof rows[number]>
-                  rows={visibleRows}
-                  rowKey={(r) => r.name}
-                  defaultSort={{ key: "score", dir: "desc" }}
-                  pageSize={50}
-                  onRowClick={(r) => setExpanded(expanded === r.name ? null : r.name)}
-                  rowClassName={(r) => expanded === r.name ? "bg-surface/40" : ""}
-                  selectable
-                  selectedKeys={selectedKeys}
-                  onSelectionChange={setSelectedKeys}
-                  isRowSelectable={(r) => r.pending.length > 0}
-                  expandedRow={(r) => expanded === r.name ? (
-                    <ExpandedClubPanel row={r} onComplete={handleClubComplete} onPostpone={handleClubPostpone} />
-                  ) : null}
-                  columns={[
-                    {
-                      key: "name", header: "Clube",
-                      sortValue: (r) => r.name,
-                      filterValue: (r) => r.name, filter: { kind: "text" },
-                      render: (r) => (<ClubLink name={r.name} className="font-semibold hover:underline" />),
-                    },
-                    {
-                      key: "score", header: "Saúde",
-                      sortValue: (r) => r.score,
-                      filter: { kind: "select", options: [
-                        { value: "high", label: "Alto" }, { value: "medium", label: "Médio" }, { value: "healthy", label: "Saudável" },
-                      ]},
-                      filterValue: (r) => r.level,
-                      render: (r) => (
-                        <span className="inline-flex items-center gap-1.5">
-                          <RiskBadge level={r.level} score={r.score} />
-                          <ScoreDelta delta={r.scoreDelta} previous={r.prevScore} current={r.score} />
-                        </span>
-                      ),
-                    },
-                    {
-                      key: "pending", header: "Pendentes",
-                      sortValue: (r) => r.pending.length,
-                      render: (r) => (
-                        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-danger/10 text-danger font-medium">
-                          {r.pending.length} pendentes
-                        </span>
-                      ),
-                    },
-                    {
-                      key: "expand", header: "",
-                      align: "right",
-                      render: (r) => expanded === r.name
-                        ? <ChevronDown className="h-4 w-4 inline" />
-                        : <ChevronRight className="h-4 w-4 inline" />,
-                    },
-                  ]}
-                />
-              </div>
-            )}
-          </div>
+          {pendingView === "club" ? (
+            <div className="p-5">
+              {visibleRows.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-8">
+                  Sem clubes com tarefas pendentes.
+                </div>
+              ) : (
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <DataTable<typeof rows[number]>
+                    rows={visibleRows}
+                    rowKey={(r) => r.name}
+                    defaultSort={{ key: "score", dir: "desc" }}
+                    pageSize={50}
+                    onRowClick={(r) => setExpanded(expanded === r.name ? null : r.name)}
+                    rowClassName={(r) => expanded === r.name ? "bg-surface/40" : ""}
+                    selectable
+                    selectedKeys={selectedKeys}
+                    onSelectionChange={setSelectedKeys}
+                    isRowSelectable={(r) => r.pending.length > 0}
+                    expandedRow={(r) => expanded === r.name ? (
+                      <ExpandedClubPanel row={r} onComplete={handleClubComplete} onPostpone={handleClubPostpone} />
+                    ) : null}
+                    columns={[
+                      {
+                        key: "name", header: "Clube",
+                        sortValue: (r) => r.name,
+                        filterValue: (r) => r.name, filter: { kind: "text" },
+                        render: (r) => (<ClubLink name={r.name} className="font-semibold hover:underline" />),
+                      },
+                      {
+                        key: "score", header: "Saúde",
+                        sortValue: (r) => r.score,
+                        filter: { kind: "select", options: [
+                          { value: "high", label: "Alto" }, { value: "medium", label: "Médio" }, { value: "healthy", label: "Saudável" },
+                        ]},
+                        filterValue: (r) => r.level,
+                        render: (r) => (
+                          <span className="inline-flex items-center gap-1.5">
+                            <RiskBadge level={r.level} score={r.score} />
+                            <ScoreDelta delta={r.scoreDelta} previous={r.prevScore} current={r.score} />
+                          </span>
+                        ),
+                      },
+                      {
+                        key: "pending", header: "Pendentes",
+                        sortValue: (r) => r.pending.length,
+                        render: (r) => (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-danger/10 text-danger font-medium">
+                            {r.pending.length} pendentes
+                          </span>
+                        ),
+                      },
+                      {
+                        key: "expand", header: "",
+                        align: "right",
+                        render: (r) => expanded === r.name
+                          ? <ChevronDown className="h-4 w-4 inline" />
+                          : <ChevronRight className="h-4 w-4 inline" />,
+                      },
+                    ]}
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            <PendingTasksFlatView
+              tasks={pendingTasks}
+              excluded={excluded}
+              showInactive={showInactive}
+              weekStart={weekStart}
+              filter={taskFilter}
+              onFilterChange={setTaskFilter}
+              selectedIds={selectedTaskIds}
+              onSelectionChange={setSelectedTaskIds}
+            />
+          )}
         </section>
 
-        {selectedKeys.size > 0 && (
-          <BulkCompleteBar
+        {pendingView === "club" && selectedKeys.size > 0 && (
+          <BulkActionBar
             count={selectedKeys.size}
-            onApply={async (outcome, note) => {
+            label={`${selectedKeys.size} ${selectedKeys.size === 1 ? "clube selecionado" : "clubes selecionados"}`}
+            // No modo "clube" só faz sentido concluir em massa (anular tem de ter granularidade fina).
+            allowCancel={false}
+            allowPostpone={false}
+            onComplete={async (outcome, note) => {
               const names = Array.from(selectedKeys);
               for (const name of names) {
                 const r = rows.find((x) => x.name === name);
@@ -529,9 +568,46 @@ function CSTasksPage() {
             onCancel={() => setSelectedKeys(new Set())}
           />
         )}
+
+        {pendingView === "task" && selectedTaskIds.size > 0 && (
+          <BulkActionBar
+            count={selectedTaskIds.size}
+            label={`${selectedTaskIds.size} ${selectedTaskIds.size === 1 ? "tarefa selecionada" : "tarefas selecionadas"}`}
+            allowCancel
+            allowPostpone
+            onComplete={async (outcome, note) => {
+              const ids = Array.from(selectedTaskIds);
+              // Group by tenant to call completeCSTasksBatch (one cs_tenant_status row per tenant).
+              const byTenant = new Map<string, string[]>();
+              for (const id of ids) {
+                const t = pendingTasks.find((x) => x.id === id);
+                if (!t) continue;
+                if (!byTenant.has(t.tenant_name)) byTenant.set(t.tenant_name, []);
+                byTenant.get(t.tenant_name)!.push(id);
+              }
+              for (const [tenant, taskIds] of byTenant) {
+                await completeCSTasksBatch(tenant, taskIds, outcome, note.trim() || null);
+              }
+              setSelectedTaskIds(new Set());
+              await reloadPending();
+            }}
+            onCancelTasks={async (note) => {
+              await cancelCSTasksBatch(Array.from(selectedTaskIds), note);
+              setSelectedTaskIds(new Set());
+              await reloadPending();
+            }}
+            onPostponeTasks={async (target) => {
+              for (const id of selectedTaskIds) await postponeCSTask(id, target);
+              setSelectedTaskIds(new Set());
+              await reloadPending();
+            }}
+            onCancel={() => setSelectedTaskIds(new Set())}
+          />
+        )}
     </div>
   );
 }
+
 
 function ExpandedClubPanel({
   row, onComplete, onPostpone,
