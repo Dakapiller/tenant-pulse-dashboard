@@ -251,11 +251,15 @@ function TenantDetail() {
 }
 
 function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantStatus[] }) {
-  const completed = tasks.filter((t) => t.status === "completed");
+  // Include both completed and cancelled tasks in the per-tenant history.
+  // Cancelled tasks show as "Anulada" via taskStatusLabel (status takes precedence over outcome).
+  const historyTasks = tasks.filter((t) => t.status === "completed" || t.status === "cancelled");
 
   type Entry = {
     key: string;
     date: string;
+    statusLabel: string | null; // when set, takes precedence over outcome (e.g. "Anulada")
+    statusTip?: string | null;
     outcome: string | null;
     note: string | null;
     reason: string | null;
@@ -263,25 +267,28 @@ function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantSta
   };
 
   const entries: Entry[] = [];
-  completed.forEach((t) => {
+  historyTasks.forEach((t) => {
+    const isCancelled = t.status === "cancelled";
     entries.push({
       key: `t-${t.id}`,
       date: t.completed_at ?? t.created_at,
+      statusLabel: isCancelled ? taskStatusLabel(t) : null,
+      statusTip: isCancelled && t.outcome ? outcomeLabel(t.outcome) : null,
       outcome: t.outcome,
-      note: null,
+      note: isCancelled ? t.note : null,
       reason: t.reason,
       flags: t.flags ?? [],
     });
   });
 
-  // Add standalone statuses (not within 60s of a task completion)
+  // Add standalone statuses (not within 60s of a completed task)
+  const completed = historyTasks.filter((t) => t.status === "completed");
   statuses.forEach((s) => {
     const matched = completed.find((t) =>
       t.completed_at && Math.abs(new Date(t.completed_at).getTime() - new Date(s.recorded_at).getTime()) < 60_000
       && t.outcome === s.relationship_status
     );
     if (matched) {
-      // attach note to the matched entry
       const e = entries.find((x) => x.key === `t-${matched.id}`);
       if (e) e.note = s.note;
       return;
@@ -289,6 +296,7 @@ function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantSta
     entries.push({
       key: `s-${s.id}`,
       date: s.recorded_at,
+      statusLabel: null,
       outcome: s.relationship_status,
       note: s.note,
       reason: null,
@@ -310,7 +318,16 @@ function CSHistory({ tasks, statuses }: { tasks: CSTask[]; statuses: CSTenantSta
             <div className="text-xs text-muted-foreground">
               {new Date(e.date).toLocaleString("pt-PT", { dateStyle: "medium", timeStyle: "short" })}
             </div>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-surface font-medium">{outcomeLabel(e.outcome)}</span>
+            {e.statusLabel ? (
+              <span
+                title={e.statusTip ?? undefined}
+                className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border font-medium line-through decoration-muted-foreground/40"
+              >
+                {e.statusLabel}
+              </span>
+            ) : (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-surface font-medium">{outcomeLabel(e.outcome)}</span>
+            )}
           </div>
           {e.reason && <div className="text-sm mt-1.5">{e.reason}</div>}
           {e.flags.length > 0 && (
