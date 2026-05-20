@@ -110,7 +110,7 @@ function CSHistoryPage() {
     (async () => {
       try {
         const [page, sts] = await Promise.all([
-          fetchCompletedCSTasksPage(0, PAGE),
+          fetchTasksByStatusesPage(["completed", "cancelled"], 0, PAGE),
           fetchAllCSStatuses(),
         ]);
         if (cancelled) return;
