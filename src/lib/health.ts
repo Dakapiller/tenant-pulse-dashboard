@@ -282,6 +282,19 @@ export async function applyTaskOutcome(tenant: string, outcome: string): Promise
 }
 
 /**
+ * Rule 5 — Bug resolvido → +5. Aplicar APENAS uma vez por bug (na 1ª transição
+ * para "solved"). O caller (`updateBugStatus`) é responsável por garantir essa
+ * idempotência; este helper apenas credita o delta. Respeita clamp [0,100] e
+ * o piso dinâmico via `persistScoreChange`.
+ */
+export async function applyBugSolvedBonus(tenant: string, bugTitle: string): Promise<void> {
+  const cur = (await fetchHealthScoreForTenant(tenant)) ?? 100;
+  const safeTitle = bugTitle.trim().slice(0, 120) || "(sem título)";
+  await persistScoreChange(tenant, cur, cur + 5, `Bug resolvido: ${safeTitle}`, "bug");
+}
+
+
+/**
  * Manual override of a tenant's health_score by a CS user. Bypasses the
  * dynamic floor (Rule 4) — manual is deliberate. Logs to health_score_log
  * with source 'manual' or 'manual_bulk' and writes the user's comment into
