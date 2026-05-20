@@ -1,56 +1,92 @@
-# Plano
+## 1. Novo estado "Anulada" para tarefas
 
-## 1. Export Excel — Product Feedback
+Tornar `cancelled` um estado de primeira classe, ao lado de `pending` e `completed`.
 
-Adicionar opção "Excel (.xlsx)" no dropdown de export, em paralelo com os dois CSV existentes (detalhado e agregado).
+**Backend / dados**
+- A coluna `status` em `cs_tasks` já aceita texto livre — sem migração de schema. Reutilizamos o valor `cancelled` já presente para a regra "clube inativo".
+- Novo outcome `cancelled_manual` para anulações feitas pelo CS (nota obrigatória).
 
-- Instalar `xlsx` (SheetJS) via `bun add xlsx`.
-- Em `src/lib/feedback.ts`, criar `exportFeedbackDetailedXLSX(items)` e `exportFeedbackAggregatedXLSX(groups)` — gera um workbook com 1 sheet ("Detalhado" ou "Agregado") usando as mesmas colunas dos CSV.
-- Em `src/routes/cs.feedback.tsx`, expandir o menu "Exportar" para 4 entradas: CSV detalhado, CSV agregado, Excel detalhado, Excel agregado.
+**`src/lib/cs.ts`**
+- Helpers novos: `cancelCSTask(id, note)`, `cancelCSTasksBatch(ids, note)`.
+- **Validação backend** (sugestão #4): `cancelCSTasksBatch` valida `note.trim().length` entre 1 e 200 chars antes de executar o `UPDATE`; lança erro explícito se falhar — protege chamadas diretas que contornem o frontend.
+- `outcomeLabel()` passa a mapear `cancelled_manual → "Anulada"` e `cancelled_cleanup → "Anulada (limpeza)"` (`cancelled_inactive` já mapeado).
+- Novo `taskStatusLabel(t)` que devolve `"Pendente" | "Concluída" | "Anulada"` a partir de `t.status`.
+- **Precedência documentada** (sugestão #2): adicionar JSDoc nas duas funções deixando claro que **`taskStatusLabel` é usado para o badge de estado** e **`outcomeLabel` apenas no tooltip / linha de detalhe**. Nunca misturar os dois no mesmo elemento visual.
 
-## 2. Novo menu "Calendário"
+**UI a propagar**
+- `src/routes/cs.history.tsx`: incluir anuladas. Novo filtro de estado (Concluídas | Anuladas | Todas), badge cinza para anuladas, tooltip com `outcomeLabel`+nota. Substituir `fetchCompletedCSTasksPage` por `fetchTasksByStatusesPage(['completed','cancelled'], …)`.
+- `src/routes/tenant.$name.tsx`: secção "Pendentes" só `status='pending'`; histórico inclui anuladas.
+- `src/routes/calendar.tsx`: filtrar por `status='pending'` (tarefas anuladas não aparecem).
+- `src/routes/index.tsx`, `src/routes/clubs.tsx`: confirmar que contagens de pendentes ignoram canceladas.
 
-Página unificada que mostra todas as tarefas planeadas (`cs_tasks` pendentes — incluindo as "futuras") com vistas dia / semana / mês, e permite acionar cada tarefa reutilizando os fluxos atuais.
+## 2. Limpeza de pendentes antigas (< 2026-05-06)
 
-**Sidebar**
-- Em `src/components/Sidebar.tsx`, adicionar item no topo (1ª posição) `{ to: "/calendar", label: "Calendário", icon: CalendarDays }`, visível a todos os utilizadores autenticados (CS, superuser e viewer — sem flag `superuserOnly`).
+`UPDATE` one-shot via `supabase--insert`. **Sem preencher `completed_at`** (sugestão #1) — anulações por limpeza não devem distorcer métricas de histórico (ex.: "Total ações no período"):
 
-**Rota nova `src/routes/calendar.tsx`**
-- Fonte de dados: `cs_tasks` com `status = 'pending'`, agrupadas pelo campo existente `week_start` (já é usado como data planeada das tarefas, incluindo as criadas via "Tarefa futura").
-- Vistas:
-  - **Mês** (default): grelha 7 colunas × ~6 linhas estilo Google Calendar; cada célula lista até N tarefas + "mais X" se overflow.
-  - **Semana**: 7 colunas, lista de tarefas por dia, agrupadas por clube.
-  - **Dia**: lista vertical ordenada por prioridade.
-- Header com: botões de vista (Dia/Semana/Mês), navegação ‹ Hoje ›, e filtros leves (clube, prioridade).
-- Cada item mostra: clube (ClubLink), motivo curto, badge de prioridade, indicador de overdue (se `week_start < hoje`).
-- **Ações** ao clicar numa tarefa: abrir um popover/sheet que reusa `TaskQuickActions` (mesmos outcomes — Resolvido / Insatisfeito / Reagendar / Anular / Nota) para manter consistência com `/cs/tasks`. Sem novos endpoints — usa as funções já existentes em `src/lib/cs.ts`.
-- Suporte a navegação por teclado (← →) e link rápido para `/cs/tasks` e perfil do clube.
+```sql
+UPDATE public.cs_tasks
+   SET status = 'cancelled',
+       outcome = 'cancelled_cleanup',
+       note = 'Limpeza geral — tarefa antiga nunca executada'
+ WHERE status = 'pending'
+   AND created_at < '2026-05-06';
+```
 
-## 3. "Mudança de dono" tratado como inativo arquivado
+Implicações:
+- `cs.history.tsx` ordena/agrupa por `completed_at`. Adaptar para anuladas: usar `coalesce(completed_at, created_at)` como timestamp de display.
+- Sumário "Total ações" no histórico passa a contar apenas `status='completed'` por defeito; anuladas têm contador separado no card.
 
-Hoje o código já considera `changed_owner` como não-ativo para efeitos de `isActiveStatus` (cancela tarefas pendentes, conta como inativo no score). Falta:
+## 3. Limite semanal de 10 tarefas automáticas
 
-a) **Excluir do modal "Clubes não encontrados no último carregamento"** em `src/routes/clubs.tsx`:
-   - Linhas 187 e 477 filtram por `status !== "churned" && status !== "closed"`. Adicionar `&& status !== "changed_owner"` em ambas.
+Em `generateWeeklyTasks` (`src/routes/cs.tasks.tsx`):
+- Cap global de **10 candidatos/semana** (vs cap atual só no bucket `stale`).
+- **Deduplicação por `tenant_name` antes do slice** (sugestão #3) — o mesmo clube pode preencher `low_score` + `priority`; deve consumir **uma única vaga**, mantendo o bucket de maior prioridade.
 
-b) **Arquivar visualmente na lista principal de Clubes**:
-   - Por defeito, ocultar clubes com `status === "changed_owner"` da listagem (tal como já acontece com churned/closed se for esse o caso — confirmar comportamento atual na vista). Adicionar toggle "Mostrar arquivados" no header da tabela para os reexibir quando necessário.
-   - Manter o badge "Mudança de dono" com estilo de arquivado (cinza/muted) quando visíveis.
+```text
+allCandidates = [...lowScore, ...priorityOnly, ...stale]
+deduped       = uniqueByTenantName(allCandidates)   // mantém 1ª ocorrência (bucket mais alto)
+sorted        = deduped.sort(by bucketOrder asc, then by score asc)
+insert sorted.slice(0, 10)
+```
 
-c) **Visão geral (`src/routes/index.tsx`)**:
-   - Confirmar que `changed_owner` NÃO conta como churn no card "Churned este ano" (já é o caso pela lógica `isActiveStatus` que separa churn de arquivado). Garantir tooltip do card de clubes ativos menciona que arquivados (incluindo mudança de dono) não entram no total.
+- Ordem de bucket: `low_score (0)` → `priority (1)` → `stale_contact (2)`.
+- Atualizar o comentário do header da função.
 
-Nenhuma alteração de schema é necessária — `changed_owner` já existe como valor de `club_status`.
+## 4. Otimizar gestão em bulk de pendentes
 
-## Ficheiros tocados
-- `src/lib/feedback.ts` (+ XLSX helpers)
-- `src/routes/cs.feedback.tsx` (menu export alargado)
-- `src/components/Sidebar.tsx` (item Calendário)
-- `src/routes/calendar.tsx` (novo)
-- `src/routes/clubs.tsx` (filtros `changed_owner` + toggle arquivados)
-- `src/routes/index.tsx` (tooltip)
-- `package.json` (dep `xlsx`)
+Em `src/routes/cs.tasks.tsx`, refactor da secção "Tarefas pendentes":
+
+**Granularidade**
+- Mudar seleção de **clube → tarefa individual**. `selectedKeys: Set<string>` passa a guardar `task.id`.
+- Permite anular/concluir só algumas tarefas de um clube.
+
+**UI**
+- Aumentar `pageSize` 50 → 100 + "Selecionar tudo na página".
+- Nova **`BulkActionBar`** fixa em baixo com 3 ações:
+  - **Concluir** (existente)
+  - **Anular** — input obrigatório (motivo, 1–200 chars). Chama `cancelCSTasksBatch`.
+  - **Adiar** — bulk postpone.
+- Contadores no topo: "X pendentes desta semana · Y atrasadas · Z clubes".
+- Coluna "Idade" (dias desde `created_at`) com ordenação.
+- Filtros chip: "Esta semana" / "Atrasadas" / "Manuais" / "Automáticas".
+
+**Código**
+- Extrair `PendingTasksSection` para sub-componente (ficheiro está grande).
+- `BulkCompleteBar` → `BulkActionBar` com 3 modos (complete/cancel/postpone).
+
+## Ficheiros a alterar
+
+- `src/lib/cs.ts` — helpers de cancelamento (com validação backend), `taskStatusLabel`, JSDoc de precedência, `fetchTasksByStatusesPage`.
+- `src/routes/cs.tasks.tsx` — gerador semanal (cap 10 + dedup), nova UX bulk, seleção por tarefa.
+- `src/routes/cs.history.tsx` — incluir anuladas, filtro de estado, badge, ordenação por `coalesce(completed_at, created_at)`.
+- `src/routes/tenant.$name.tsx` — histórico inclui anuladas.
+- `src/routes/calendar.tsx` — garantir filtro `status='pending'`.
+
+## Migração de dados
+
+Único `UPDATE` em `cs_tasks` (ponto 2), sem `completed_at`. Sem alterações de schema, sem RLS novas.
 
 ## Fora de scope
-- Sem novas tabelas, migrações ou RLS.
-- Calendário só mostra tarefas internas (cs_tasks); não integra Google Calendar externo.
+
+- Sem mudanças à pontuação de saúde nem à geração automática para além do cap+dedup.
+- Sem migração de schema.
