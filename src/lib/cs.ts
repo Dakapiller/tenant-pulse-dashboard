@@ -71,11 +71,31 @@ export const OUTCOME_OPTIONS: { value: string; label: string }[] = [
   { value: "very_satisfied", label: "Cliente ficou muito satisfeito, agradeceu contacto" },
 ];
 
+/**
+ * Label do **resultado** de uma tarefa (lê `outcome`).
+ *
+ * Precedência UI: usar **apenas** em tooltips ou na linha de detalhe para descrever
+ * o que aconteceu. Para o badge de estado (Pendente/Concluída/Anulada) usar
+ * `taskStatusLabel` que lê `status`. Nunca misturar os dois no mesmo elemento.
+ */
 export function outcomeLabel(value: string | null | undefined): string {
   if (!value) return "—";
   if (value === "cancelled_inactive") return "Anulada — não está ativo";
+  if (value === "cancelled_manual") return "Anulada";
+  if (value === "cancelled_cleanup") return "Anulada (limpeza)";
   return OUTCOME_OPTIONS.find((o) => o.value === value)?.label ?? value;
 }
+
+/**
+ * Label do **estado** de uma tarefa (lê `status`).
+ * Ver `outcomeLabel` para a regra de precedência.
+ */
+export function taskStatusLabel(t: { status: string }): "Pendente" | "Concluída" | "Anulada" {
+  if (t.status === "completed") return "Concluída";
+  if (t.status === "cancelled") return "Anulada";
+  return "Pendente";
+}
+
 
 // ISO date (YYYY-MM-DD) for the Monday of the current week (UTC).
 export function currentWeekStart(date: Date = new Date()): string {
