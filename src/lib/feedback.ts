@@ -283,5 +283,4 @@ export function exportFeedbackAggregatedXLSX(groups: FeedbackGroup[]): void {
   );
 }
 
-  downloadCSV(`product-feedback-agregado-${new Date().toISOString().slice(0, 10)}.csv`, rows);
-}
+
