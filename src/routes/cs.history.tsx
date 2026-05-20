@@ -400,15 +400,13 @@ function CSHistoryPage() {
                             {list.map((t) => (
                               <tr key={t.id} className="border-b border-border/50 last:border-0 align-top">
                                 <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
-                                  {t.completed_at ? format(new Date(t.completed_at), "dd MMM yyyy", { locale: pt }) : "—"}
+                                  {effectiveTs(t) ? format(new Date(effectiveTs(t)), "dd MMM yyyy", { locale: pt }) : "—"}
                                 </td>
                                 <td className="py-2 pr-3">
                                   <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{formatFlagsLabel(t.flags)}</span>
                                 </td>
                                 <td className="py-2 pr-3 whitespace-nowrap">
-                                  <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", outcomeBadgeClass(t.outcome))}>
-                                    {outcomeLabel(t.outcome)}
-                                  </span>
+                                  <StatusBadge task={t} />
                                 </td>
                                 <td className="py-2 text-muted-foreground">
                                   {t.note ? <span className="italic">“{t.note}”</span> : <span className="text-muted-foreground/60">—</span>}
