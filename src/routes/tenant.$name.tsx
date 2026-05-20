@@ -6,7 +6,7 @@ import {
 import { fetchSnapshotsForTenant, type Snapshot } from "@/lib/data";
 import { computeRiskWithCS, riskHistory, FLAG_META } from "@/lib/risk";
 import { fetchHealthScoreForTenant, healthLevel } from "@/lib/health";
-import { fetchCSStatusesForTenant, fetchCSTasksForTenant, outcomeLabel, type CSTenantStatus, type CSTask } from "@/lib/cs";
+import { fetchCSStatusesForTenant, fetchCSTasksForTenant, outcomeLabel, taskStatusLabel, type CSTenantStatus, type CSTask } from "@/lib/cs";
 import { formatEuro, formatNumber, formatPercent, periodLabel, periodShort } from "@/lib/format";
 import { ArrowLeft, MessageSquare } from "lucide-react";
 import { RiskBadge } from "./index";
