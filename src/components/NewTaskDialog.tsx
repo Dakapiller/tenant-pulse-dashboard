@@ -126,6 +126,12 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
       setFeatureSuggestions([]);
       setStatusTag("must_have");
       setFeedbackNote("");
+      setBugTitle("");
+      setBugLink("");
+      setBugSeverity("major");
+      setBugStatus("open");
+      setBugReportedAt(todayISO());
+      setBugNote("");
       setError(null);
     }
   }, [open, tenant]);
