@@ -58,7 +58,7 @@ function ScoreArticle() {
 
       <Section title="Como o score muda">
         <p>
-          Existem quatro formas (e <strong>apenas quatro</strong>) de o score se alterar. Todas as alterações
+          Existem cinco formas (e <strong>apenas cinco</strong>) de o score se alterar. Todas as alterações
           ficam registadas no histórico do clube com o motivo correspondente.
         </p>
 
@@ -127,6 +127,27 @@ function ScoreArticle() {
             </p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Regra 5 — Bug resolvido</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-2">
+            <p>
+              Quando um bug reportado pela equipa de CS é marcado como{" "}
+              <strong className="text-foreground">Resolvido</strong> na lista de Bug Reports, o clube afetado
+              recebe automaticamente <strong className="text-foreground">+5 pontos</strong> de health score.
+              O bónus aplica-se apenas na <strong>primeira</strong> transição para Resolvido — reabrir e voltar
+              a resolver o mesmo bug não soma de novo. Os estados{" "}
+              <strong className="text-foreground">Em curso</strong> e{" "}
+              <strong className="text-foreground">Não será corrigido</strong> não têm impacto no score.
+            </p>
+            <p>
+              Tal como nas restantes regras automáticas, o bónus respeita o teto de 100 e o mínimo dinâmico
+              descrito abaixo.
+            </p>
+          </CardContent>
+        </Card>
       </Section>
 
       <Section title="Mínimo dinâmico (floor)">
@@ -159,7 +180,7 @@ function ScoreArticle() {
           Na página de cada clube e na lista <em>Em risco</em> verás <strong>flags</strong> como "GMV em
           queda", "Tendência negativa: receita" ou "Sem receita". Estas flags são <strong>apenas
           descritivas</strong> — ajudam a contextualizar o estado do clube, mas{" "}
-          <strong className="text-foreground">não afetam o health score</strong>. O score só muda pelas quatro
+          <strong className="text-foreground">não afetam o health score</strong>. O score só muda pelas cinco
           regras acima.
         </p>
       </Section>
