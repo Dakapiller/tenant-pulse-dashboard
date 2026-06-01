@@ -232,66 +232,57 @@ function DashboardPage() {
   // selected period's month-end).
   const currentStatusByTenant = useMemo(() => buildCurrentStatusMap(statuses), [statuses]);
 
-  // KPIs
+  // KPIs — reactive to the selected period.
   const kpis = useMemo(() => {
-    // "Ativo" = aparece no último upload mensal E status atual não é churned/closed/changed_owner.
-    // O período de referência é SEMPRE o último upload da BD (periods[0]),
-    // independente do filtro `selectedPeriod`.
-    const latestUploadPeriod = periods[0] ?? null;
-    const tenantsInLatestUpload = new Set<string>();
-    if (latestUploadPeriod) {
-      for (const s of snapshots) if (s.period === latestUploadPeriod) tenantsInLatestUpload.add(s.tenant_name);
+    // "Clubes Ativos no Período" — qualquer clube que tenha aparecido num
+    // snapshot dentro do período E cujo estado no fim do período não seja
+    // churn/closed/changed_owner.
+    const tenantsInPeriod = new Set<string>();
+    for (const s of snapshots) {
+      if (selectedPeriods.has(s.period)) tenantsInPeriod.add(s.tenant_name);
+    }
+    // Estado a partir das statuses até ao fim do período (mesmo cutoff de `clubs`).
+    const cutoffEnd = `${latestPeriod.slice(0, 7)}-31T23:59:59Z`;
+    function statusAtEnd(name: string): ClubStatus {
+      const arr = tenantStatuses.get(name) ?? [];
+      let last: CSTenantStatus | null = null;
+      for (const s of arr) {
+        if ((s.recorded_at ?? "") <= cutoffEnd) last = s;
+        else break;
+      }
+      return currentClubStatus(last ? [last] : []);
     }
     let activeClubs = 0;
-    for (const name of tenantsInLatestUpload) {
-      const st = currentStatusByTenant.get(name) ?? "active";
-      if (isActiveStatus(st)) activeClubs++;
+    for (const name of tenantsInPeriod) {
+      if (isActiveStatus(statusAtEnd(name))) activeClubs++;
     }
 
-    // Churn este ano = (a) status churned/closed registado este ano OU
-    //                  (b) churn implícito: deixou de aparecer e a primeira ausência cai no ano corrente.
-    const year = new Date().getUTCFullYear();
+    // "Churned no Período" — transições de status para churned/closed registadas
+    // dentro do intervalo do período selecionado.
+    const startIso = `${startPeriod.slice(0, 7)}-01T00:00:00Z`;
+    const endIso = cutoffEnd;
     const churnedSet = new Set<string>();
     statuses.forEach((s) => {
-      if ((s.club_status === "churned" || s.club_status === "closed") && s.recorded_at && new Date(s.recorded_at).getUTCFullYear() === year) {
-        churnedSet.add(s.tenant_name);
-      }
-    });
-    if (latestUploadPeriod) {
-      // periods vem ordenado descendente. Para cada tenant ausente do último upload,
-      // o "primeiro mês ausente" é o período imediatamente seguinte ao seu último período presente.
-      const periodIndex = new Map<string, number>();
-      periods.forEach((p, i) => periodIndex.set(p, i));
-      for (const [name, hist] of tenantHistory) {
-        if (tenantsInLatestUpload.has(name)) continue;
-        if (churnedSet.has(name)) continue;
-        // changed_owner não conta como churn
-        const st = currentStatusByTenant.get(name) ?? "active";
-        if (st === "changed_owner") continue;
-        const lastPresent = hist[hist.length - 1]?.period;
-        if (!lastPresent) continue;
-        const idx = periodIndex.get(lastPresent);
-        if (idx === undefined || idx === 0) continue; // não tem período seguinte
-        const firstMissing = periods[idx - 1]; // periods desc → idx-1 é o mês seguinte
-        if (firstMissing && new Date(firstMissing).getUTCFullYear() === year) {
-          churnedSet.add(name);
+      if ((s.club_status === "churned" || s.club_status === "closed") && s.recorded_at) {
+        if (s.recorded_at >= startIso && s.recorded_at <= endIso) {
+          churnedSet.add(s.tenant_name);
         }
       }
-    }
+    });
     const churnedThisYear = churnedSet.size;
 
     const highRisk = clubs.filter((c) => c.score < 30 && c.status !== "churned" && c.status !== "closed").length;
-    const monthGmv = (() => {
-      if (!latestPeriod) return 0;
-      return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.gmv_all ?? 0), 0);
-    })();
-    const monthRevenue = (() => {
-      if (!latestPeriod) return 0;
-      return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.revenue ?? 0), 0);
-    })();
+
+    // GMV / Receita — somatório acumulado sobre todos os meses do período.
+    let monthGmv = 0;
+    let monthRevenue = 0;
+    for (const s of includedSnapshots) {
+      if (!selectedPeriods.has(s.period)) continue;
+      monthGmv += Number(s.gmv_all ?? 0);
+      monthRevenue += Number(s.revenue ?? 0);
+    }
     return { activeClubs, churnedThisYear, highRisk, monthGmv, monthRevenue };
-  }, [clubs, statuses, snapshots, periods, includedSnapshots, latestPeriod, currentStatusByTenant, tenantHistory]);
-  // (latestPeriod intentionally referenced inside activeClubs filter above)
+  }, [clubs, statuses, snapshots, includedSnapshots, latestPeriod, startPeriod, selectedPeriods, tenantStatuses, currentStatusByTenant]);
 
   // Monthly trend series — current and prior-year overlay
   const monthlySeries = useMemo(() => {
