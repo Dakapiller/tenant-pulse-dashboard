@@ -157,6 +157,48 @@ function CSHistoryPage() {
   const [search, setSearch] = useState("");
   const [outcome, setOutcome] = useState<string>("all");
   const [openClubs, setOpenClubs] = useState<Record<string, boolean>>({});
+  const [digest, setDigest] = useState<WeeklyDigest | null>(null);
+  const [digestOpen, setDigestOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const monday = startOfCurrentWeekMonday();
+        const now = new Date();
+        const fromIso = monday.toISOString();
+        const toIso = now.toISOString();
+        const [tasksRes, log] = await Promise.all([
+          supabase
+            .from("cs_tasks")
+            .select("tenant_name, completed_at")
+            .eq("status", "completed")
+            .gte("completed_at", fromIso)
+            .lte("completed_at", toIso),
+          fetchHealthScoreLogRange(fromIso, toIso),
+        ]);
+        if (cancelled) return;
+        const tRows = (tasksRes.data ?? []) as { tenant_name: string }[];
+        const totalCompleted = tRows.length;
+        const clubsContacted = new Set(tRows.map((r) => r.tenant_name)).size;
+        const scoreChanges = log.length;
+        const dropsByTenant = new Map<string, number>();
+        for (const r of log) {
+          const delta = Number(r.new_score) - Number(r.previous_score);
+          dropsByTenant.set(r.tenant_name, (dropsByTenant.get(r.tenant_name) ?? 0) + delta);
+        }
+        const topDrops = Array.from(dropsByTenant.entries())
+          .filter(([, v]) => v < 0)
+          .sort((a, b) => a[1] - b[1])
+          .slice(0, 3)
+          .map(([tenant, drop]) => ({ tenant, drop }));
+        setDigest({ totalCompleted, clubsContacted, scoreChanges, topDrops });
+      } catch (err) {
+        console.error("digest", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
