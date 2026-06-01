@@ -612,39 +612,6 @@ function DashboardPage() {
       </section>
 
 
-
-      {/* Row 5 — Recent CS activity */}
-      <section className="rounded-xl border border-border bg-background overflow-hidden">
-        <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Atividade CS recente</h2>
-        </div>
-        <div className="overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-surface text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 text-left">Data</th>
-                <th className="px-4 py-3 text-left">Clube</th>
-                <th className="px-4 py-3 text-left">Resultado</th>
-                <th className="px-4 py-3 text-left">Razão</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!tasksLoaded ? (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">A carregar atividade…</td></tr>
-              ) : recentActivity.length === 0 ? (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">Sem atividade recente.</td></tr>
-              ) : recentActivity.map((t) => (
-                <tr key={t.id} className="border-t border-border hover:bg-surface">
-                  <td className="px-4 py-2 text-xs text-muted-foreground">{t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : "—"}</td>
-                  <td className="px-4 py-2 font-medium"><ClubLink name={t.tenant_name} /></td>
-                  <td className="px-4 py-2"><OutcomeBadge outcome={t.outcome} /></td>
-                  <td className="px-4 py-2 text-xs text-muted-foreground truncate max-w-md">{t.reason}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   );
 }
