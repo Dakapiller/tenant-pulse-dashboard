@@ -40,9 +40,11 @@ import {
   type ClubStatusLog,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META, type RiskFlag } from "@/lib/risk";
-import { fetchHealthScores } from "@/lib/health";
+import { fetchHealthScores, fetchHealthLog } from "@/lib/health";
 import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/format";
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
+import { relativeLabelPT, relativeColorClass, activityColorClass, absoluteLabel } from "@/lib/relativeTime";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
 
 export const Route = createFileRoute("/clubs")({
   validateSearch: (s: Record<string, unknown>): { tenant?: string; level?: "high" | "medium" | "healthy"; q?: string } => ({
@@ -738,7 +740,7 @@ function ClubHistoryPanel({ row, onChanged }: { row: ClubRow; onChanged?: () => 
               <li key={t.id} className="text-xs space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{t.reason}</span>
-                  <span className="text-muted-foreground tabular-nums shrink-0">{t.week_start}</span>
+                  <span className={`shrink-0 ${relativeColorClass(t.week_start)}`} title={absoluteLabel(t.week_start)}>{relativeLabelPT(t.week_start)}</span>
                 </div>
                 <div className="text-muted-foreground">CTA: {t.cta}</div>
                 <TaskQuickActions task={t} onChanged={onChanged} />
@@ -839,6 +841,21 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
             <h2 className="text-lg font-semibold truncate">{tenant}</h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <ClubStatusBadge status={row.status} competitor={row.competitor} />
+              {(() => {
+                const last = completedTasks
+                  .map((t) => t.completed_at)
+                  .filter((x): x is string => !!x)
+                  .sort()
+                  .pop();
+                if (!last) {
+                  return <span className="text-[11px] font-medium text-danger">sem actividade registada</span>;
+                }
+                return (
+                  <span className={`text-[11px] font-medium ${activityColorClass(last)}`} title={absoluteLabel(last)}>
+                    última actividade {relativeLabelPT(last)}
+                  </span>
+                );
+              })()}
               {pendingTasks.length > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 text-warning text-[11px] font-semibold px-2 py-0.5">
                   {pendingTasks.length} {pendingTasks.length === 1 ? "tarefa pendente" : "tarefas pendentes"}
@@ -914,7 +931,7 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
 
           <YoYSection history={row.history} />
 
-          <ScoreVariationSection row={row} />
+          <ScoreVariationSection row={row} tenant={tenant} />
 
           <section className="rounded-lg border border-border overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de performance</div>
@@ -963,7 +980,7 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
                   .map((t) => (
                     <li key={t.id} className="px-4 py-3 text-xs">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-muted-foreground tabular-nums">Semana de {t.week_start}</span>
+                        <span className={relativeColorClass(t.week_start)} title={absoluteLabel(t.week_start)}>{relativeLabelPT(t.week_start)}</span>
                         <span className={`text-[10px] uppercase font-semibold rounded-full px-1.5 py-0.5 ${t.priority >= 80 ? "bg-danger/15 text-danger" : t.priority >= 50 ? "bg-warning/15 text-warning" : "bg-surface text-muted-foreground"}`}>
                           {t.priority >= 80 ? "Alta" : t.priority >= 50 ? "Média" : "Baixa"}
                         </span>
@@ -1558,7 +1575,7 @@ function MissingClubsModal({
 function ScoreTooltip({ children }: { row: ClubRow; children: import("react").ReactNode }) {
   return <>{children}</>;
 }
-function ScoreVariationSection({ row }: { row: ClubRow }) {
+function ScoreVariationSection({ row, tenant }: { row: ClubRow; tenant: string }) {
   const changes = scoreChangeEvents(row).sort((a, b) => {
     const ad = a.period === "Atual" ? new Date().toISOString() : periodEndIso(a.period);
     const bd = b.period === "Atual" ? new Date().toISOString() : periodEndIso(b.period);
@@ -1569,6 +1586,7 @@ function ScoreVariationSection({ row }: { row: ClubRow }) {
     <section className="rounded-lg border border-border overflow-hidden">
       <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Variação do score</div>
       <div className="p-4 text-xs space-y-3">
+        <ScoreSparkline tenant={tenant} />
         {latest ? (
           <div className="rounded-md border border-border bg-background p-3 flex items-center justify-between gap-3">
             <span className="text-muted-foreground">Última alteração</span>
@@ -1598,5 +1616,44 @@ function ScoreVariationSection({ row }: { row: ClubRow }) {
         )}
       </div>
     </section>
+  );
+}
+
+function ScoreSparkline({ tenant }: { tenant: string }) {
+  const [points, setPoints] = useState<{ v: number }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const log = await fetchHealthLog(tenant, 8);
+        if (cancelled) return;
+        // fetchHealthLog returns desc; reverse for asc
+        const asc = [...log].reverse().map((l) => ({ v: Number(l.new_score) }));
+        setPoints(asc);
+      } catch {
+        if (!cancelled) setPoints([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tenant]);
+  if (points.length < 2) return null;
+  const first = points[0].v;
+  const last = points[points.length - 1].v;
+  const colorClass = last > first ? "text-success" : last < first ? "text-danger" : "text-muted-foreground";
+  return (
+    <div className={`w-full ${colorClass}`} style={{ height: 48 }}>
+      <ResponsiveContainer width="100%" height={48}>
+        <LineChart data={points} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+          <Line
+            type="monotone"
+            dataKey="v"
+            stroke="currentColor"
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

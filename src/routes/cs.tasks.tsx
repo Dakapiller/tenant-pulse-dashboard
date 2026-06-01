@@ -28,6 +28,7 @@ import { computeRiskWithCS, FLAG_CTA, FLAG_META, type RiskFlag } from "@/lib/ris
 import { fetchHealthScores } from "@/lib/health";
 import { formatEuro, formatNumber, periodShort } from "@/lib/format";
 import { DataTable, ScoreDelta } from "@/components/DataTable";
+import { relativeLabelPT, relativeColorClass, absoluteLabel } from "@/lib/relativeTime";
 import { AlertTriangle, ArrowRight, Ban, CheckCircle2, ChevronDown, ChevronRight, Clock, Eye, EyeOff, ListChecks, Plus } from "lucide-react";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
 
@@ -1204,8 +1205,11 @@ function PendingTasksFlatView({
                 key: "week", header: "Semana",
                 sortValue: (r) => r.week_start,
                 render: (r) => (
-                  <span className={`text-xs ${r.isOverdue ? "text-danger font-medium" : "text-muted-foreground"}`}>
-                    {r.week_start}{r.isOverdue ? " · atrasada" : ""}
+                  <span
+                    className={`text-xs ${r.isOverdue ? "text-danger font-medium" : relativeColorClass(r.week_start)}`}
+                    title={absoluteLabel(r.week_start)}
+                  >
+                    {relativeLabelPT(r.week_start)}{r.isOverdue ? " · atrasada" : ""}
                   </span>
                 ),
               },

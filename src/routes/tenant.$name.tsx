@@ -11,6 +11,7 @@ import { fetchBugsForTenant, BUG_SEVERITY_LABEL, type BugReport } from "@/lib/bu
 import { formatEuro, formatNumber, formatPercent, periodLabel, periodShort } from "@/lib/format";
 import { ArrowLeft, ExternalLink, MessageSquare } from "lucide-react";
 import { RiskBadge } from "./index";
+import { relativeLabelPT, relativeColorClass, activityColorClass, absoluteLabel } from "@/lib/relativeTime";
 
 export const Route = createFileRoute("/tenant/$name")({
   component: TenantDetail,
@@ -112,12 +113,27 @@ function TenantDetail() {
       <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{name}</h1>
-          <div className="mt-2 flex items-center gap-3">
+          <div className="mt-2 flex items-center gap-3 flex-wrap">
             {(() => {
               const s = healthScore ?? 100;
               const lvl = healthLevel(s);
               const badgeLevel = lvl === "risk" ? "high" : lvl === "monitor" ? "medium" : "healthy";
               return <RiskBadge level={badgeLevel} score={s} />;
+            })()}
+            {(() => {
+              const last = csTasks
+                .filter((t) => t.status === "completed" && t.completed_at)
+                .map((t) => t.completed_at as string)
+                .sort()
+                .pop();
+              if (!last) {
+                return <span className="text-xs font-medium text-danger">sem actividade registada</span>;
+              }
+              return (
+                <span className={`text-xs font-medium ${activityColorClass(last)}`} title={absoluteLabel(last)}>
+                  última actividade {relativeLabelPT(last)}
+                </span>
+              );
             })()}
             <span className="text-sm text-muted-foreground">{sorted.length} meses de dados</span>
           </div>
@@ -231,7 +247,9 @@ function TenantDetail() {
               .map((t) => (
                 <li key={t.id} className="text-sm rounded-md border border-warning/30 bg-background p-3">
                   <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                    <span>Semana de {t.week_start}</span>
+                    <span className={relativeColorClass(t.week_start)} title={absoluteLabel(t.week_start)}>
+                      {relativeLabelPT(t.week_start)}
+                    </span>
                     <span className={`uppercase font-semibold rounded-full px-1.5 py-0.5 text-[10px] ${t.priority >= 80 ? "bg-danger/15 text-danger" : t.priority >= 50 ? "bg-warning/15 text-warning" : "bg-surface"}`}>
                       {t.priority >= 80 ? "Alta" : t.priority >= 50 ? "Média" : "Baixa"}
                     </span>
