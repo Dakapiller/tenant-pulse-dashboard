@@ -548,6 +548,21 @@ function ClubsPage() {
         onClose={() => setBulkScoreOpen(false)}
         onApplied={async () => { setSelectedKeys(new Set()); await loadAll(); }}
       />
+
+      {inlineScoreTenant && (() => {
+        const r = rows.find((x) => x.name === inlineScoreTenant);
+        if (!r) return null;
+        return (
+          <AdjustScoreDialog
+            open
+            mode="single"
+            tenant={r.name}
+            currentScore={r.score}
+            onClose={() => setInlineScoreTenant(null)}
+            onApplied={async () => { setInlineScoreTenant(null); await loadAll(); }}
+          />
+        );
+      })()}
     </div>
   );
 }
