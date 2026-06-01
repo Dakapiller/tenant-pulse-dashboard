@@ -110,6 +110,7 @@ function ClubsPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<string | null>(null);
   const [expandedTenant, setExpandedTenant] = useState<string | null>(null);
+  const [inlineScoreTenant, setInlineScoreTenant] = useState<string | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [missingOpen, setMissingOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
