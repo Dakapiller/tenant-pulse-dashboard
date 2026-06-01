@@ -458,31 +458,27 @@ function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Visão geral</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Centro de comando para prevenção de churn — {periodLabel(latestPeriod)}
+            Centro de comando para prevenção de churn — {resolved?.label ?? periodLabel(latestPeriod)}
           </p>
         </div>
-        <label className="flex sm:inline-flex items-center gap-2 text-xs text-muted-foreground w-full sm:w-auto">
-          <span className="shrink-0">Período</span>
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="flex-1 sm:flex-none px-3 h-11 sm:h-9 rounded-md border border-border bg-background text-base sm:text-sm sm:min-w-[160px]"
-          >
-            {periods.map((p) => (
-              <option key={p} value={p}>{periodLabel(p)}</option>
-            ))}
-          </select>
-        </label>
+        {resolved && (
+          <PeriodSelector
+            selection={periodSel}
+            resolved={resolved}
+            available={periods}
+            onChange={setPeriodSel}
+          />
+        )}
       </header>
 
       {/* Row 1 — KPIs (KPIs that depend on snapshots show skeletons until Phase 1 lands) */}
       <TooltipProvider delayDuration={150}>
         <section className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
-          <KpiCard icon={<Building2 className="h-4 w-4" />} label="Clubes ativos" value={snapshotsLoaded ? formatNumber(kpis.activeClubs) : "…"} tooltip="Clubes presentes no último upload mensal cujo estado atual não é churn, fechado nem mudança de dono." />
-          <KpiCard icon={<TrendingDown className="h-4 w-4" />} label="Churned este ano" value={formatNumber(kpis.churnedThisYear)} tone="danger" tooltip="Clubes marcados como churn ou fechados este ano, mais clubes que deixaram de aparecer no upload (churn implícito a partir do primeiro mês ausente)." />
-          <KpiCard icon={<AlertTriangle className="h-4 w-4" />} label="Em risco alto" value={snapshotsLoaded ? formatNumber(kpis.highRisk) : "…"} tone="warning" tooltip="Clubes com health score abaixo de 30 no período selecionado." />
-          <KpiCard icon={<Euro className="h-4 w-4" />} label="GMV mês" value={snapshotsLoaded ? formatEuro(kpis.monthGmv) : "…"} tooltip="Soma do GMV de todos os clubes ativos no período selecionado." />
-          <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita mês" value={snapshotsLoaded ? formatEuro(kpis.monthRevenue) : "…"} tooltip="Soma da receita de todos os clubes ativos no período selecionado." />
+          <KpiCard icon={<Building2 className="h-4 w-4" />} label="Clubes Ativos no Período" value={snapshotsLoaded ? formatNumber(kpis.activeClubs) : "…"} tooltip="Clubes que reportaram atividade em algum mês do período selecionado e cujo estado no fim do período não é churn, fechado nem mudança de dono." />
+          <KpiCard icon={<TrendingDown className="h-4 w-4" />} label="Churned no Período" value={snapshotsLoaded ? formatNumber(kpis.churnedThisYear) : "…"} tone="danger" tooltip="Clubes marcados como churn ou fechados com data registada dentro do período selecionado." />
+          <KpiCard icon={<AlertTriangle className="h-4 w-4" />} label="Em Risco Alto" value={snapshotsLoaded ? formatNumber(kpis.highRisk) : "…"} tone="warning" tooltip="Clubes com health score atual abaixo de 30." />
+          <KpiCard icon={<Euro className="h-4 w-4" />} label="GMV no Período" value={snapshotsLoaded ? formatEuro(kpis.monthGmv) : "…"} tooltip="Soma do GMV de todos os clubes ativos em todos os meses do período selecionado." />
+          <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita no Período" value={snapshotsLoaded ? formatEuro(kpis.monthRevenue) : "…"} tooltip="Soma da receita de todos os clubes ativos em todos os meses do período selecionado." />
         </section>
       </TooltipProvider>
 
