@@ -696,16 +696,6 @@ function ScoreBadge({ score, level }: { score: number; level: "high" | "medium" 
   );
 }
 
-function OutcomeBadge({ outcome }: { outcome: string | null }) {
-  if (!outcome) return <span className="text-xs text-muted-foreground">—</span>;
-  const map: Record<string, { bg: string; label: string }> = {
-    very_satisfied: { bg: "bg-success/10 text-success", label: "Muito satisfeito" },
-    good_receptivity: { bg: "bg-success/10 text-success", label: "Boa recetividade" },
-    bad_relationship: { bg: "bg-danger/10 text-danger", label: "Má relação" },
-  };
-  const m = map[outcome] ?? { bg: "bg-surface text-foreground", label: outcomeLabel(outcome) };
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${m.bg}`}>{m.label}</span>;
-}
 
 // Re-export RiskBadge for backward-compat (used by /cs and /tenant routes).
 export function RiskBadge({ level, score, delta }: { level: "high" | "medium" | "healthy"; score: number; delta?: number | null }) {
