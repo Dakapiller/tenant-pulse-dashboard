@@ -411,6 +411,26 @@ function CSHistoryPage() {
             {showInactive ? "Ocultar inativos" : `Mostrar inativos (${inactiveCount})`}
           </button>
         )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              disabled={exporting}
+              className="ml-auto inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:bg-muted/50 min-h-[44px] disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" />
+              {exporting ? "A exportar…" : "Exportar"}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={exportExcel}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Excel
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportJpeg}>
+              <ImageIcon className="h-4 w-4 mr-2" /> Exportar JPEG
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </section>
 
       {/* Summary cards */}
