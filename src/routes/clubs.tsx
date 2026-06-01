@@ -40,9 +40,11 @@ import {
   type ClubStatusLog,
 } from "@/lib/cs";
 import { computeRiskWithCS, FLAG_META, type RiskFlag } from "@/lib/risk";
-import { fetchHealthScores } from "@/lib/health";
+import { fetchHealthScores, fetchHealthLog } from "@/lib/health";
 import { formatEuro, formatNumber, formatPercent, periodLabel } from "@/lib/format";
 import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
+import { relativeLabelPT, relativeColorClass, activityColorClass, absoluteLabel } from "@/lib/relativeTime";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
 
 export const Route = createFileRoute("/clubs")({
   validateSearch: (s: Record<string, unknown>): { tenant?: string; level?: "high" | "medium" | "healthy"; q?: string } => ({
@@ -738,7 +740,7 @@ function ClubHistoryPanel({ row, onChanged }: { row: ClubRow; onChanged?: () => 
               <li key={t.id} className="text-xs space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{t.reason}</span>
-                  <span className="text-muted-foreground tabular-nums shrink-0">{t.week_start}</span>
+                  <span className={`shrink-0 ${relativeColorClass(t.week_start)}`} title={absoluteLabel(t.week_start)}>{relativeLabelPT(t.week_start)}</span>
                 </div>
                 <div className="text-muted-foreground">CTA: {t.cta}</div>
                 <TaskQuickActions task={t} onChanged={onChanged} />
@@ -963,7 +965,7 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
                   .map((t) => (
                     <li key={t.id} className="px-4 py-3 text-xs">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-muted-foreground tabular-nums">Semana de {t.week_start}</span>
+                        <span className={relativeColorClass(t.week_start)} title={absoluteLabel(t.week_start)}>{relativeLabelPT(t.week_start)}</span>
                         <span className={`text-[10px] uppercase font-semibold rounded-full px-1.5 py-0.5 ${t.priority >= 80 ? "bg-danger/15 text-danger" : t.priority >= 50 ? "bg-warning/15 text-warning" : "bg-surface text-muted-foreground"}`}>
                           {t.priority >= 80 ? "Alta" : t.priority >= 50 ? "Média" : "Baixa"}
                         </span>
