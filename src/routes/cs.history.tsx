@@ -120,6 +120,10 @@ function endOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
 }
 
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
 function CSHistoryPage() {
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
@@ -130,8 +134,8 @@ function CSHistoryPage() {
   const [showInactive, setShowInactive] = useState(false);
 
   const today = new Date();
-  const [dateFrom, setDateFrom] = useState<Date | undefined>(today);
-  const [dateTo, setDateTo] = useState<Date | undefined>(today);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfDay(today));
+  const [dateTo, setDateTo] = useState<Date | undefined>(startOfDay(today));
   const exportRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState("");
