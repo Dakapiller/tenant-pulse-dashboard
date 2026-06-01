@@ -257,6 +257,73 @@ function CSHistoryPage() {
     setDateTo(new Date());
   }
 
+  async function exportExcel() {
+    setExporting(true);
+    try {
+      const fromIso = (dateFrom ?? new Date(0)).toISOString();
+      const toIso = (dateTo ? endOfDay(dateTo) : new Date()).toISOString();
+
+      const taskRows = filtered
+        .filter((e): e is Extract<HistoryEntry, { kind: "task" }> => e.kind === "task")
+        .map((e) => ({
+          tenant: e.tenant,
+          week: e.task.week_start,
+          reason: e.task.reason,
+          outcome: e.task.outcome ? outcomeLabel(e.task.outcome) : "",
+          note: e.task.note ?? "",
+          completed_at: e.task.completed_at ?? "",
+          priority: e.task.priority,
+        }));
+
+      const log = await fetchHealthScoreLogRange(fromIso, toIso);
+      const scoreRows = log.map((r) => ({
+        tenant: r.tenant_name,
+        previous_score: r.previous_score,
+        new_score: r.new_score,
+        delta: r.delta,
+        reason: r.reason,
+        source: r.source,
+        changed_by: r.changed_by ?? "",
+        created_at: r.changed_at,
+      }));
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(taskRows), "Tarefas");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(scoreRows), "Histórico de Score");
+      const stamp = format(new Date(), "yyyy-MM-dd");
+      XLSX.writeFile(wb, `historico-cs-${stamp}.xlsx`);
+      toast.success("Excel exportado");
+    } catch (err) {
+      console.error(err);
+      toast.error("Falha ao exportar Excel");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function exportJpeg() {
+    if (!exportRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(exportRef.current, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+      });
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `historico-cs-${format(new Date(), "yyyy-MM-dd")}.jpg`;
+      a.click();
+      toast.success("Imagem exportada");
+    } catch (err) {
+      console.error(err);
+      toast.error("Falha ao exportar imagem");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const dateRangeLabel = dateFrom && dateTo
     ? `${format(dateFrom, "dd MMM", { locale: pt })} – ${format(dateTo, "dd MMM yyyy", { locale: pt })}`
     : dateFrom
