@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
-import { Calendar as CalendarIcon, ChevronDown, Download, ExternalLink, Eye, EyeOff, Search, X } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronDown, Download, ExternalLink, Eye, EyeOff, FileSpreadsheet, Image as ImageIcon, Search, X } from "lucide-react";
 import * as XLSX from "xlsx";
-import { toJpeg } from "html-to-image";
+import html2canvas from "html2canvas";
 import { ClubLink } from "@/components/ClubLink";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -130,8 +130,10 @@ function CSHistoryPage() {
   const [showInactive, setShowInactive] = useState(false);
 
   const today = new Date();
-  const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(today));
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(today);
   const [dateTo, setDateTo] = useState<Date | undefined>(today);
+  const exportRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState("");
   const [outcome, setOutcome] = useState<string>("all");
   const [openClubs, setOpenClubs] = useState<Record<string, boolean>>({});
@@ -255,6 +257,73 @@ function CSHistoryPage() {
     setDateTo(new Date());
   }
 
+  async function exportExcel() {
+    setExporting(true);
+    try {
+      const fromIso = (dateFrom ?? new Date(0)).toISOString();
+      const toIso = (dateTo ? endOfDay(dateTo) : new Date()).toISOString();
+
+      const taskRows = filtered
+        .filter((e): e is Extract<HistoryEntry, { kind: "task" }> => e.kind === "task")
+        .map((e) => ({
+          tenant: e.tenant,
+          week: e.task.week_start,
+          reason: e.task.reason,
+          outcome: e.task.outcome ? outcomeLabel(e.task.outcome) : "",
+          note: e.task.note ?? "",
+          completed_at: e.task.completed_at ?? "",
+          priority: e.task.priority,
+        }));
+
+      const log = await fetchHealthScoreLogRange(fromIso, toIso);
+      const scoreRows = log.map((r) => ({
+        tenant: r.tenant_name,
+        previous_score: r.previous_score,
+        new_score: r.new_score,
+        delta: r.delta,
+        reason: r.reason,
+        source: r.source,
+        changed_by: r.changed_by ?? "",
+        created_at: r.changed_at,
+      }));
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(taskRows), "Tarefas");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(scoreRows), "Histórico de Score");
+      const stamp = format(new Date(), "yyyy-MM-dd");
+      XLSX.writeFile(wb, `historico-cs-${stamp}.xlsx`);
+      toast.success("Excel exportado");
+    } catch (err) {
+      console.error(err);
+      toast.error("Falha ao exportar Excel");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function exportJpeg() {
+    if (!exportRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(exportRef.current, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+      });
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `historico-cs-${format(new Date(), "yyyy-MM-dd")}.jpg`;
+      a.click();
+      toast.success("Imagem exportada");
+    } catch (err) {
+      console.error(err);
+      toast.error("Falha ao exportar imagem");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const dateRangeLabel = dateFrom && dateTo
     ? `${format(dateFrom, "dd MMM", { locale: pt })} – ${format(dateTo, "dd MMM yyyy", { locale: pt })}`
     : dateFrom
@@ -266,7 +335,7 @@ function CSHistoryPage() {
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
+    <div ref={exportRef} className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Histórico CS</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -342,6 +411,26 @@ function CSHistoryPage() {
             {showInactive ? "Ocultar inativos" : `Mostrar inativos (${inactiveCount})`}
           </button>
         )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              disabled={exporting}
+              className="ml-auto inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:bg-muted/50 min-h-[44px] disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" />
+              {exporting ? "A exportar…" : "Exportar"}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={exportExcel}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Excel
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportJpeg}>
+              <ImageIcon className="h-4 w-4 mr-2" /> Exportar JPEG
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </section>
 
       {/* Summary cards */}
