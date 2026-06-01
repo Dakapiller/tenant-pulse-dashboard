@@ -112,10 +112,15 @@ function DashboardPage() {
 
   // Default selected period to the latest available, but allow the user to change it.
   useEffect(() => {
-    if (periods.length > 0 && !selectedPeriod) setSelectedPeriod(periods[0]);
-  }, [periods, selectedPeriod]);
+    if (periods.length > 0 && !periodSel.month && periodSel.mode === "month") {
+      setPeriodSel({ mode: "month", month: periods[0] });
+    }
+  }, [periods, periodSel]);
 
-  const latestPeriod = selectedPeriod || periods[0];
+  const resolved = useMemo(() => resolvePeriod(periodSel, periods), [periodSel, periods]);
+  const latestPeriod = resolved?.end ?? periods[0] ?? "";
+  const startPeriod = resolved?.start ?? latestPeriod;
+  const selectedPeriods = useMemo(() => new Set(resolved?.periods ?? []), [resolved]);
   const previousPeriod = useMemo(() => {
     if (!latestPeriod) return null;
     const idx = periods.indexOf(latestPeriod);
