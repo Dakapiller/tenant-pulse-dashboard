@@ -383,10 +383,15 @@ function ClubsPage() {
                 const healthColor = r.score < 30 ? "text-danger bg-danger/10" : r.score < 60 ? "text-warning bg-warning/15" : "text-success bg-success/10";
                 return (
                   <ScoreTooltip row={r}>
-                    <span className="inline-flex items-center gap-1.5 cursor-help">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setInlineScoreTenant(r.name); }}
+                      title="Ajustar score manualmente"
+                      className="inline-flex items-center gap-1.5 cursor-pointer hover:opacity-80"
+                    >
                       <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${healthColor}`}>{r.score}</span>
                       <ScoreDelta delta={r.scoreDelta} previous={r.prevScore} current={r.score} />
-                    </span>
+                    </button>
                   </ScoreTooltip>
                 );
               },
