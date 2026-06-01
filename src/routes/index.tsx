@@ -12,7 +12,7 @@ import {
 import { computeRiskWithCS } from "@/lib/risk";
 import { fetchHealthScores, fetchHealthScoresAt, healthLevel } from "@/lib/health";
 import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
-import { ClubLink } from "@/components/ClubLink";
+import { ScoreDelta } from "@/components/DataTable";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { resolvePeriod, type PeriodSelection } from "@/lib/period";
 import { Activity, AlertTriangle, Building2, Euro, Sparkles, TrendingDown, Upload } from "lucide-react";
