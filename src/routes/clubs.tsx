@@ -841,6 +841,21 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
             <h2 className="text-lg font-semibold truncate">{tenant}</h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <ClubStatusBadge status={row.status} competitor={row.competitor} />
+              {(() => {
+                const last = completedTasks
+                  .map((t) => t.completed_at)
+                  .filter((x): x is string => !!x)
+                  .sort()
+                  .pop();
+                if (!last) {
+                  return <span className="text-[11px] font-medium text-danger">sem actividade registada</span>;
+                }
+                return (
+                  <span className={`text-[11px] font-medium ${activityColorClass(last)}`} title={absoluteLabel(last)}>
+                    última actividade {relativeLabelPT(last)}
+                  </span>
+                );
+              })()}
               {pendingTasks.length > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 text-warning text-[11px] font-semibold px-2 py-0.5">
                   {pendingTasks.length} {pendingTasks.length === 1 ? "tarefa pendente" : "tarefas pendentes"}
@@ -916,7 +931,7 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
 
           <YoYSection history={row.history} />
 
-          <ScoreVariationSection row={row} />
+          <ScoreVariationSection row={row} tenant={tenant} />
 
           <section className="rounded-lg border border-border overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de performance</div>
