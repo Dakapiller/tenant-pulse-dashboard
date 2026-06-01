@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import { Calendar as CalendarIcon, ChevronDown, Download, ExternalLink, Eye, EyeOff, Search, X } from "lucide-react";
@@ -134,7 +134,7 @@ function CSHistoryPage() {
   const today = new Date();
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfDay(today));
   const [dateTo, setDateTo] = useState<Date | undefined>(startOfDay(today));
-  const exportRef = useRef<HTMLDivElement>(null);
+  
   const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState("");
   const [outcome, setOutcome] = useState<string>("all");
