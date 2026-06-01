@@ -123,6 +123,23 @@ function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
 }
 
+function startOfCurrentWeekMonday(): Date {
+  const now = new Date();
+  const day = now.getDay(); // 0 Sun .. 6 Sat
+  const diff = day === 0 ? -6 : 1 - day;
+  const m = new Date(now);
+  m.setDate(now.getDate() + diff);
+  m.setHours(0, 0, 0, 0);
+  return m;
+}
+
+interface WeeklyDigest {
+  totalCompleted: number;
+  clubsContacted: number;
+  scoreChanges: number;
+  topDrops: { tenant: string; drop: number }[];
+}
+
 function CSHistoryPage() {
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
