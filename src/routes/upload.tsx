@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, FileSpreadsheet, UploadCloud, XCircle } from "lucide-react";
+import { CheckCircle2, FileSpreadsheet, UploadCloud, XCircle, ExternalLink, Pencil, Check, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { applyUploadScoreChanges, fetchHealthScores } from "@/lib/health";
