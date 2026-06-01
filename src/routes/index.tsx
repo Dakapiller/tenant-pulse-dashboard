@@ -50,7 +50,7 @@ function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
   const [tasksLoaded, setTasksLoaded] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("");
+  const [periodSel, setPeriodSel] = useState<PeriodSelection>({ mode: "month" });
 
   // Phase 0 — fast: periods + CS statuses → renders KPI shell + period selector.
   useEffect(() => {
