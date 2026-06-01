@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Upload, LayoutDashboard, AlertTriangle, Activity, Users, Building2, Shield, LogOut, UserCircle, HelpCircle, Menu, X, CalendarDays } from "lucide-react";
+import { Upload, LayoutDashboard, AlertTriangle, Activity, Users, Building2, Shield, LogOut, UserCircle, HelpCircle, Menu, X, CalendarDays, ChevronDown, ListChecks, Bug, Lightbulb, History } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { VersionBadge } from "@/components/VersionBadge";
 import { useEffect, useState } from "react";
@@ -18,8 +18,14 @@ const allItems: readonly NavItem[] = [
   { to: "/clubs", label: "Clubes", icon: Building2 },
   { to: "/upload", label: "Carregar", icon: Upload, superuserOnly: true },
   { to: "/at-risk", label: "Em risco", icon: AlertTriangle },
-  { to: "/cs/tasks", label: "CS", icon: Users, matchPrefix: "/cs" },
   { to: "/admin", label: "Admin", icon: Shield, superuserOnly: true },
+];
+
+const csChildren: { to: string; label: string; icon: typeof LayoutDashboard }[] = [
+  { to: "/cs/tasks", label: "Tarefas", icon: ListChecks },
+  { to: "/cs/bugs", label: "Bugs", icon: Bug },
+  { to: "/cs/feedback", label: "Product Feedback", icon: Lightbulb },
+  { to: "/cs/history", label: "Histórico", icon: History },
 ];
 
 const helpItem: NavItem = { to: "/help", label: "Ajuda", icon: HelpCircle, matchPrefix: "/help" };
@@ -49,6 +55,13 @@ export function Sidebar() {
   const isSuperuser = profile?.role === "superuser";
   const items = allItems.filter((i) => !i.superuserOnly || isSuperuser);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const csActive = loc.pathname.startsWith("/cs");
+  const [csOpen, setCsOpen] = useState(csActive);
+
+  // Ensure the CS group opens automatically whenever we land on any /cs/* route.
+  useEffect(() => {
+    if (csActive) setCsOpen(true);
+  }, [csActive]);
 
   // Fechar drawer ao navegar
   useEffect(() => {
@@ -86,6 +99,46 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {/* CS group: collapsible dropdown */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setCsOpen((v) => !v)}
+            aria-expanded={csOpen}
+            className={
+              "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 min-h-10 " +
+              (csActive ? "bg-muted text-foreground" : "text-foreground hover:bg-muted")
+            }
+          >
+            <Users className="h-4 w-4" />
+            <span className="flex-1 text-left">CS</span>
+            <ChevronDown className={"h-4 w-4 text-muted-foreground transition-transform " + (csOpen ? "rotate-180" : "")} />
+          </button>
+          {csOpen && (
+            <div className="mt-1 ml-3 pl-3 border-l border-border space-y-1">
+              {csChildren.map((c) => {
+                const active = loc.pathname.startsWith(c.to);
+                const Icon = c.icon;
+                return (
+                  <Link
+                    key={c.to}
+                    to={c.to}
+                    className={
+                      "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors min-h-9 " +
+                      (active
+                        ? "bg-primary text-primary-foreground font-medium"
+                        : "text-foreground hover:bg-muted")
+                    }
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {c.label}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </nav>
       <div className="p-3 border-t border-border space-y-1">
         <Link
