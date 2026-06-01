@@ -22,6 +22,7 @@ import {
 import { fetchBugsByStatuses, BUG_SEVERITY_LABEL, type BugReport } from "@/lib/bugs";
 import { fetchHealthScoreLogRange } from "@/lib/health";
 import { FLAG_META, type RiskFlag } from "@/lib/risk";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
