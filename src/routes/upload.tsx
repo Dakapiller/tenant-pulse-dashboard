@@ -320,6 +320,10 @@ function UploadPage() {
         <p className="text-sm text-muted-foreground mt-1">Arraste um ficheiro .xlsx exportado para registar os KPIs dos tenants para um mês. Voltar a carregar substitui esse mês em segurança.</p>
       </header>
 
+      <DownloadLinkCard />
+
+
+
       <section className="rounded-xl border border-border bg-background p-6">
         <div className="grid grid-cols-2 gap-3 mb-5">
           <div>
