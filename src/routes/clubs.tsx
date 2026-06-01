@@ -1575,7 +1575,7 @@ function MissingClubsModal({
 function ScoreTooltip({ children }: { row: ClubRow; children: import("react").ReactNode }) {
   return <>{children}</>;
 }
-function ScoreVariationSection({ row }: { row: ClubRow }) {
+function ScoreVariationSection({ row, tenant }: { row: ClubRow; tenant: string }) {
   const changes = scoreChangeEvents(row).sort((a, b) => {
     const ad = a.period === "Atual" ? new Date().toISOString() : periodEndIso(a.period);
     const bd = b.period === "Atual" ? new Date().toISOString() : periodEndIso(b.period);
@@ -1586,6 +1586,7 @@ function ScoreVariationSection({ row }: { row: ClubRow }) {
     <section className="rounded-lg border border-border overflow-hidden">
       <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Variação do score</div>
       <div className="p-4 text-xs space-y-3">
+        <ScoreSparkline tenant={tenant} />
         {latest ? (
           <div className="rounded-md border border-border bg-background p-3 flex items-center justify-between gap-3">
             <span className="text-muted-foreground">Última alteração</span>
@@ -1615,5 +1616,44 @@ function ScoreVariationSection({ row }: { row: ClubRow }) {
         )}
       </div>
     </section>
+  );
+}
+
+function ScoreSparkline({ tenant }: { tenant: string }) {
+  const [points, setPoints] = useState<{ v: number }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const log = await fetchHealthLog(tenant, 8);
+        if (cancelled) return;
+        // fetchHealthLog returns desc; reverse for asc
+        const asc = [...log].reverse().map((l) => ({ v: Number(l.new_score) }));
+        setPoints(asc);
+      } catch {
+        if (!cancelled) setPoints([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tenant]);
+  if (points.length < 2) return null;
+  const first = points[0].v;
+  const last = points[points.length - 1].v;
+  const colorClass = last > first ? "text-success" : last < first ? "text-danger" : "text-muted-foreground";
+  return (
+    <div className={`w-full ${colorClass}`} style={{ height: 48 }}>
+      <ResponsiveContainer width="100%" height={48}>
+        <LineChart data={points} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+          <Line
+            type="monotone"
+            dataKey="v"
+            stroke="currentColor"
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
