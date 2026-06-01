@@ -487,3 +487,91 @@ function UploadPage() {
     </div>
   );
 }
+
+const DOWNLOAD_LINK_KEY = "upload:download_link";
+
+function DownloadLinkCard() {
+  const [url, setUrl] = useState<string>("");
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    const saved = localStorage.getItem(DOWNLOAD_LINK_KEY) ?? "";
+    setUrl(saved);
+    if (!saved) setEditing(true);
+  }, []);
+
+  function save() {
+    const trimmed = draft.trim();
+    if (trimmed && !/^https?:\/\//i.test(trimmed)) {
+      toast.error("O link deve começar por http:// ou https://");
+      return;
+    }
+    localStorage.setItem(DOWNLOAD_LINK_KEY, trimmed);
+    setUrl(trimmed);
+    setEditing(false);
+  }
+
+  function startEdit() {
+    setDraft(url);
+    setEditing(true);
+  }
+
+  function clear() {
+    localStorage.removeItem(DOWNLOAD_LINK_KEY);
+    setUrl("");
+    setDraft("");
+    setEditing(true);
+  }
+
+  return (
+    <section className="rounded-xl border border-border bg-background p-4 mb-4">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div>
+          <h2 className="text-sm font-semibold">Link de download da fonte</h2>
+          <p className="text-xs text-muted-foreground">Guarda aqui o link de onde fazes o download mensal.</p>
+        </div>
+      </div>
+
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <input
+            type="url"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="https://..."
+            className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-sm"
+            onKeyDown={(e) => { if (e.key === "Enter") save(); }}
+          />
+          <button onClick={save} className="inline-flex items-center gap-1 rounded-md bg-foreground text-background px-3 py-2 text-sm hover:opacity-90">
+            <Check className="h-4 w-4" /> Guardar
+          </button>
+          {url && (
+            <button onClick={() => { setEditing(false); setDraft(""); }} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface">
+              <X className="h-4 w-4" /> Cancelar
+            </button>
+          )}
+        </div>
+      ) : url ? (
+        <div className="flex items-center gap-2">
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface truncate"
+          >
+            <ExternalLink className="h-4 w-4 shrink-0" />
+            <span className="truncate">{url}</span>
+          </a>
+          <button onClick={startEdit} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface" title="Editar">
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button onClick={clear} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-surface" title="Remover">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
