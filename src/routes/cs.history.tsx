@@ -1,13 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
-import { Calendar as CalendarIcon, ChevronDown, ExternalLink, Eye, EyeOff, Search, X } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronDown, Download, ExternalLink, Eye, EyeOff, Search, X } from "lucide-react";
+import * as XLSX from "xlsx";
+import { toJpeg } from "html-to-image";
 import { ClubLink } from "@/components/ClubLink";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
   fetchAllCSStatuses,
@@ -19,8 +22,10 @@ import {
   type CSTenantStatus,
 } from "@/lib/cs";
 import { fetchBugsByStatuses, BUG_SEVERITY_LABEL, type BugReport } from "@/lib/bugs";
+import { fetchHealthScoreLogRange } from "@/lib/health";
 import { FLAG_META, type RiskFlag } from "@/lib/risk";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/cs/history")({
   component: CSHistoryPage,
