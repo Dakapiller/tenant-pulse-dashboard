@@ -5,12 +5,12 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, ImageIcon, Plus, SlidersHorizontal, Sparkles, Star, X,
+  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Plus, SlidersHorizontal, Sparkles, Star, X,
 } from "lucide-react";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { AdjustScoreDialog } from "@/components/AdjustScoreDialog";
 import { YoYSection } from "@/components/YoYSection";
-import { ExportClubCardDialog } from "@/components/ExportClubCardDialog";
+import { HealthBadge } from "@/components/HealthBadge";
 import { TaskQuickActions } from "@/components/TaskQuickActions";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
