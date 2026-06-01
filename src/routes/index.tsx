@@ -424,13 +424,6 @@ function DashboardPage() {
 
   // (Radar de Risco was removed — full at-risk view lives at /at-risk and the full club table at /clubs.)
 
-  // Recent CS activity (last 10)
-  const recentActivity = useMemo(() => {
-    return tasks
-      .filter((t) => t.status === "completed" && t.completed_at)
-      .sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""))
-      .slice(0, 10);
-  }, [tasks]);
 
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
