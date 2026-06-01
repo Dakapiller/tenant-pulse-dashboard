@@ -22,6 +22,7 @@ import {
 import { fetchBugsByStatuses, BUG_SEVERITY_LABEL, type BugReport } from "@/lib/bugs";
 import { fetchHealthScoreLogRange } from "@/lib/health";
 import { FLAG_META, type RiskFlag } from "@/lib/risk";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -122,6 +123,23 @@ function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
 }
 
+function startOfCurrentWeekMonday(): Date {
+  const now = new Date();
+  const day = now.getDay(); // 0 Sun .. 6 Sat
+  const diff = day === 0 ? -6 : 1 - day;
+  const m = new Date(now);
+  m.setDate(now.getDate() + diff);
+  m.setHours(0, 0, 0, 0);
+  return m;
+}
+
+interface WeeklyDigest {
+  totalCompleted: number;
+  clubsContacted: number;
+  scoreChanges: number;
+  topDrops: { tenant: string; drop: number }[];
+}
+
 function CSHistoryPage() {
   const [tasks, setTasks] = useState<CSTask[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
@@ -139,6 +157,48 @@ function CSHistoryPage() {
   const [search, setSearch] = useState("");
   const [outcome, setOutcome] = useState<string>("all");
   const [openClubs, setOpenClubs] = useState<Record<string, boolean>>({});
+  const [digest, setDigest] = useState<WeeklyDigest | null>(null);
+  const [digestOpen, setDigestOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const monday = startOfCurrentWeekMonday();
+        const now = new Date();
+        const fromIso = monday.toISOString();
+        const toIso = now.toISOString();
+        const [tasksRes, log] = await Promise.all([
+          supabase
+            .from("cs_tasks")
+            .select("tenant_name, completed_at")
+            .eq("status", "completed")
+            .gte("completed_at", fromIso)
+            .lte("completed_at", toIso),
+          fetchHealthScoreLogRange(fromIso, toIso),
+        ]);
+        if (cancelled) return;
+        const tRows = (tasksRes.data ?? []) as { tenant_name: string }[];
+        const totalCompleted = tRows.length;
+        const clubsContacted = new Set(tRows.map((r) => r.tenant_name)).size;
+        const scoreChanges = log.length;
+        const dropsByTenant = new Map<string, number>();
+        for (const r of log) {
+          const delta = Number(r.new_score) - Number(r.previous_score);
+          dropsByTenant.set(r.tenant_name, (dropsByTenant.get(r.tenant_name) ?? 0) + delta);
+        }
+        const topDrops = Array.from(dropsByTenant.entries())
+          .filter(([, v]) => v < 0)
+          .sort((a, b) => a[1] - b[1])
+          .slice(0, 3)
+          .map(([tenant, drop]) => ({ tenant, drop }));
+        setDigest({ totalCompleted, clubsContacted, scoreChanges, topDrops });
+      } catch (err) {
+        console.error("digest", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
@@ -322,6 +382,57 @@ function CSHistoryPage() {
           Tarefas concluídas e anuladas, agrupadas por clube. {tasks.length} carregada{tasks.length === 1 ? "" : "s"}{hasMore ? "" : " · fim"}.
         </p>
       </header>
+
+      {/* Weekly digest */}
+      {digest && (
+        <Collapsible open={digestOpen} onOpenChange={setDigestOpen}>
+          <section className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10 overflow-hidden">
+            <CollapsibleTrigger asChild>
+              <button className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-primary/5 transition-colors text-left">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-xs uppercase tracking-wide font-semibold text-primary">Resumo da semana</span>
+                  <span className="text-sm text-muted-foreground hidden sm:inline">
+                    {digest.totalCompleted} {digest.totalCompleted === 1 ? "tarefa" : "tarefas"} · {digest.clubsContacted} {digest.clubsContacted === 1 ? "clube" : "clubes"} · {digest.scoreChanges} {digest.scoreChanges === 1 ? "alteração de score" : "alterações de score"}
+                  </span>
+                </div>
+                <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform shrink-0", digestOpen && "rotate-180")} />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-5 pb-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Tarefas concluídas</div>
+                  <div className="text-2xl font-semibold mt-1 tabular-nums">{digest.totalCompleted}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Clubes contactados</div>
+                  <div className="text-2xl font-semibold mt-1 tabular-nums">{digest.clubsContacted}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Alterações de score</div>
+                  <div className="text-2xl font-semibold mt-1 tabular-nums">{digest.scoreChanges}</div>
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Maiores quedas</div>
+                  {digest.topDrops.length === 0 ? (
+                    <div className="text-xs text-muted-foreground mt-2">Sem quedas no período.</div>
+                  ) : (
+                    <ul className="mt-1.5 space-y-1">
+                      {digest.topDrops.map((d) => (
+                        <li key={d.tenant} className="flex items-center justify-between gap-2 text-xs">
+                          <ClubLink name={d.tenant} className="truncate hover:underline" />
+                          <span className="text-danger font-semibold tabular-nums shrink-0">{d.drop}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </CollapsibleContent>
+          </section>
+        </Collapsible>
+      )}
+
 
       {/* Filters */}
       <section className="rounded-xl border border-border bg-surface p-4 flex flex-wrap items-center gap-3">

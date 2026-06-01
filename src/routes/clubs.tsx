@@ -5,12 +5,12 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, ImageIcon, Plus, SlidersHorizontal, Sparkles, Star, X,
+  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Plus, SlidersHorizontal, Sparkles, Star, X,
 } from "lucide-react";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { AdjustScoreDialog } from "@/components/AdjustScoreDialog";
 import { YoYSection } from "@/components/YoYSection";
-import { ExportClubCardDialog } from "@/components/ExportClubCardDialog";
+import { HealthBadge } from "@/components/HealthBadge";
 import { TaskQuickActions } from "@/components/TaskQuickActions";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
@@ -110,6 +110,7 @@ function ClubsPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<string | null>(null);
   const [expandedTenant, setExpandedTenant] = useState<string | null>(null);
+  const [inlineScoreTenant, setInlineScoreTenant] = useState<string | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [missingOpen, setMissingOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
@@ -382,10 +383,15 @@ function ClubsPage() {
                 const healthColor = r.score < 30 ? "text-danger bg-danger/10" : r.score < 60 ? "text-warning bg-warning/15" : "text-success bg-success/10";
                 return (
                   <ScoreTooltip row={r}>
-                    <span className="inline-flex items-center gap-1.5 cursor-help">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setInlineScoreTenant(r.name); }}
+                      title="Ajustar score manualmente"
+                      className="inline-flex items-center gap-1.5 cursor-pointer hover:opacity-80"
+                    >
                       <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${healthColor}`}>{r.score}</span>
                       <ScoreDelta delta={r.scoreDelta} previous={r.prevScore} current={r.score} />
-                    </span>
+                    </button>
                   </ScoreTooltip>
                 );
               },
@@ -542,6 +548,21 @@ function ClubsPage() {
         onClose={() => setBulkScoreOpen(false)}
         onApplied={async () => { setSelectedKeys(new Set()); await loadAll(); }}
       />
+
+      {inlineScoreTenant && (() => {
+        const r = rows.find((x) => x.name === inlineScoreTenant);
+        if (!r) return null;
+        return (
+          <AdjustScoreDialog
+            open
+            mode="single"
+            tenant={r.name}
+            currentScore={r.score}
+            onClose={() => setInlineScoreTenant(null)}
+            onApplied={async () => { setInlineScoreTenant(null); await loadAll(); }}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -787,47 +808,25 @@ function ClubHistoryPanel({ row, onChanged }: { row: ClubRow; onChanged?: () => 
 // ---------- Drawer ----------
 
 function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: ClubRow; onClose: () => void; onChanged?: () => Promise<void> }) {
-  const [statusLogs, setStatusLogs] = useState<ClubStatusLog[]>([]);
   const [tenantTasks, setTenantTasks] = useState<CSTask[]>([]);
-  const [tenantStatuses, setTenantStatuses] = useState<CSTenantStatus[]>([]);
   const [taskOpen, setTaskOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
-  const [exportCardOpen, setExportCardOpen] = useState(false);
 
   async function reload() {
-    const [logs, tks, sts] = await Promise.all([
-      fetchClubStatusLogsForTenant(tenant),
-      fetchCSTasksForTenant(tenant),
-      fetchCSStatusesForTenant(tenant),
-    ]);
-    setStatusLogs(logs); setTenantTasks(tks); setTenantStatuses(sts);
+    const tks = await fetchCSTasksForTenant(tenant);
+    setTenantTasks(tks);
   }
 
   useEffect(() => { reload(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [tenant]);
 
-  const risk = useMemo(() => computeRiskWithCS(row.history, tenantStatuses), [row.history, tenantStatuses]);
-
-  const monthly = useMemo(() => {
-    return row.history.map((s, i) => {
-      const prev = row.history[i - 1];
-      const delta = (k: keyof Snapshot) => {
-        if (!prev) return null;
-        const a = Number(prev[k] ?? 0); const b = Number(s[k] ?? 0);
-        if (a === 0) return null;
-        return ((b - a) / Math.abs(a)) * 100;
-      };
-      return { snapshot: s, deltas: {
-        games_online: delta("games_online"),
-        gmv_all: delta("gmv_all"),
-        revenue: delta("revenue"),
-        transacted_rate: delta("transacted_rate"),
-      } };
-    }).reverse();
-  }, [row.history]);
-
   const completedTasks = tenantTasks.filter((t) => t.status === "completed");
   const pendingTasks = tenantTasks.filter((t) => t.status === "pending");
-  const MODS: Record<string, number> = { bad_relationship: 25, good_receptivity: -15, very_satisfied: -30 };
+
+  const lastActivity = completedTasks
+    .map((t) => t.completed_at)
+    .filter((x): x is string => !!x)
+    .sort()
+    .pop();
 
   return (
     <div className="fixed inset-0 z-50 flex md:justify-end" onMouseDown={onClose}>
@@ -841,131 +840,33 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
             <h2 className="text-lg font-semibold truncate">{tenant}</h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <ClubStatusBadge status={row.status} competitor={row.competitor} />
-              {(() => {
-                const last = completedTasks
-                  .map((t) => t.completed_at)
-                  .filter((x): x is string => !!x)
-                  .sort()
-                  .pop();
-                if (!last) {
-                  return <span className="text-[11px] font-medium text-danger">sem actividade registada</span>;
-                }
-                return (
-                  <span className={`text-[11px] font-medium ${activityColorClass(last)}`} title={absoluteLabel(last)}>
-                    última actividade {relativeLabelPT(last)}
-                  </span>
-                );
-              })()}
               {pendingTasks.length > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 text-warning text-[11px] font-semibold px-2 py-0.5">
                   {pendingTasks.length} {pendingTasks.length === 1 ? "tarefa pendente" : "tarefas pendentes"}
                 </span>
               )}
-              <Link to="/tenant/$name" params={{ name: tenant }} className="text-xs text-muted-foreground hover:text-foreground underline">
-                Abrir página completa
-              </Link>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => setTaskOpen(true)}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-9 text-xs font-medium hover:bg-surface"
-              title="Criar nova tarefa para este clube"
-            >
-              <Plus className="h-3.5 w-3.5" /> Tarefa
-            </button>
-            <button
-              onClick={() => setScoreOpen(true)}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-9 text-xs font-medium hover:bg-surface"
-              title="Ajustar manualmente o health score"
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" /> Score
-            </button>
-            <button
-              onClick={() => setExportCardOpen(true)}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-9 text-xs font-medium hover:bg-surface"
-              title="Exportar club card (PNG / JPEG) para partilhar com o clube"
-            >
-              <ImageIcon className="h-3.5 w-3.5" /> Club card
-            </button>
-            <button
-              onClick={() => setTaskOpen(true)}
-              className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
-              aria-label="Nova tarefa"
-            ><Plus className="h-5 w-5" /></button>
-            <button
-              onClick={() => setScoreOpen(true)}
-              className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
-              aria-label="Ajustar score"
-            ><SlidersHorizontal className="h-5 w-5" /></button>
-            <button
-              onClick={() => setExportCardOpen(true)}
-              className="sm:hidden inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface"
-              aria-label="Exportar club card"
-            ><ImageIcon className="h-5 w-5" /></button>
-            <button onClick={onClose} className="inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface" aria-label="Fechar"><X className="h-5 w-5" /></button>
-          </div>
+          <button onClick={onClose} className="inline-flex items-center justify-center h-11 w-11 rounded hover:bg-surface shrink-0" aria-label="Fechar"><X className="h-5 w-5" /></button>
         </div>
 
         <div className="p-6 space-y-6">
           <section className="rounded-lg border border-border p-4">
             <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Score de saúde</div>
-            <div className="flex items-end gap-4 mb-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="text-3xl font-bold tabular-nums">{row.score}</div>
-              <div className="text-xs text-muted-foreground pb-1">
-                {row.score < 30 ? "Em risco" : row.score < 60 ? "A monitorizar" : "Saudável"}
-              </div>
+              <HealthBadge score={row.score} showScore={false} />
+              {lastActivity ? (
+                <span className={`text-[11px] font-medium ${activityColorClass(lastActivity)}`} title={absoluteLabel(lastActivity)}>
+                  última actividade {relativeLabelPT(lastActivity)}
+                </span>
+              ) : (
+                <span className="text-[11px] font-medium text-danger">sem actividade registada</span>
+              )}
             </div>
-            {risk.flags.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {risk.flags.map((f) => (
-                  <span key={f} className="text-xs rounded-full bg-surface border border-border px-2 py-0.5" title={FLAG_META[f].description}>
-                    {FLAG_META[f].label} · +{FLAG_META[f].points}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <div className="text-xs text-muted-foreground">Sem sinalizações de risco ativas.</div>
-            )}
           </section>
 
           <YoYSection history={row.history} />
-
-          <ScoreVariationSection row={row} tenant={tenant} />
-
-          <section className="rounded-lg border border-border overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de performance</div>
-            <div className="max-h-80 overflow-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-surface/60 sticky top-0">
-                  <tr className="text-muted-foreground">
-                    <th className="px-3 py-2 text-left">Mês</th>
-                    <th className="px-3 py-2 text-right">Jogos</th>
-                    <th className="px-3 py-2 text-right">Δ</th>
-                    <th className="px-3 py-2 text-right">GMV</th>
-                    <th className="px-3 py-2 text-right">Δ</th>
-                    <th className="px-3 py-2 text-right">Receita</th>
-                    <th className="px-3 py-2 text-right">Δ</th>
-                    <th className="px-3 py-2 text-right">Taxa</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthly.map((m) => (
-                    <tr key={m.snapshot.period} className="border-t border-border">
-                      <td className="px-3 py-1.5">{periodLabel(m.snapshot.period)}</td>
-                      <td className="px-3 py-1.5 text-right tabular-nums">{formatNumber(m.snapshot.games_online)}</td>
-                      <td className="px-3 py-1.5 text-right"><Delta v={m.deltas.games_online} /></td>
-                      <td className="px-3 py-1.5 text-right tabular-nums">{formatEuro(m.snapshot.gmv_all)}</td>
-                      <td className="px-3 py-1.5 text-right"><Delta v={m.deltas.gmv_all} /></td>
-                      <td className="px-3 py-1.5 text-right tabular-nums">{formatEuro(m.snapshot.revenue)}</td>
-                      <td className="px-3 py-1.5 text-right"><Delta v={m.deltas.revenue} /></td>
-                      <td className="px-3 py-1.5 text-right tabular-nums">{formatPercent(m.snapshot.transacted_rate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
 
           {pendingTasks.length > 0 && (
             <section className="rounded-lg border border-warning/40 bg-warning/5 overflow-hidden">
@@ -996,62 +897,27 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
             </section>
           )}
 
-          <section className="rounded-lg border border-border overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico CS — Tarefas concluídas</div>
-            {completedTasks.length === 0 ? (
-              <div className="p-4 text-xs text-muted-foreground">Sem tarefas registadas.</div>
-            ) : (
-              <ul className="divide-y divide-border">
-                {completedTasks.map((t) => {
-                  const impact = MODS[t.outcome ?? ""] ?? 0;
-                  return (
-                    <li key={t.id} className="px-4 py-3 text-xs">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-muted-foreground">{t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : "—"}</span>
-                        <span className={`font-semibold ${impact > 0 ? "text-danger" : impact < 0 ? "text-success" : "text-muted-foreground"}`}>
-                          {impact > 0 ? `+${impact}` : impact < 0 ? impact : "—"}
-                        </span>
-                      </div>
-                      <div className="mt-1 font-medium whitespace-pre-line">{t.reason}</div>
-                      <div className="text-muted-foreground mt-0.5 whitespace-pre-line">CTA: {t.cta}</div>
-                      {t.note && <div className="text-muted-foreground mt-1 italic">Comentário: “{t.note}”</div>}
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {(t.flags ?? []).map((f) => (
-                          <span key={f} className="rounded-full bg-surface px-1.5 py-0.5 text-[10px]">
-                            {FLAG_META[f as keyof typeof FLAG_META]?.label ?? f}
-                          </span>
-                        ))}
-                        <span className="ml-auto rounded-full bg-surface px-1.5 py-0.5">{outcomeLabel(t.outcome)}</span>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-
-          <section className="rounded-lg border border-border overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border bg-surface text-sm font-medium">Histórico de mudanças de estado (ciclo de vida)</div>
-            {statusLogs.length === 0 ? (
-              <div className="p-4 text-xs text-muted-foreground">Sem alterações registadas. Esta secção mostra quando o clube transitou entre Ativo, Possível churn, Em churn, Fechado, etc.</div>
-            ) : (
-              <ul className="divide-y divide-border text-xs">
-                {statusLogs.map((l) => (
-                  <li key={l.id} className="px-4 py-2.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <span className="text-muted-foreground">{CLUB_STATUS_LABEL[l.previous_status as ClubStatus] ?? l.previous_status}</span>
-                        <span className="mx-2">→</span>
-                        <span className="font-medium">{CLUB_STATUS_LABEL[l.new_status as ClubStatus] ?? l.new_status}</span>
-                      </div>
-                      <span className="text-muted-foreground">{new Date(l.changed_at).toLocaleString("pt-PT")}</span>
-                    </div>
-                    {l.note && <div className="mt-1 italic text-muted-foreground">"{l.note}"</div>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
+            <button
+              onClick={() => setTaskOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-10 text-sm font-medium hover:bg-surface"
+            >
+              <Plus className="h-4 w-4" /> Tarefa
+            </button>
+            <button
+              onClick={() => setScoreOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-10 text-sm font-medium hover:bg-surface"
+            >
+              <SlidersHorizontal className="h-4 w-4" /> Score
+            </button>
+            <Link
+              to="/tenant/$name"
+              params={{ name: tenant }}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-foreground text-background px-3 h-10 text-sm font-medium hover:opacity-90"
+            >
+              Abrir página completa
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -1068,13 +934,6 @@ function ClubDrawer({ tenant, row, onClose, onChanged }: { tenant: string; row: 
         currentScore={row.score}
         onClose={() => setScoreOpen(false)}
         onApplied={async () => { await reload(); await onChanged?.(); }}
-      />
-      <ExportClubCardDialog
-        open={exportCardOpen}
-        onClose={() => setExportCardOpen(false)}
-        tenant={tenant}
-        history={row.history}
-        realScore={row.score}
       />
     </div>
   );
