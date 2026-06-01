@@ -7,13 +7,14 @@ import {
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
   fetchAllCSStatuses, fetchAllCSTasks, currentClubStatus, currentWeekStart, lastCompletedActivityAt,
-  outcomeLabel, excludedTenants, isActiveStatus, buildCurrentStatusMap, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
+  excludedTenants, isActiveStatus, buildCurrentStatusMap, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
 } from "@/lib/cs";
-import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
+import { computeRiskWithCS } from "@/lib/risk";
 import { fetchHealthScores, fetchHealthScoresAt, healthLevel } from "@/lib/health";
 import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
-import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
 import { ClubLink } from "@/components/ClubLink";
+import { PeriodSelector } from "@/components/PeriodSelector";
+import { resolvePeriod, type PeriodSelection } from "@/lib/period";
 import { Activity, AlertTriangle, Building2, Euro, Sparkles, TrendingDown, Upload } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
