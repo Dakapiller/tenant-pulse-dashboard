@@ -152,6 +152,36 @@ export async function fetchHealthLog(tenant?: string, limit = 200): Promise<Heal
   return (data ?? []) as unknown as HealthScoreLog[];
 }
 
+/**
+ * All health_score_log entries with changed_at in [fromIso, toIso].
+ * Pages through results in chunks of 1000. Used by the History export.
+ */
+export async function fetchHealthScoreLogRange(
+  fromIso: string,
+  toIso: string,
+): Promise<(HealthScoreLog & { changed_by: string | null })[]> {
+  const out: (HealthScoreLog & { changed_by: string | null })[] = [];
+  const pageSize = 1000;
+  let from = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from("health_score_log" as any)
+      .select("*")
+      .gte("changed_at", fromIso)
+      .lte("changed_at", toIso)
+      .order("changed_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as unknown as (HealthScoreLog & { changed_by: string | null })[];
+    out.push(...rows);
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return out;
+}
+
 // ---- Writes ----
 
 /**

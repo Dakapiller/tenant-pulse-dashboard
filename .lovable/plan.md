@@ -1,37 +1,78 @@
-## Diagnóstico
+# Plano — 4 alterações ao app
 
-Hoje é 2026-05-20. A semana corrente arranca a 2026-05-18.
+## 1. PeriodSelector unificado na index
 
-Estado atual em `cs_tasks` (status `pending`):
+**Novo componente** `src/components/PeriodSelector.tsx`:
+- Tipo `PeriodSelection`: `{ mode: "month" | "range" | "ytd" | "year" | "all"; month?: string; from?: string; to?: string; year?: number }`.
+- Helper `resolvePeriod(sel, allPeriods)` que devolve `{ start: string; end: string; periods: string[]; label: string }` (períodos em formato `YYYY-MM-01`, intersectados com os disponíveis).
+- UI: dropdown com 5 opções; consoante o modo aparece sub-controlo (select de mês+ano, dois selects para range, select de ano para "ano completo"; YTD e "todos" sem extras).
 
-| Semana | Pendentes | Clubes distintos |
-|---|---|---|
-| 2026-05-11 (semana passada) | **182** | 182 |
-| 2026-05-18 (semana corrente) | 82 | 82 |
+**Persistência**: search param `period` na rota `/` via `validateSearch` (zod) com `fallback`. Default = `{ mode: "month", month: periods[0] }`. Garante shareable URL + reactividade entre cards.
 
-Cada clube tem no máximo uma tarefa por semana. O que se passou: o gerador semanal cria uma nova tarefa "Acompanhamento semanal automático" todas as semanas, mas **não cancela** as tarefas pendentes da semana anterior. Resultado: as 182 da semana 05-11 ficaram "atrasadas" no calendário, e 72 desses clubes têm também a tarefa nova de 05-18 a coexistir.
+**Refactor de `src/routes/index.tsx`**:
+- Substituir `selectedPeriod: string` por `periodSel` lido de `Route.useSearch()` + `useNavigate` para update.
+- Calcular `{ start, end, periods: selectedPeriods }` (array de strings YYYY-MM-01 incluídas).
+- Onde havia `s.period === latestPeriod` para GMV/Receita, passa a `selectedPeriods.includes(s.period)` (somatório sobre os meses do período).
+- Para "Clubes Ativos no Período" e "Churned no Período": calcular sobre snapshots/statuses dentro do intervalo (clubes ativos = presentes em qualquer snapshot do período E não-churned no fim do período; churned = transições churned/closed registadas dentro do período).
+- "Em Risco Alto" mantém-se (estado atual, sem mudanças).
+- Labels dos KPI cards passam a "Clubes Ativos no Período", "Churned no Período", "Em Risco Alto", "GMV no Período", "Receita no Período".
+- Charts (`monthlySeries`, `healthByMonth`) truncados pelo `end` do período em vez de `latestPeriod`.
+- `clubs` aggregate usa `end` como cutoff.
 
-Não há tarefas órfãs/duplicadas dentro da mesma semana — a regra "1 tarefa por clube" mantém-se *por semana*; o problema é acumulação entre semanas.
+## 2. Remover "Atividade CS recente"
 
-## Plano
+- Apagar a secção `Atividade CS recente` em `src/routes/index.tsx` (tabela + memo `recentActivity` se só for usado aí). Remover imports órfãos (`DataTable`, etc., se não usados noutro sítio do ficheiro).
 
-**1. Limpar as pendentes atrasadas (única ação pedida)**
+## 3. CS sidebar dropdown
 
-Marcar como `cancelled` todas as `cs_tasks` com:
-- `status = 'pending'`
-- `week_start = '2026-05-11'`
+**`src/components/Sidebar.tsx`**:
+- Remover entry `{ to: "/cs/tasks", label: "CS", ... matchPrefix: "/cs" }`.
+- Renderizar item "CS" como botão colapsável usando `Collapsible` do shadcn (já existe):
+  - Trigger: ícone `Users` + label "CS" + `ChevronDown` (rotaciona quando aberto).
+  - `defaultOpen = loc.pathname.startsWith("/cs")`; estado controlado com `useState` que abre automaticamente sempre que entra em `/cs/*`.
+  - Children indentados: Tarefas → `/cs/tasks`, Bugs → `/cs/bugs`, Product Feedback → `/cs/feedback`, Histórico → `/cs/history`. Cada child aplica estilo ativo quando `loc.pathname.startsWith(child.to)`.
+- Mesma estrutura replicada no drawer mobile.
 
-Total: 182 linhas. Não toco nas 82 da semana corrente (05-18) nem nas `completed`/`cancelled` existentes. Sem impacto no health score (cancelamento não pontua).
+**`src/routes/cs.tsx`**: remover `<CSSubNav />`, deixar só `<Outlet />`.
 
-Execução via `supabase--insert` (UPDATE).
+**`src/components/CSSubNav.tsx`**: apagar ficheiro (não usado noutro lado — confirmo antes via rg).
 
-**2. Validação**
+## 4. CS History — hoje por defeito + export
 
-Após o update, confirmar via `read_query` que a semana 05-11 já não tem `pending` e que o calendário deixa de mostrar os 182 atrasados.
+**`src/routes/cs.history.tsx`**:
+- `dateFrom` e `dateTo` ambos inicializam a `today` (mesmo dia). Atualizar `setCurrentMonth` label/comportamento mantém-se.
+- Adicionar botão "Hoje" no popover do calendário (`setDateFrom(today); setDateTo(today)`).
 
-## Fora deste plano (a confirmar contigo)
+**Botão Export** ao lado dos filtros, com `DropdownMenu`:
+- **Exportar Excel** (usa `xlsx` já instalado): gera workbook com 2 sheets:
+  - `Tarefas`: tenant_name, week_start, reason, outcome, note, completed_at, priority — filtrado pelos tasks já no estado `filtered` (apenas kind=task). Carrega todas as páginas restantes antes do export se `hasMore` (loop `fetchTasksByStatusesPage` até esgotar) para garantir período completo.
+  - `Histórico de Score`: nova função `fetchHealthScoreLog(from, to)` em `src/lib/health.ts` que faz select a `health_score_log` filtrado por `created_at` no intervalo. Colunas: tenant_name, previous_score, new_score, delta, reason, source, changed_by, created_at.
+  - Filename: `historico-cs_YYYY-MM-DD_YYYY-MM-DD.xlsx`.
+- **Exportar JPEG**: usa `html-to-image` (já instalado — equivalente ao html2canvas pedido, mais leve e compatível com Workers/SSR). `toJpeg(ref.current, { quality: 0.92, backgroundColor: "#fff" })` → download via link blob. Ref aplicada ao container principal da página.
 
-A causa-raiz é o gerador semanal não fechar as pendentes anteriores. Se quiseres, num passo seguinte posso:
-- Ajustar a lógica de geração semanal para que, ao criar a tarefa da nova semana, marque automaticamente como `cancelled` qualquer `pending` anterior do mesmo clube (com nota "anulada por nova semana"), evitando que isto se repita.
+## Detalhes técnicos
 
-Diz-me se queres incluir já esse fix ou se preferes só a limpeza agora.
+- **Search param schema** (rota `/`):
+  ```ts
+  const periodSchema = z.object({
+    mode: fallback(z.enum(["month","range","ytd","year","all"]), "month").default("month"),
+    month: z.string().optional(), from: z.string().optional(),
+    to: z.string().optional(), year: z.number().optional(),
+  });
+  ```
+- **`resolvePeriod`**: para `month` → start=end=esse mês; `range` → from..to; `ytd` → `${currentYear}-01-01` até último período disponível desse ano; `year` → todos os 12 meses do ano; `all` → primeiro..último período disponível.
+- **xlsx**: `XLSX.utils.book_new()` + `XLSX.utils.json_to_sheet(rows)` + `XLSX.utils.book_append_sheet` + `XLSX.writeFile(wb, filename)`.
+- **html-to-image** em vez de html2canvas: já está em `package.json`, não precisa de instalação nem de Node-only deps; produz a mesma JPEG.
+- Tradução de campos para cabeçalhos PT nas folhas Excel (ex.: `outcome → "Resultado"`, mapeando via `outcomeLabel`).
+- Nada toca em RLS, migrações, ou lógica de Health Score.
+
+## Ficheiros tocados
+
+- `src/components/PeriodSelector.tsx` (novo)
+- `src/lib/period.ts` (novo — tipos + `resolvePeriod`)
+- `src/routes/index.tsx` (search params, KPIs, labels, remove atividade CS)
+- `src/components/Sidebar.tsx` (CS dropdown)
+- `src/routes/cs.tsx` (remove CSSubNav)
+- `src/components/CSSubNav.tsx` (apagar)
+- `src/lib/health.ts` (adicionar `fetchHealthScoreLog`)
+- `src/routes/cs.history.tsx` (default today + export Excel/JPEG)

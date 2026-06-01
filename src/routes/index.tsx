@@ -7,13 +7,14 @@ import {
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
   fetchAllCSStatuses, fetchAllCSTasks, currentClubStatus, currentWeekStart, lastCompletedActivityAt,
-  outcomeLabel, excludedTenants, isActiveStatus, buildCurrentStatusMap, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
+  excludedTenants, isActiveStatus, buildCurrentStatusMap, type CSTenantStatus, type CSTask, type ClubStatus, CLUB_STATUS_LABEL,
 } from "@/lib/cs";
-import { computeRiskWithCS, FLAG_META } from "@/lib/risk";
+import { computeRiskWithCS } from "@/lib/risk";
 import { fetchHealthScores, fetchHealthScoresAt, healthLevel } from "@/lib/health";
 import { formatEuro, formatNumber, periodLabel, periodShort } from "@/lib/format";
-import { DataTable, ScoreDelta, type ColumnDef } from "@/components/DataTable";
-import { ClubLink } from "@/components/ClubLink";
+import { ScoreDelta } from "@/components/DataTable";
+import { PeriodSelector } from "@/components/PeriodSelector";
+import { resolvePeriod, type PeriodSelection } from "@/lib/period";
 import { Activity, AlertTriangle, Building2, Euro, Sparkles, TrendingDown, Upload } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -49,7 +50,7 @@ function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
   const [tasksLoaded, setTasksLoaded] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("");
+  const [periodSel, setPeriodSel] = useState<PeriodSelection>({ mode: "month" });
 
   // Phase 0 — fast: periods + CS statuses → renders KPI shell + period selector.
   useEffect(() => {
@@ -111,10 +112,15 @@ function DashboardPage() {
 
   // Default selected period to the latest available, but allow the user to change it.
   useEffect(() => {
-    if (periods.length > 0 && !selectedPeriod) setSelectedPeriod(periods[0]);
-  }, [periods, selectedPeriod]);
+    if (periods.length > 0 && !periodSel.month && periodSel.mode === "month") {
+      setPeriodSel({ mode: "month", month: periods[0] });
+    }
+  }, [periods, periodSel]);
 
-  const latestPeriod = selectedPeriod || periods[0];
+  const resolved = useMemo(() => resolvePeriod(periodSel, periods), [periodSel, periods]);
+  const latestPeriod = resolved?.end ?? periods[0] ?? "";
+  const startPeriod = resolved?.start ?? latestPeriod;
+  const selectedPeriods = useMemo(() => new Set(resolved?.periods ?? []), [resolved]);
   const previousPeriod = useMemo(() => {
     if (!latestPeriod) return null;
     const idx = periods.indexOf(latestPeriod);
@@ -226,66 +232,57 @@ function DashboardPage() {
   // selected period's month-end).
   const currentStatusByTenant = useMemo(() => buildCurrentStatusMap(statuses), [statuses]);
 
-  // KPIs
+  // KPIs — reactive to the selected period.
   const kpis = useMemo(() => {
-    // "Ativo" = aparece no último upload mensal E status atual não é churned/closed/changed_owner.
-    // O período de referência é SEMPRE o último upload da BD (periods[0]),
-    // independente do filtro `selectedPeriod`.
-    const latestUploadPeriod = periods[0] ?? null;
-    const tenantsInLatestUpload = new Set<string>();
-    if (latestUploadPeriod) {
-      for (const s of snapshots) if (s.period === latestUploadPeriod) tenantsInLatestUpload.add(s.tenant_name);
+    // "Clubes Ativos no Período" — qualquer clube que tenha aparecido num
+    // snapshot dentro do período E cujo estado no fim do período não seja
+    // churn/closed/changed_owner.
+    const tenantsInPeriod = new Set<string>();
+    for (const s of snapshots) {
+      if (selectedPeriods.has(s.period)) tenantsInPeriod.add(s.tenant_name);
+    }
+    // Estado a partir das statuses até ao fim do período (mesmo cutoff de `clubs`).
+    const cutoffEnd = `${latestPeriod.slice(0, 7)}-31T23:59:59Z`;
+    function statusAtEnd(name: string): ClubStatus {
+      const arr = tenantStatuses.get(name) ?? [];
+      let last: CSTenantStatus | null = null;
+      for (const s of arr) {
+        if ((s.recorded_at ?? "") <= cutoffEnd) last = s;
+        else break;
+      }
+      return currentClubStatus(last ? [last] : []);
     }
     let activeClubs = 0;
-    for (const name of tenantsInLatestUpload) {
-      const st = currentStatusByTenant.get(name) ?? "active";
-      if (isActiveStatus(st)) activeClubs++;
+    for (const name of tenantsInPeriod) {
+      if (isActiveStatus(statusAtEnd(name))) activeClubs++;
     }
 
-    // Churn este ano = (a) status churned/closed registado este ano OU
-    //                  (b) churn implícito: deixou de aparecer e a primeira ausência cai no ano corrente.
-    const year = new Date().getUTCFullYear();
+    // "Churned no Período" — transições de status para churned/closed registadas
+    // dentro do intervalo do período selecionado.
+    const startIso = `${startPeriod.slice(0, 7)}-01T00:00:00Z`;
+    const endIso = cutoffEnd;
     const churnedSet = new Set<string>();
     statuses.forEach((s) => {
-      if ((s.club_status === "churned" || s.club_status === "closed") && s.recorded_at && new Date(s.recorded_at).getUTCFullYear() === year) {
-        churnedSet.add(s.tenant_name);
-      }
-    });
-    if (latestUploadPeriod) {
-      // periods vem ordenado descendente. Para cada tenant ausente do último upload,
-      // o "primeiro mês ausente" é o período imediatamente seguinte ao seu último período presente.
-      const periodIndex = new Map<string, number>();
-      periods.forEach((p, i) => periodIndex.set(p, i));
-      for (const [name, hist] of tenantHistory) {
-        if (tenantsInLatestUpload.has(name)) continue;
-        if (churnedSet.has(name)) continue;
-        // changed_owner não conta como churn
-        const st = currentStatusByTenant.get(name) ?? "active";
-        if (st === "changed_owner") continue;
-        const lastPresent = hist[hist.length - 1]?.period;
-        if (!lastPresent) continue;
-        const idx = periodIndex.get(lastPresent);
-        if (idx === undefined || idx === 0) continue; // não tem período seguinte
-        const firstMissing = periods[idx - 1]; // periods desc → idx-1 é o mês seguinte
-        if (firstMissing && new Date(firstMissing).getUTCFullYear() === year) {
-          churnedSet.add(name);
+      if ((s.club_status === "churned" || s.club_status === "closed") && s.recorded_at) {
+        if (s.recorded_at >= startIso && s.recorded_at <= endIso) {
+          churnedSet.add(s.tenant_name);
         }
       }
-    }
+    });
     const churnedThisYear = churnedSet.size;
 
     const highRisk = clubs.filter((c) => c.score < 30 && c.status !== "churned" && c.status !== "closed").length;
-    const monthGmv = (() => {
-      if (!latestPeriod) return 0;
-      return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.gmv_all ?? 0), 0);
-    })();
-    const monthRevenue = (() => {
-      if (!latestPeriod) return 0;
-      return includedSnapshots.filter((s) => s.period === latestPeriod).reduce((acc, s) => acc + Number(s.revenue ?? 0), 0);
-    })();
+
+    // GMV / Receita — somatório acumulado sobre todos os meses do período.
+    let monthGmv = 0;
+    let monthRevenue = 0;
+    for (const s of includedSnapshots) {
+      if (!selectedPeriods.has(s.period)) continue;
+      monthGmv += Number(s.gmv_all ?? 0);
+      monthRevenue += Number(s.revenue ?? 0);
+    }
     return { activeClubs, churnedThisYear, highRisk, monthGmv, monthRevenue };
-  }, [clubs, statuses, snapshots, periods, includedSnapshots, latestPeriod, currentStatusByTenant, tenantHistory]);
-  // (latestPeriod intentionally referenced inside activeClubs filter above)
+  }, [clubs, statuses, snapshots, includedSnapshots, latestPeriod, startPeriod, selectedPeriods, tenantStatuses, currentStatusByTenant]);
 
   // Monthly trend series — current and prior-year overlay
   const monthlySeries = useMemo(() => {
@@ -427,13 +424,6 @@ function DashboardPage() {
 
   // (Radar de Risco was removed — full at-risk view lives at /at-risk and the full club table at /clubs.)
 
-  // Recent CS activity (last 10)
-  const recentActivity = useMemo(() => {
-    return tasks
-      .filter((t) => t.status === "completed" && t.completed_at)
-      .sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""))
-      .slice(0, 10);
-  }, [tasks]);
 
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
@@ -461,31 +451,27 @@ function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Visão geral</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Centro de comando para prevenção de churn — {periodLabel(latestPeriod)}
+            Centro de comando para prevenção de churn — {resolved?.label ?? periodLabel(latestPeriod)}
           </p>
         </div>
-        <label className="flex sm:inline-flex items-center gap-2 text-xs text-muted-foreground w-full sm:w-auto">
-          <span className="shrink-0">Período</span>
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="flex-1 sm:flex-none px-3 h-11 sm:h-9 rounded-md border border-border bg-background text-base sm:text-sm sm:min-w-[160px]"
-          >
-            {periods.map((p) => (
-              <option key={p} value={p}>{periodLabel(p)}</option>
-            ))}
-          </select>
-        </label>
+        {resolved && (
+          <PeriodSelector
+            selection={periodSel}
+            resolved={resolved}
+            available={periods}
+            onChange={setPeriodSel}
+          />
+        )}
       </header>
 
       {/* Row 1 — KPIs (KPIs that depend on snapshots show skeletons until Phase 1 lands) */}
       <TooltipProvider delayDuration={150}>
         <section className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
-          <KpiCard icon={<Building2 className="h-4 w-4" />} label="Clubes ativos" value={snapshotsLoaded ? formatNumber(kpis.activeClubs) : "…"} tooltip="Clubes presentes no último upload mensal cujo estado atual não é churn, fechado nem mudança de dono." />
-          <KpiCard icon={<TrendingDown className="h-4 w-4" />} label="Churned este ano" value={formatNumber(kpis.churnedThisYear)} tone="danger" tooltip="Clubes marcados como churn ou fechados este ano, mais clubes que deixaram de aparecer no upload (churn implícito a partir do primeiro mês ausente)." />
-          <KpiCard icon={<AlertTriangle className="h-4 w-4" />} label="Em risco alto" value={snapshotsLoaded ? formatNumber(kpis.highRisk) : "…"} tone="warning" tooltip="Clubes com health score abaixo de 30 no período selecionado." />
-          <KpiCard icon={<Euro className="h-4 w-4" />} label="GMV mês" value={snapshotsLoaded ? formatEuro(kpis.monthGmv) : "…"} tooltip="Soma do GMV de todos os clubes ativos no período selecionado." />
-          <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita mês" value={snapshotsLoaded ? formatEuro(kpis.monthRevenue) : "…"} tooltip="Soma da receita de todos os clubes ativos no período selecionado." />
+          <KpiCard icon={<Building2 className="h-4 w-4" />} label="Clubes Ativos no Período" value={snapshotsLoaded ? formatNumber(kpis.activeClubs) : "…"} tooltip="Clubes que reportaram atividade em algum mês do período selecionado e cujo estado no fim do período não é churn, fechado nem mudança de dono." />
+          <KpiCard icon={<TrendingDown className="h-4 w-4" />} label="Churned no Período" value={snapshotsLoaded ? formatNumber(kpis.churnedThisYear) : "…"} tone="danger" tooltip="Clubes marcados como churn ou fechados com data registada dentro do período selecionado." />
+          <KpiCard icon={<AlertTriangle className="h-4 w-4" />} label="Em Risco Alto" value={snapshotsLoaded ? formatNumber(kpis.highRisk) : "…"} tone="warning" tooltip="Clubes com health score atual abaixo de 30." />
+          <KpiCard icon={<Euro className="h-4 w-4" />} label="GMV no Período" value={snapshotsLoaded ? formatEuro(kpis.monthGmv) : "…"} tooltip="Soma do GMV de todos os clubes ativos em todos os meses do período selecionado." />
+          <KpiCard icon={<Activity className="h-4 w-4" />} label="Receita no Período" value={snapshotsLoaded ? formatEuro(kpis.monthRevenue) : "…"} tooltip="Soma da receita de todos os clubes ativos em todos os meses do período selecionado." />
         </section>
       </TooltipProvider>
 
@@ -619,39 +605,6 @@ function DashboardPage() {
       </section>
 
 
-
-      {/* Row 5 — Recent CS activity */}
-      <section className="rounded-xl border border-border bg-background overflow-hidden">
-        <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Atividade CS recente</h2>
-        </div>
-        <div className="overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-surface text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 text-left">Data</th>
-                <th className="px-4 py-3 text-left">Clube</th>
-                <th className="px-4 py-3 text-left">Resultado</th>
-                <th className="px-4 py-3 text-left">Razão</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!tasksLoaded ? (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">A carregar atividade…</td></tr>
-              ) : recentActivity.length === 0 ? (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">Sem atividade recente.</td></tr>
-              ) : recentActivity.map((t) => (
-                <tr key={t.id} className="border-t border-border hover:bg-surface">
-                  <td className="px-4 py-2 text-xs text-muted-foreground">{t.completed_at ? new Date(t.completed_at).toLocaleDateString("pt-PT") : "—"}</td>
-                  <td className="px-4 py-2 font-medium"><ClubLink name={t.tenant_name} /></td>
-                  <td className="px-4 py-2"><OutcomeBadge outcome={t.outcome} /></td>
-                  <td className="px-4 py-2 text-xs text-muted-foreground truncate max-w-md">{t.reason}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   );
 }
@@ -743,16 +696,6 @@ function ScoreBadge({ score, level }: { score: number; level: "high" | "medium" 
   );
 }
 
-function OutcomeBadge({ outcome }: { outcome: string | null }) {
-  if (!outcome) return <span className="text-xs text-muted-foreground">—</span>;
-  const map: Record<string, { bg: string; label: string }> = {
-    very_satisfied: { bg: "bg-success/10 text-success", label: "Muito satisfeito" },
-    good_receptivity: { bg: "bg-success/10 text-success", label: "Boa recetividade" },
-    bad_relationship: { bg: "bg-danger/10 text-danger", label: "Má relação" },
-  };
-  const m = map[outcome] ?? { bg: "bg-surface text-foreground", label: outcomeLabel(outcome) };
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${m.bg}`}>{m.label}</span>;
-}
 
 // Re-export RiskBadge for backward-compat (used by /cs and /tenant routes).
 export function RiskBadge({ level, score, delta }: { level: "high" | "medium" | "healthy"; score: number; delta?: number | null }) {
