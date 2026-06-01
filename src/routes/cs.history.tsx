@@ -335,7 +335,7 @@ function CSHistoryPage() {
   if (loading) return <div className="p-10 text-muted-foreground">A carregar…</div>;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
+    <div ref={exportRef} className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Histórico CS</h1>
         <p className="text-sm text-muted-foreground mt-1">
