@@ -291,7 +291,7 @@ function CSHistoryPage() {
       if (q && !e.tenant.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [tasks, bugs, dateFrom, dateTo, debouncedSearch, showInactive, excluded, outcome]);
+  }, [tasks, rangeTasks, bugs, dateFrom, dateTo, debouncedSearch, showInactive, excluded, outcome]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, HistoryEntry[]>();
