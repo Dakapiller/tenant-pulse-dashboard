@@ -69,7 +69,15 @@ export const OUTCOME_OPTIONS: { value: string; label: string }[] = [
   { value: "bad_relationship", label: "Má relação" },
   { value: "good_receptivity", label: "Boa recetividade" },
   { value: "very_satisfied", label: "Cliente ficou muito satisfeito, agradeceu contacto" },
+  { value: "possible_churn", label: "Possível churn" },
+  { value: "churned", label: "Confirmado churn" },
 ];
+
+/** Outcomes que, além do registo, transitam automaticamente `club_status`. */
+export const CHURN_OUTCOME_TO_STATUS: Record<string, ClubStatus> = {
+  possible_churn: "possible_churn",
+  churned: "churned",
+};
 
 /**
  * Label do **resultado** de uma tarefa (lê `outcome`).
