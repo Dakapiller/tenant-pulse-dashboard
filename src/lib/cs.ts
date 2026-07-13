@@ -407,6 +407,7 @@ export async function cancelCSTasksBatch(taskIds: string[], note: string): Promi
       status: "cancelled",
       outcome: "cancelled_manual",
       note: trimmed,
+      completed_at: new Date().toISOString(),
     } as never)
     .in("id", taskIds)
     .eq("status", "pending");

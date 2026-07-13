@@ -273,11 +273,15 @@ function DashboardPage() {
 
     const highRisk = clubs.filter((c) => c.score < 30 && c.status !== "churned" && c.status !== "closed").length;
 
-    // GMV / Receita — somatório acumulado sobre todos os meses do período.
+    // GMV / Receita — mesma população de clubes que "Clubes Ativos no Período":
+    // snapshot no período E estado ativo no fim do período (não estado atual).
+    // Assim os três KPIs desta linha ficam sempre coerentes entre si e com o
+    // ficheiro do mês.
     let monthGmv = 0;
     let monthRevenue = 0;
-    for (const s of includedSnapshots) {
+    for (const s of snapshots) {
       if (!selectedPeriods.has(s.period)) continue;
+      if (!isActiveStatus(statusAtEnd(s.tenant_name))) continue;
       monthGmv += Number(s.gmv_all ?? 0);
       monthRevenue += Number(s.revenue ?? 0);
     }
@@ -307,7 +311,7 @@ function DashboardPage() {
       }));
     // Build prior-year overlay aligned by month (e.g. "01" of any year aligns).
     const map = new Map(arr.map((r) => [r.period, r]));
-    return arr.map((r) => {
+    const withPrev = arr.map((r) => {
       const d = new Date(r.period);
       const priorIso = new Date(Date.UTC(d.getUTCFullYear() - 1, d.getUTCMonth(), 1)).toISOString().slice(0, 10);
       const prior = map.get(priorIso);
@@ -318,6 +322,8 @@ function DashboardPage() {
         revenuePrev: prior?.revenue ?? null,
       };
     });
+    // Sempre apenas os dois meses mais recentes carregados.
+    return withPrev.slice(-2);
   }, [includedSnapshots, latestPeriod]);
 
   // YoY comparison row
