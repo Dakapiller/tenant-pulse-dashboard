@@ -37,7 +37,13 @@ export function TaskQuickActions({ task, onChanged, size = "compact" }: Props) {
   async function doComplete() {
     setBusy(true);
     try {
-      await completeCSTask(task.id, task.tenant_name, outcome, note.trim() || null);
+      await completeCSTask(
+        task.id,
+        task.tenant_name,
+        outcome,
+        note.trim() || null,
+        outcome === "churned" ? competitor : null,
+      );
       setMode("idle");
       setNote("");
       await onChanged?.();
