@@ -5,6 +5,7 @@ import {
   insertManualCSTaskCompleted,
   currentWeekStart,
   OUTCOME_OPTIONS,
+  COMPETITOR_OPTIONS,
 } from "@/lib/cs";
 import {
   FEEDBACK_CATEGORIES,
@@ -81,6 +82,7 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
   // ---- "task" — mark as already completed ----
   const [markCompleted, setMarkCompleted] = useState(false);
   const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
+  const [outcomeCompetitor, setOutcomeCompetitor] = useState(COMPETITOR_OPTIONS[0].value);
   const [completedNote, setCompletedNote] = useState("");
 
   // ---- "future" ----
@@ -117,6 +119,7 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
       setPriority(60);
       setMarkCompleted(false);
       setOutcome(OUTCOME_OPTIONS[0].value);
+      setOutcomeCompetitor(COMPETITOR_OPTIONS[0].value);
       setCompletedNote("");
       setFutureMode("1w");
       setCustomDate(addDaysISO(7));
@@ -212,6 +215,7 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
             weekStart,
             outcome,
             note: completedNote,
+            competitor: outcome === "churned" ? outcomeCompetitor : null,
           });
         } else {
           await insertManualCSTask({
@@ -492,6 +496,27 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
                             ))}
                           </select>
                         </div>
+                        {outcome === "churned" && (
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                              Competidor
+                            </label>
+                            <select
+                              value={outcomeCompetitor}
+                              onChange={(e) => setOutcomeCompetitor(e.target.value)}
+                              className="w-full px-2 py-2 rounded-md border border-border bg-background text-xs"
+                            >
+                              {COMPETITOR_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        {(outcome === "churned" || outcome === "possible_churn") && (
+                          <p className="text-[10px] text-warning">
+                            O clube vai passar a {outcome === "churned" ? "«Em churn»" : "«Possível churn»"} e as tarefas pendentes serão anuladas.
+                          </p>
+                        )}
                         <input
                           value={completedNote}
                           onChange={(e) => setCompletedNote(e.target.value.slice(0, 500))}

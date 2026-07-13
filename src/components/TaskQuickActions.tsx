@@ -5,6 +5,7 @@ import {
   postponeCSTask,
   currentWeekStart,
   OUTCOME_OPTIONS,
+  COMPETITOR_OPTIONS,
   type CSTask,
 } from "@/lib/cs";
 
@@ -18,6 +19,7 @@ interface Props {
 export function TaskQuickActions({ task, onChanged, size = "compact" }: Props) {
   const [mode, setMode] = useState<"idle" | "complete" | "postpone">("idle");
   const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
+  const [competitor, setCompetitor] = useState(COMPETITOR_OPTIONS[0].value);
   const [note, setNote] = useState("");
   const [target, setTarget] = useState<string>(() => {
     // default: next Monday
@@ -35,7 +37,13 @@ export function TaskQuickActions({ task, onChanged, size = "compact" }: Props) {
   async function doComplete() {
     setBusy(true);
     try {
-      await completeCSTask(task.id, task.tenant_name, outcome, note.trim() || null);
+      await completeCSTask(
+        task.id,
+        task.tenant_name,
+        outcome,
+        note.trim() || null,
+        outcome === "churned" ? competitor : null,
+      );
       setMode("idle");
       setNote("");
       await onChanged?.();
@@ -99,7 +107,23 @@ export function TaskQuickActions({ task, onChanged, size = "compact" }: Props) {
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
+          {outcome === "churned" && (
+            <select
+              value={competitor}
+              onChange={(e) => setCompetitor(e.target.value)}
+              className="px-2 py-1 rounded-md border border-border bg-background text-xs"
+            >
+              {COMPETITOR_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          )}
         </div>
+        {(outcome === "churned" || outcome === "possible_churn") && (
+          <p className="text-[10px] text-warning">
+            O clube vai passar a {outcome === "churned" ? "«Em churn»" : "«Possível churn»"} e as outras tarefas pendentes serão anuladas.
+          </p>
+        )}
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
