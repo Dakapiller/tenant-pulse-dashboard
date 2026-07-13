@@ -390,6 +390,92 @@ function CSHistoryPage() {
     setDateTo(new Date());
   }
 
+  function applyPreset(preset: "today" | "yesterday" | "7d" | "30d" | "this_month" | "last_month" | "ytd" | "all") {
+    const today = new Date();
+    switch (preset) {
+      case "today":
+        setDateFrom(startOfDay(today));
+        setDateTo(startOfDay(today));
+        return;
+      case "yesterday": {
+        const y = new Date(today);
+        y.setDate(today.getDate() - 1);
+        setDateFrom(startOfDay(y));
+        setDateTo(startOfDay(y));
+        return;
+      }
+      case "7d": {
+        const from = new Date(today);
+        from.setDate(today.getDate() - 6);
+        setDateFrom(startOfDay(from));
+        setDateTo(startOfDay(today));
+        return;
+      }
+      case "30d": {
+        const from = new Date(today);
+        from.setDate(today.getDate() - 29);
+        setDateFrom(startOfDay(from));
+        setDateTo(startOfDay(today));
+        return;
+      }
+      case "this_month":
+        setDateFrom(startOfMonth(today));
+        setDateTo(startOfDay(today));
+        return;
+      case "last_month": {
+        const first = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const last = new Date(today.getFullYear(), today.getMonth(), 0);
+        setDateFrom(first);
+        setDateTo(last);
+        return;
+      }
+      case "ytd":
+        setDateFrom(new Date(today.getFullYear(), 0, 1));
+        setDateTo(startOfDay(today));
+        return;
+      case "all":
+        setDateFrom(undefined);
+        setDateTo(undefined);
+        return;
+    }
+  }
+
+  function isPresetActive(preset: "today" | "yesterday" | "7d" | "30d" | "this_month" | "last_month" | "ytd" | "all"): boolean {
+    if (preset === "all") return !dateFrom && !dateTo;
+    if (!dateFrom || !dateTo) return false;
+    const t = new Date();
+    const sameDay = (a: Date, b: Date) =>
+      a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    const from = new Date(dateFrom);
+    const to = new Date(dateTo);
+    switch (preset) {
+      case "today":
+        return sameDay(from, t) && sameDay(to, t);
+      case "yesterday": {
+        const y = new Date(t); y.setDate(t.getDate() - 1);
+        return sameDay(from, y) && sameDay(to, y);
+      }
+      case "7d": {
+        const s = new Date(t); s.setDate(t.getDate() - 6);
+        return sameDay(from, s) && sameDay(to, t);
+      }
+      case "30d": {
+        const s = new Date(t); s.setDate(t.getDate() - 29);
+        return sameDay(from, s) && sameDay(to, t);
+      }
+      case "this_month":
+        return sameDay(from, startOfMonth(t)) && sameDay(to, t);
+      case "last_month": {
+        const first = new Date(t.getFullYear(), t.getMonth() - 1, 1);
+        const last = new Date(t.getFullYear(), t.getMonth(), 0);
+        return sameDay(from, first) && sameDay(to, last);
+      }
+      case "ytd":
+        return sameDay(from, new Date(t.getFullYear(), 0, 1)) && sameDay(to, t);
+    }
+    return false;
+  }
+
   async function exportExcel() {
     setExporting(true);
     try {
@@ -515,20 +601,51 @@ function CSHistoryPage() {
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="range"
-              selected={{ from: dateFrom, to: dateTo }}
-              onSelect={(range) => {
-                setDateFrom(range?.from);
-                setDateTo(range?.to);
-              }}
-              numberOfMonths={2}
-              locale={pt}
-              className={cn("p-3 pointer-events-auto")}
-            />
-            <div className="flex items-center justify-between gap-2 border-t border-border p-2">
-              <button onClick={setCurrentMonth} className="text-xs px-2 py-1 rounded hover:bg-muted">Mês atual</button>
-              <button onClick={clearDateRange} className="text-xs px-2 py-1 rounded hover:bg-muted text-muted-foreground">Limpar</button>
+            <div className="flex flex-col sm:flex-row">
+              <div className="flex sm:flex-col gap-1 p-2 sm:border-r border-b sm:border-b-0 border-border sm:w-[140px] overflow-x-auto">
+                {(
+                  [
+                    { key: "today", label: "Hoje" },
+                    { key: "yesterday", label: "Ontem" },
+                    { key: "7d", label: "Últimos 7 dias" },
+                    { key: "30d", label: "Últimos 30 dias" },
+                    { key: "this_month", label: "Este mês" },
+                    { key: "last_month", label: "Mês passado" },
+                    { key: "ytd", label: "Este ano" },
+                    { key: "all", label: "Tudo" },
+                  ] as const
+                ).map((p) => (
+                  <button
+                    key={p.key}
+                    onClick={() => applyPreset(p.key)}
+                    className={cn(
+                      "shrink-0 text-left text-xs px-2.5 py-1.5 rounded hover:bg-muted transition-colors whitespace-nowrap",
+                      isPresetActive(p.key) && "bg-primary/10 text-primary font-medium",
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-col">
+                <div className="px-3 pt-3 text-[11px] text-muted-foreground">
+                  Clica no dia inicial e depois no dia final.
+                </div>
+                <Calendar
+                  mode="range"
+                  selected={{ from: dateFrom, to: dateTo }}
+                  onSelect={(range) => {
+                    setDateFrom(range?.from);
+                    setDateTo(range?.to);
+                  }}
+                  numberOfMonths={2}
+                  locale={pt}
+                  className={cn("p-3 pointer-events-auto")}
+                />
+                <div className="flex items-center justify-end gap-2 border-t border-border p-2">
+                  <button onClick={clearDateRange} className="text-xs px-2 py-1 rounded hover:bg-muted text-muted-foreground">Limpar</button>
+                </div>
+              </div>
             </div>
           </PopoverContent>
         </Popover>
