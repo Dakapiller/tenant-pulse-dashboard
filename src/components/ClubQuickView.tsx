@@ -136,7 +136,55 @@ export function ClubQuickView({ tenant, onClose, onChanged }: ClubQuickViewProps
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold truncate">{tenant}</h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <StatusPill status={status} competitor={competitor} />
+              {editingStatus ? (
+                <div className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background p-1 shadow-sm">
+                  <select
+                    value={nextStatus}
+                    onChange={(e) => setNextStatus(e.target.value as ClubStatus)}
+                    className="px-2 py-1 rounded text-xs border border-border bg-background"
+                    autoFocus
+                  >
+                    {CLUB_STATUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                  {nextStatus === "churned" && (
+                    <select
+                      value={nextCompetitor}
+                      onChange={(e) => setNextCompetitor(e.target.value)}
+                      className="px-2 py-1 rounded text-xs border border-border bg-background"
+                    >
+                      {COMPETITOR_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  )}
+                  <button
+                    onClick={saveStatus}
+                    disabled={savingStatus}
+                    className="p-1 rounded bg-foreground text-background hover:opacity-90 disabled:opacity-50"
+                    aria-label="Confirmar"
+                  >
+                    <Check className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => setEditingStatus(false)}
+                    className="p-1 rounded hover:bg-surface"
+                    aria-label="Cancelar"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={beginEditStatus}
+                  className="inline-flex items-center gap-1 hover:opacity-80"
+                  title="Alterar estado"
+                >
+                  <StatusPill status={status} competitor={competitor} />
+                  <Pencil className="h-3 w-3 text-muted-foreground" />
+                </button>
+              )}
               {pendingTasks.length > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 text-warning text-[11px] font-semibold px-2 py-0.5">
                   {pendingTasks.length} {pendingTasks.length === 1 ? "tarefa pendente" : "tarefas pendentes"}
