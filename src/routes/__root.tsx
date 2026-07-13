@@ -2,6 +2,7 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts, useLocation, useNa
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ClubQuickViewProvider } from "@/contexts/ClubQuickViewContext";
 import { PendingApprovalScreen } from "@/components/PendingApprovalScreen";
 import { DeniedAccessScreen } from "@/components/DeniedAccessScreen";
 import { Toaster } from "@/components/ui/sonner";
@@ -179,7 +180,9 @@ function AuthGate() {
     <div className="flex flex-col md:flex-row md:h-screen md:overflow-hidden bg-background text-foreground">
       <Sidebar />
       <main className="flex-1 min-w-0 md:overflow-y-auto overflow-x-hidden">
-        <Outlet />
+        <ClubQuickViewProvider>
+          <Outlet />
+        </ClubQuickViewProvider>
       </main>
     </div>
   );

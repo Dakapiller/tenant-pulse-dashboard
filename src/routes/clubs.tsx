@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClubLink } from "@/components/ClubLink";
+import { useClubQuickView } from "@/contexts/ClubQuickViewContext";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -98,19 +99,18 @@ function ClubsPage() {
   const [priorityMap, setPriorityMap] = useState<Map<string, boolean>>(new Map());
   const [loading, setLoading] = useState(true);
 
-  const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
   const navigate = useNavigate();
   const search = useSearch({ from: "/clubs" });
+  const { openClub } = useClubQuickView();
 
-  // Sync ?tenant=… search param into the drawer
+  // Sync ?tenant=… deep link into the global QuickView modal
   useEffect(() => {
-    if (search.tenant) setDrawerTenant(search.tenant);
-    else setDrawerTenant(null);
+    if (search.tenant) {
+      openClub(search.tenant, { onChanged: () => loadAll() });
+      navigate({ to: "/clubs", search: { tenant: undefined }, replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.tenant]);
-
-  const closeDrawer = () => {
-    navigate({ to: "/clubs", search: { tenant: undefined } });
-  };
 
   const [exportOpen, setExportOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<string | null>(null);
@@ -510,14 +510,7 @@ function ClubsPage() {
         />
       </section>
 
-      {drawerTenant && rows.find((r) => r.name === drawerTenant) && (
-        <ClubDrawer
-          tenant={drawerTenant}
-          row={rows.find((r) => r.name === drawerTenant)!}
-          onClose={closeDrawer}
-          onChanged={loadAll}
-        />
-      )}
+      {/* Club QuickView is now rendered globally via ClubQuickViewProvider */}
 
       {exportOpen && (
         <ExportModal
