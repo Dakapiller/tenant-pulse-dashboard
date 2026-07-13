@@ -304,12 +304,42 @@ function CSHistoryPage() {
   }, [filtered]);
 
   const summary = useMemo(() => {
-    // Conta todas as entradas visíveis (concluídas + anuladas + bugs resolvidos)
-    // para que os cards reflitam exatamente o que está listado abaixo.
-    const totalActions = filtered.length;
-    const clubs = new Set(filtered.map((e) => e.tenant)).size;
+    // Build entries from rangeTasks (all tasks in date range, not just the
+    // paginated page) + bugs solved in range. Then apply the same non-date
+    // filters as the list (search / outcome / inactive).
+    const fromTs = dateFrom ? dateFrom.getTime() : -Infinity;
+    const toTs = dateTo ? endOfDay(dateTo).getTime() : Infinity;
+    const q = debouncedSearch.trim().toLowerCase();
+
+    const taskEntries: HistoryEntry[] = rangeTasks
+      .map<HistoryEntry | null>((t) => {
+        const ts = taskTs(t);
+        if (!ts) return null;
+        return { kind: "task", id: `t-${t.id}`, tenant: t.tenant_name, ts, task: t };
+      })
+      .filter((e): e is HistoryEntry => e !== null);
+
+    const bugEntries: HistoryEntry[] = bugs
+      .filter((b) => !!b.solved_at)
+      .map<HistoryEntry>((b) => ({ kind: "bug", id: `b-${b.id}`, tenant: b.tenant_name, ts: b.solved_at!, bug: b }));
+
+    const entries = [...taskEntries, ...bugEntries].filter((e) => {
+      const ts = new Date(e.ts).getTime();
+      if (ts < fromTs || ts > toTs) return false;
+      if (!showInactive && excluded.has(e.tenant)) return false;
+      if (outcome !== "all") {
+        if (e.kind !== "task") return false;
+        if (e.task.status !== "completed") return false;
+        if (e.task.outcome !== outcome) return false;
+      }
+      if (q && !e.tenant.toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+    const totalActions = entries.length;
+    const clubs = new Set(entries.map((e) => e.tenant)).size;
     const counts: Record<string, number> = {};
-    for (const e of filtered) {
+    for (const e of entries) {
       let key: string;
       if (e.kind === "bug") key = "bug_solved";
       else if (e.task.status === "cancelled") key = "cancelled";
@@ -322,7 +352,7 @@ function CSHistoryPage() {
       if (v > topCount) { topCount = v; topOutcome = k; }
     }
     return { totalActions, clubs, topOutcome, topCount };
-  }, [filtered]);
+  }, [rangeTasks, bugs, dateFrom, dateTo, debouncedSearch, showInactive, excluded, outcome]);
 
   const inactiveCount = useMemo(() => {
     if (showInactive) return 0;
