@@ -308,6 +308,7 @@ export async function insertManualCSTaskCompleted(input: {
   weekStart: string;
   outcome: string;
   note?: string | null;
+  competitor?: string | null;
 }): Promise<void> {
   const reason = input.reason.trim();
   const cta = input.cta.trim();
@@ -316,6 +317,7 @@ export async function insertManualCSTaskCompleted(input: {
   if (cta.length === 0 || cta.length > 200) throw new Error("CTA entre 1 e 200 caracteres.");
   if (![30, 60, 90].includes(input.priority)) throw new Error("Prioridade inválida.");
   const now = new Date().toISOString();
+  const trimmedNote = input.note?.trim() || null;
   const { data, error } = await supabase
     .from("cs_tasks")
     .insert({
@@ -327,7 +329,7 @@ export async function insertManualCSTaskCompleted(input: {
       week_start: input.weekStart,
       status: "completed",
       outcome: input.outcome,
-      note: input.note?.trim() || null,
+      note: trimmedNote,
       completed_at: now,
     } as never)
     .select("id")
@@ -336,9 +338,10 @@ export async function insertManualCSTaskCompleted(input: {
   void data;
   const { error: e2 } = await supabase
     .from("cs_tenant_status")
-    .insert({ tenant_name: input.tenant, relationship_status: input.outcome, note: input.note?.trim() || null });
+    .insert({ tenant_name: input.tenant, relationship_status: input.outcome, note: trimmedNote });
   if (e2) throw e2;
   await applyTaskOutcome(input.tenant, input.outcome);
+  await maybePropagateChurnOutcome(input.tenant, input.outcome, trimmedNote, input.competitor ?? null);
 }
 
 export async function completeCSTask(
