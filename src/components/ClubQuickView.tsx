@@ -97,6 +97,34 @@ export function ClubQuickView({ tenant, onClose, onChanged }: ClubQuickViewProps
     await onChanged?.();
   }
 
+  function beginEditStatus() {
+    setNextStatus(status);
+    setNextCompetitor(competitor ?? COMPETITOR_OPTIONS[0].value);
+    setEditingStatus(true);
+  }
+
+  async function saveStatus() {
+    if (nextStatus === status && (nextStatus !== "churned" || nextCompetitor === (competitor ?? COMPETITOR_OPTIONS[0].value))) {
+      setEditingStatus(false);
+      return;
+    }
+    setSavingStatus(true);
+    try {
+      await setClubStatus(
+        tenant,
+        nextStatus,
+        status,
+        null,
+        "cs",
+        nextStatus === "churned" ? nextCompetitor : null,
+      );
+      setEditingStatus(false);
+      await handleChanged();
+    } finally {
+      setSavingStatus(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex md:justify-end" onMouseDown={onClose}>
       <div className="absolute inset-0 bg-black/40" />
