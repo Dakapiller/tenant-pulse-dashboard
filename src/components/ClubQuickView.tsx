@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Plus, SlidersHorizontal, X } from "lucide-react";
+import { Check, Pencil, Plus, SlidersHorizontal, X } from "lucide-react";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { AdjustScoreDialog } from "@/components/AdjustScoreDialog";
 import { YoYSection } from "@/components/YoYSection";
