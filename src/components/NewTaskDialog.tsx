@@ -496,6 +496,27 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
                             ))}
                           </select>
                         </div>
+                        {outcome === "churned" && (
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                              Competidor
+                            </label>
+                            <select
+                              value={outcomeCompetitor}
+                              onChange={(e) => setOutcomeCompetitor(e.target.value)}
+                              className="w-full px-2 py-2 rounded-md border border-border bg-background text-xs"
+                            >
+                              {COMPETITOR_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        {(outcome === "churned" || outcome === "possible_churn") && (
+                          <p className="text-[10px] text-warning">
+                            O clube vai passar a {outcome === "churned" ? "«Em churn»" : "«Possível churn»"} e as tarefas pendentes serão anuladas.
+                          </p>
+                        )}
                         <input
                           value={completedNote}
                           onChange={(e) => setCompletedNote(e.target.value.slice(0, 500))}
