@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Plus, SlidersHorizontal, X } from "lucide-react";
+import { Check, Pencil, Plus, SlidersHorizontal, X } from "lucide-react";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { AdjustScoreDialog } from "@/components/AdjustScoreDialog";
 import { YoYSection } from "@/components/YoYSection";
@@ -12,7 +12,10 @@ import {
   fetchCSTasksForTenant,
   currentClubStatus,
   currentChurnCompetitor,
+  setClubStatus,
   CLUB_STATUS_LABEL,
+  CLUB_STATUS_OPTIONS,
+  COMPETITOR_OPTIONS,
   type CSTask,
   type CSTenantStatus,
   type ClubStatus,
@@ -54,6 +57,10 @@ export function ClubQuickView({ tenant, onClose, onChanged }: ClubQuickViewProps
   const [loading, setLoading] = useState(true);
   const [taskOpen, setTaskOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
+  const [editingStatus, setEditingStatus] = useState(false);
+  const [nextStatus, setNextStatus] = useState<ClubStatus>("active");
+  const [nextCompetitor, setNextCompetitor] = useState<string>(COMPETITOR_OPTIONS[0].value);
+  const [savingStatus, setSavingStatus] = useState(false);
 
   async function loadAll() {
     setLoading(true);
@@ -90,6 +97,34 @@ export function ClubQuickView({ tenant, onClose, onChanged }: ClubQuickViewProps
     await onChanged?.();
   }
 
+  function beginEditStatus() {
+    setNextStatus(status);
+    setNextCompetitor(competitor ?? COMPETITOR_OPTIONS[0].value);
+    setEditingStatus(true);
+  }
+
+  async function saveStatus() {
+    if (nextStatus === status && (nextStatus !== "churned" || nextCompetitor === (competitor ?? COMPETITOR_OPTIONS[0].value))) {
+      setEditingStatus(false);
+      return;
+    }
+    setSavingStatus(true);
+    try {
+      await setClubStatus(
+        tenant,
+        nextStatus,
+        status,
+        null,
+        "cs",
+        nextStatus === "churned" ? nextCompetitor : null,
+      );
+      setEditingStatus(false);
+      await handleChanged();
+    } finally {
+      setSavingStatus(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex md:justify-end" onMouseDown={onClose}>
       <div className="absolute inset-0 bg-black/40" />
@@ -101,7 +136,55 @@ export function ClubQuickView({ tenant, onClose, onChanged }: ClubQuickViewProps
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold truncate">{tenant}</h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <StatusPill status={status} competitor={competitor} />
+              {editingStatus ? (
+                <div className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background p-1 shadow-sm">
+                  <select
+                    value={nextStatus}
+                    onChange={(e) => setNextStatus(e.target.value as ClubStatus)}
+                    className="px-2 py-1 rounded text-xs border border-border bg-background"
+                    autoFocus
+                  >
+                    {CLUB_STATUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                  {nextStatus === "churned" && (
+                    <select
+                      value={nextCompetitor}
+                      onChange={(e) => setNextCompetitor(e.target.value)}
+                      className="px-2 py-1 rounded text-xs border border-border bg-background"
+                    >
+                      {COMPETITOR_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  )}
+                  <button
+                    onClick={saveStatus}
+                    disabled={savingStatus}
+                    className="p-1 rounded bg-foreground text-background hover:opacity-90 disabled:opacity-50"
+                    aria-label="Confirmar"
+                  >
+                    <Check className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => setEditingStatus(false)}
+                    className="p-1 rounded hover:bg-surface"
+                    aria-label="Cancelar"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={beginEditStatus}
+                  className="inline-flex items-center gap-1 hover:opacity-80"
+                  title="Alterar estado"
+                >
+                  <StatusPill status={status} competitor={competitor} />
+                  <Pencil className="h-3 w-3 text-muted-foreground" />
+                </button>
+              )}
               {pendingTasks.length > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 text-warning text-[11px] font-semibold px-2 py-0.5">
                   {pendingTasks.length} {pendingTasks.length === 1 ? "tarefa pendente" : "tarefas pendentes"}
