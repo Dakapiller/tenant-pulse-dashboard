@@ -341,7 +341,13 @@ export async function insertManualCSTaskCompleted(input: {
   await applyTaskOutcome(input.tenant, input.outcome);
 }
 
-export async function completeCSTask(taskId: string, tenant: string, outcome: string, note: string | null): Promise<void> {
+export async function completeCSTask(
+  taskId: string,
+  tenant: string,
+  outcome: string,
+  note: string | null,
+  competitor: string | null = null,
+): Promise<void> {
   const { error: e1 } = await supabase
     .from("cs_tasks")
     .update({ status: "completed", outcome, note, completed_at: new Date().toISOString() } as never)
@@ -353,6 +359,8 @@ export async function completeCSTask(taskId: string, tenant: string, outcome: st
   if (e2) throw e2;
   // Rule 3 — apply task outcome to the health score.
   await applyTaskOutcome(tenant, outcome);
+  // Propagate churn outcomes to club_status (cancels other pending tasks).
+  await maybePropagateChurnOutcome(tenant, outcome, note, competitor);
 }
 
 /** Complete multiple tasks for a single tenant in one batch with shared outcome+note,
@@ -362,6 +370,7 @@ export async function completeCSTasksBatch(
   taskIds: string[],
   outcome: string,
   note: string | null,
+  competitor: string | null = null,
 ): Promise<void> {
   if (taskIds.length === 0) return;
   const completedAt = new Date().toISOString();
@@ -376,6 +385,26 @@ export async function completeCSTasksBatch(
   if (e2) throw e2;
   // Rule 3 — apply once per batch (the outcome is the same for all tasks).
   await applyTaskOutcome(tenant, outcome);
+  await maybePropagateChurnOutcome(tenant, outcome, note, competitor);
+}
+
+/**
+ * Se o outcome for `possible_churn` ou `churned`, transita o `club_status`
+ * do clube em conformidade. Reaproveita `setClubStatus`, que grava o log e
+ * cancela as tarefas pendentes restantes quando o clube passa a inativo.
+ */
+async function maybePropagateChurnOutcome(
+  tenant: string,
+  outcome: string,
+  note: string | null,
+  competitor: string | null,
+): Promise<void> {
+  const target = CHURN_OUTCOME_TO_STATUS[outcome];
+  if (!target) return;
+  const statuses = await fetchCSStatusesForTenant(tenant);
+  const current = currentClubStatus(statuses);
+  if (current === target) return;
+  await setClubStatus(tenant, target, current, note, "cs", target === "churned" ? competitor : null);
 }
 
 /** Push a pending task to a future week. Snaps the given date to its Monday (UTC). */
