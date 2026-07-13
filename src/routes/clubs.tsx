@@ -5,13 +5,14 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, Plus, SlidersHorizontal, Sparkles, Star, X,
+  AlertTriangle, Building2, Check, ChevronRight, Download, Eye, EyeOff, ListChecks, Plus, SlidersHorizontal, Sparkles, Star, X,
 } from "lucide-react";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { AdjustScoreDialog } from "@/components/AdjustScoreDialog";
 import { YoYSection } from "@/components/YoYSection";
 import { HealthBadge } from "@/components/HealthBadge";
 import { TaskQuickActions } from "@/components/TaskQuickActions";
+import { PendingTasksFlatView, BulkActionBar, type PendingTaskFilter } from "@/components/PendingTasksPanel";
 import { fetchAllSnapshots, fetchPeriods, type Snapshot } from "@/lib/data";
 import {
   fetchAllCSStatuses,
@@ -22,6 +23,10 @@ import {
   fetchCSTasksForTenant,
   fetchPriorityMap,
   setTenantPriority,
+  cancelCSTasksBatch,
+  completeCSTasksBatch,
+  postponeCSTask,
+  excludedTenants,
   setClubStatus,
   currentClubStatus,
   currentChurnCompetitor,
@@ -117,6 +122,9 @@ function ClubsPage() {
   const [filterNewOnly, setFilterNewOnly] = useState(false);
   const [filterPendingOnly, setFilterPendingOnly] = useState(false);
   const [bulkScoreOpen, setBulkScoreOpen] = useState(false);
+  const [pendingPanelOpen, setPendingPanelOpen] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [pendingTaskFilter, setPendingTaskFilter] = useState<PendingTaskFilter>("all");
 
   async function loadAll() {
     const [s, p, sts, tks, logs, scores, prio] = await Promise.all([
@@ -267,6 +275,35 @@ function ClubsPage() {
         </button>
       )}
 
+      {pendingPanelOpen && (
+        <section className="rounded-xl border border-border bg-background overflow-hidden mb-5">
+          <div className="px-5 py-3 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold flex items-center gap-2">
+                <ListChecks className="h-4 w-4" /> Tarefas pendentes
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Seleciona uma ou mais tarefas para concluir, anular ou adiar em massa.</p>
+            </div>
+            <button
+              onClick={() => { setPendingPanelOpen(false); setSelectedTaskIds(new Set()); }}
+              className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            >
+              <X className="h-3.5 w-3.5" /> Fechar
+            </button>
+          </div>
+          <PendingTasksFlatView
+            tasks={tasks.filter((t) => t.status === "pending")}
+            excluded={excludedTenants(statuses)}
+            showInactive={showInactive}
+            weekStart={weekStart}
+            filter={pendingTaskFilter}
+            onFilterChange={setPendingTaskFilter}
+            selectedIds={selectedTaskIds}
+            onSelectionChange={setSelectedTaskIds}
+          />
+        </section>
+      )}
+
       <section className="rounded-xl border border-border bg-background overflow-hidden">
         <div className="px-4 py-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground gap-3 flex-wrap">
           <span>
@@ -278,6 +315,14 @@ function ClubsPage() {
             )}
           </span>
           <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => setPendingPanelOpen((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${pendingPanelOpen ? "border-foreground bg-foreground text-background" : "border-border hover:bg-surface"}`}
+              title="Ver e gerir tarefas pendentes em massa"
+            >
+              <ListChecks className="h-3.5 w-3.5" />
+              {pendingPanelOpen ? "Ocultar tarefas pendentes" : "Ver tarefas pendentes"}
+            </button>
             {pendingCount > 0 && (
               <button
                 onClick={() => setFilterPendingOnly((v) => !v)}
@@ -537,6 +582,43 @@ function ClubsPage() {
           onCancel={() => setSelectedKeys(new Set())}
         />
       )}
+
+      {pendingPanelOpen && selectedTaskIds.size > 0 && (
+        <BulkActionBar
+          count={selectedTaskIds.size}
+          label={`${selectedTaskIds.size} ${selectedTaskIds.size === 1 ? "tarefa selecionada" : "tarefas selecionadas"}`}
+          allowCancel
+          allowPostpone
+          onComplete={async (outcome, note) => {
+            const ids = Array.from(selectedTaskIds);
+            const byTenant = new Map<string, string[]>();
+            for (const id of ids) {
+              const t = tasks.find((x) => x.id === id);
+              if (!t) continue;
+              if (!byTenant.has(t.tenant_name)) byTenant.set(t.tenant_name, []);
+              byTenant.get(t.tenant_name)!.push(id);
+            }
+            for (const [tenant, taskIds] of byTenant) {
+              await completeCSTasksBatch(tenant, taskIds, outcome, note.trim() || null);
+            }
+            setSelectedTaskIds(new Set());
+            await loadAll();
+          }}
+          onCancelTasks={async (note) => {
+            await cancelCSTasksBatch(Array.from(selectedTaskIds), note);
+            setSelectedTaskIds(new Set());
+            await loadAll();
+          }}
+          onPostponeTasks={async (target) => {
+            for (const id of selectedTaskIds) await postponeCSTask(id, target);
+            setSelectedTaskIds(new Set());
+            await loadAll();
+          }}
+          onCancel={() => setSelectedTaskIds(new Set())}
+        />
+      )}
+
+
 
       <AdjustScoreDialog
         open={bulkScoreOpen}
