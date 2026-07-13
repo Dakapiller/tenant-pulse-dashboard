@@ -228,6 +228,32 @@ function CSHistoryPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // Fetch ALL tasks whose completed_at falls in the selected date range so the
+  // summary cards reflect the whole range (not just the paginated page below).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const fromIso = dateFrom ? startOfDay(dateFrom).toISOString() : null;
+      const toIso = dateTo ? endOfDay(dateTo).toISOString() : null;
+      try {
+        const rows = await fetchAllPaged<CSTask>((from, to) => {
+          let q = supabase
+            .from("cs_tasks")
+            .select("*")
+            .in("status", ["completed", "cancelled"])
+            .not("completed_at", "is", null);
+          if (fromIso) q = q.gte("completed_at", fromIso);
+          if (toIso) q = q.lte("completed_at", toIso);
+          return q.order("completed_at", { ascending: false }).range(from, to);
+        });
+        if (!cancelled) setRangeTasks(rows);
+      } catch (err) {
+        console.error("rangeTasks", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [dateFrom, dateTo]);
+
   const excluded = useMemo(() => excludedTenants(statuses), [statuses]);
 
   // Build unified entries (tasks + resolved bugs) and apply filters.
