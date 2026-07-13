@@ -122,6 +122,9 @@ function ClubsPage() {
   const [filterNewOnly, setFilterNewOnly] = useState(false);
   const [filterPendingOnly, setFilterPendingOnly] = useState(false);
   const [bulkScoreOpen, setBulkScoreOpen] = useState(false);
+  const [pendingPanelOpen, setPendingPanelOpen] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [pendingTaskFilter, setPendingTaskFilter] = useState<PendingTaskFilter>("all");
 
   async function loadAll() {
     const [s, p, sts, tks, logs, scores, prio] = await Promise.all([
