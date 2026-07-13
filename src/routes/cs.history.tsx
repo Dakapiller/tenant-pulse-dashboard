@@ -763,7 +763,7 @@ function CSHistoryPage() {
           </ul>
         )}
 
-        {hasMore && (
+        {hasMore && !(dateFrom || dateTo) && (
           <div className="border-t border-border p-4 flex flex-col items-center gap-2">
             {dateFrom && (
               <span className="text-xs text-muted-foreground">
