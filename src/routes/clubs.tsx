@@ -282,7 +282,7 @@ function ClubsPage() {
               <h2 className="text-sm font-semibold flex items-center gap-2">
                 <ListChecks className="h-4 w-4" /> Tarefas pendentes
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Seleciona uma ou mais tarefas para concluir, anular ou adiar em massa.</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Vista por tarefa — seleciona uma ou mais para concluir, anular ou adiar em massa. Fecha este painel para voltar à lista por clube.</p>
             </div>
             <button
               onClick={() => { setPendingPanelOpen(false); setSelectedTaskIds(new Set()); }}
