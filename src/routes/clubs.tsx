@@ -316,14 +316,19 @@ function ClubsPage() {
           </span>
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
-              onClick={() => setPendingPanelOpen((v) => !v)}
+              onClick={() => setPendingPanelOpen((v) => {
+                const next = !v;
+                if (next) setFilterPendingOnly(false);
+                else setSelectedTaskIds(new Set());
+                return next;
+              })}
               className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${pendingPanelOpen ? "border-foreground bg-foreground text-background" : "border-border hover:bg-surface"}`}
               title="Ver e gerir tarefas pendentes em massa"
             >
               <ListChecks className="h-3.5 w-3.5" />
               {pendingPanelOpen ? "Ocultar tarefas pendentes" : "Ver tarefas pendentes"}
             </button>
-            {pendingCount > 0 && (
+            {pendingCount > 0 && !pendingPanelOpen && (
               <button
                 onClick={() => setFilterPendingOnly((v) => !v)}
                 className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${filterPendingOnly ? "border-warning bg-warning/15 text-warning" : "border-border hover:bg-surface"}`}
