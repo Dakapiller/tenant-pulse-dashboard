@@ -107,7 +107,23 @@ export function TaskQuickActions({ task, onChanged, size = "compact" }: Props) {
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
+          {outcome === "churned" && (
+            <select
+              value={competitor}
+              onChange={(e) => setCompetitor(e.target.value)}
+              className="px-2 py-1 rounded-md border border-border bg-background text-xs"
+            >
+              {COMPETITOR_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          )}
         </div>
+        {(outcome === "churned" || outcome === "possible_churn") && (
+          <p className="text-[10px] text-warning">
+            O clube vai passar a {outcome === "churned" ? "«Em churn»" : "«Possível churn»"} e as outras tarefas pendentes serão anuladas.
+          </p>
+        )}
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
