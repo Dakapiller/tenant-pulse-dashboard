@@ -99,7 +99,6 @@ function ClubsPage() {
   const [priorityMap, setPriorityMap] = useState<Map<string, boolean>>(new Map());
   const [loading, setLoading] = useState(true);
 
-  const [drawerTenant, setDrawerTenant] = useState<string | null>(null);
   const navigate = useNavigate();
   const search = useSearch({ from: "/clubs" });
   const { openClub } = useClubQuickView();
@@ -107,17 +106,11 @@ function ClubsPage() {
   // Sync ?tenant=… deep link into the global QuickView modal
   useEffect(() => {
     if (search.tenant) {
-      setDrawerTenant(search.tenant);
       openClub(search.tenant, { onChanged: () => loadAll() });
       navigate({ to: "/clubs", search: { tenant: undefined }, replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.tenant]);
-
-  const closeDrawer = () => {
-    setDrawerTenant(null);
-    navigate({ to: "/clubs", search: { tenant: undefined } });
-  };
 
   const [exportOpen, setExportOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<string | null>(null);
