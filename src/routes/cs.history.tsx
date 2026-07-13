@@ -273,13 +273,16 @@ function CSHistoryPage() {
   }, [filtered]);
 
   const summary = useMemo(() => {
-    // Count completed tasks + resolved bugs; ignore cancelled tasks (context only).
-    const meaningful = filtered.filter((e) => e.kind === "bug" || e.task.status === "completed");
-    const totalActions = meaningful.length;
-    const clubs = new Set(meaningful.map((e) => e.tenant)).size;
+    // Conta todas as entradas visíveis (concluídas + anuladas + bugs resolvidos)
+    // para que os cards reflitam exatamente o que está listado abaixo.
+    const totalActions = filtered.length;
+    const clubs = new Set(filtered.map((e) => e.tenant)).size;
     const counts: Record<string, number> = {};
-    for (const e of meaningful) {
-      const key = e.kind === "bug" ? "bug_solved" : (e.task.outcome ?? "—");
+    for (const e of filtered) {
+      let key: string;
+      if (e.kind === "bug") key = "bug_solved";
+      else if (e.task.status === "cancelled") key = "cancelled";
+      else key = e.task.outcome ?? "—";
       counts[key] = (counts[key] ?? 0) + 1;
     }
     let topOutcome: string | null = null;
@@ -530,6 +533,10 @@ function CSHistoryPage() {
               {summary.topOutcome === "bug_solved" ? (
                 <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                   Bug resolvido
+                </span>
+              ) : summary.topOutcome === "cancelled" ? (
+                <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground border border-border">
+                  Anulada
                 </span>
               ) : (
                 <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium", outcomeBadgeClass(summary.topOutcome))}>
