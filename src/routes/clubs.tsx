@@ -583,6 +583,43 @@ function ClubsPage() {
         />
       )}
 
+      {pendingPanelOpen && selectedTaskIds.size > 0 && (
+        <BulkActionBar
+          count={selectedTaskIds.size}
+          label={`${selectedTaskIds.size} ${selectedTaskIds.size === 1 ? "tarefa selecionada" : "tarefas selecionadas"}`}
+          allowCancel
+          allowPostpone
+          onComplete={async (outcome, note) => {
+            const ids = Array.from(selectedTaskIds);
+            const byTenant = new Map<string, string[]>();
+            for (const id of ids) {
+              const t = tasks.find((x) => x.id === id);
+              if (!t) continue;
+              if (!byTenant.has(t.tenant_name)) byTenant.set(t.tenant_name, []);
+              byTenant.get(t.tenant_name)!.push(id);
+            }
+            for (const [tenant, taskIds] of byTenant) {
+              await completeCSTasksBatch(tenant, taskIds, outcome, note.trim() || null);
+            }
+            setSelectedTaskIds(new Set());
+            await loadAll();
+          }}
+          onCancelTasks={async (note) => {
+            await cancelCSTasksBatch(Array.from(selectedTaskIds), note);
+            setSelectedTaskIds(new Set());
+            await loadAll();
+          }}
+          onPostponeTasks={async (target) => {
+            for (const id of selectedTaskIds) await postponeCSTask(id, target);
+            setSelectedTaskIds(new Set());
+            await loadAll();
+          }}
+          onCancel={() => setSelectedTaskIds(new Set())}
+        />
+      )}
+
+
+
       <AdjustScoreDialog
         open={bulkScoreOpen}
         mode="bulk"
