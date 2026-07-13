@@ -5,6 +5,7 @@ import {
   postponeCSTask,
   currentWeekStart,
   OUTCOME_OPTIONS,
+  COMPETITOR_OPTIONS,
   type CSTask,
 } from "@/lib/cs";
 
