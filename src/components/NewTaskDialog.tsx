@@ -82,6 +82,7 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
   // ---- "task" — mark as already completed ----
   const [markCompleted, setMarkCompleted] = useState(false);
   const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
+  const [outcomeCompetitor, setOutcomeCompetitor] = useState(COMPETITOR_OPTIONS[0].value);
   const [completedNote, setCompletedNote] = useState("");
 
   // ---- "future" ----
