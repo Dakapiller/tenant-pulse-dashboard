@@ -262,7 +262,11 @@ function CSHistoryPage() {
     const toTs = dateTo ? endOfDay(dateTo).getTime() : Infinity;
     const q = debouncedSearch.trim().toLowerCase();
 
-    const taskEntries: HistoryEntry[] = tasks
+    // Usa rangeTasks (todas as tarefas no intervalo) quando há um intervalo
+    // definido — assim a lista mostra tudo o que os cards contam.
+    // Sem intervalo, cai para a página paginada `tasks`.
+    const source = dateFrom || dateTo ? rangeTasks : tasks;
+    const taskEntries: HistoryEntry[] = source
       .map<HistoryEntry | null>((t) => {
         const ts = taskTs(t);
         if (!ts) return null;
@@ -287,7 +291,7 @@ function CSHistoryPage() {
       if (q && !e.tenant.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [tasks, bugs, dateFrom, dateTo, debouncedSearch, showInactive, excluded, outcome]);
+  }, [tasks, rangeTasks, bugs, dateFrom, dateTo, debouncedSearch, showInactive, excluded, outcome]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, HistoryEntry[]>();
@@ -759,7 +763,7 @@ function CSHistoryPage() {
           </ul>
         )}
 
-        {hasMore && (
+        {hasMore && !(dateFrom || dateTo) && (
           <div className="border-t border-border p-4 flex flex-col items-center gap-2">
             {dateFrom && (
               <span className="text-xs text-muted-foreground">
