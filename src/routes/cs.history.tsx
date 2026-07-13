@@ -262,7 +262,11 @@ function CSHistoryPage() {
     const toTs = dateTo ? endOfDay(dateTo).getTime() : Infinity;
     const q = debouncedSearch.trim().toLowerCase();
 
-    const taskEntries: HistoryEntry[] = tasks
+    // Usa rangeTasks (todas as tarefas no intervalo) quando há um intervalo
+    // definido — assim a lista mostra tudo o que os cards contam.
+    // Sem intervalo, cai para a página paginada `tasks`.
+    const source = dateFrom || dateTo ? rangeTasks : tasks;
+    const taskEntries: HistoryEntry[] = source
       .map<HistoryEntry | null>((t) => {
         const ts = taskTs(t);
         if (!ts) return null;
