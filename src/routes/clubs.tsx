@@ -517,14 +517,7 @@ function ClubsPage() {
         />
       </section>
 
-      {drawerTenant && rows.find((r) => r.name === drawerTenant) && (
-        <ClubDrawer
-          tenant={drawerTenant}
-          row={rows.find((r) => r.name === drawerTenant)!}
-          onClose={closeDrawer}
-          onChanged={loadAll}
-        />
-      )}
+      {/* Club QuickView is now rendered globally via ClubQuickViewProvider */}
 
       {exportOpen && (
         <ExportModal
