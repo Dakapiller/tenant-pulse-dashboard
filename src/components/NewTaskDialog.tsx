@@ -5,6 +5,7 @@ import {
   insertManualCSTaskCompleted,
   currentWeekStart,
   OUTCOME_OPTIONS,
+  COMPETITOR_OPTIONS,
 } from "@/lib/cs";
 import {
   FEEDBACK_CATEGORIES,
