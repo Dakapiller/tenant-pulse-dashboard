@@ -2,6 +2,7 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts, useLocation, useNa
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ClubQuickViewProvider } from "@/contexts/ClubQuickViewContext";
 import { PendingApprovalScreen } from "@/components/PendingApprovalScreen";
 import { DeniedAccessScreen } from "@/components/DeniedAccessScreen";
 import { Toaster } from "@/components/ui/sonner";
