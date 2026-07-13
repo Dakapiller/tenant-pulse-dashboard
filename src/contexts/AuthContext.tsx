@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { getMe, type MeResponse } from "@/server/auth.functions";
+import { getMe, type MeResponse } from "@/lib/auth.functions";
 
 export type Role = "superuser" | "cs" | "pending" | "denied";
 
