@@ -19,6 +19,7 @@ interface Props {
 export function TaskQuickActions({ task, onChanged, size = "compact" }: Props) {
   const [mode, setMode] = useState<"idle" | "complete" | "postpone">("idle");
   const [outcome, setOutcome] = useState(OUTCOME_OPTIONS[0].value);
+  const [competitor, setCompetitor] = useState(COMPETITOR_OPTIONS[0].value);
   const [note, setNote] = useState("");
   const [target, setTarget] = useState<string>(() => {
     // default: next Monday
