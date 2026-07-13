@@ -27,7 +27,7 @@ import {
 import { computeRiskWithCS, FLAG_CTA, FLAG_META, type RiskFlag } from "@/lib/risk";
 import { fetchHealthScores } from "@/lib/health";
 import { formatEuro, formatNumber, periodShort } from "@/lib/format";
-import { ScoreDelta } from "@/components/DataTable";
+import { DataTable, ScoreDelta } from "@/components/DataTable";
 import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Clock, Eye, EyeOff, ListChecks, Plus } from "lucide-react";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { PendingTasksFlatView, BulkActionBar } from "@/components/PendingTasksPanel";
