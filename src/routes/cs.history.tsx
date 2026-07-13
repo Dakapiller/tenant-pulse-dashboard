@@ -143,6 +143,10 @@ interface WeeklyDigest {
 
 function CSHistoryPage() {
   const [tasks, setTasks] = useState<CSTask[]>([]);
+  // Todas as tarefas concluídas/anuladas cujo completed_at cai no intervalo
+  // selecionado — usadas para os cards de sumário, para que os totais reflitam
+  // o intervalo inteiro e não apenas a página carregada.
+  const [rangeTasks, setRangeTasks] = useState<CSTask[]>([]);
   const [statuses, setStatuses] = useState<CSTenantStatus[]>([]);
   const [bugs, setBugs] = useState<BugReport[]>([]);
   const [hasMore, setHasMore] = useState(true);
