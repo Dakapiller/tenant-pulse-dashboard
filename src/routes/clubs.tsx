@@ -275,6 +275,35 @@ function ClubsPage() {
         </button>
       )}
 
+      {pendingPanelOpen && (
+        <section className="rounded-xl border border-border bg-background overflow-hidden mb-5">
+          <div className="px-5 py-3 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold flex items-center gap-2">
+                <ListChecks className="h-4 w-4" /> Tarefas pendentes
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Seleciona uma ou mais tarefas para concluir, anular ou adiar em massa.</p>
+            </div>
+            <button
+              onClick={() => { setPendingPanelOpen(false); setSelectedTaskIds(new Set()); }}
+              className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            >
+              <X className="h-3.5 w-3.5" /> Fechar
+            </button>
+          </div>
+          <PendingTasksFlatView
+            tasks={tasks.filter((t) => t.status === "pending")}
+            excluded={excludedTenants(statuses)}
+            showInactive={showInactive}
+            weekStart={weekStart}
+            filter={pendingTaskFilter}
+            onFilterChange={setPendingTaskFilter}
+            selectedIds={selectedTaskIds}
+            onSelectionChange={setSelectedTaskIds}
+          />
+        </section>
+      )}
+
       <section className="rounded-xl border border-border bg-background overflow-hidden">
         <div className="px-4 py-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground gap-3 flex-wrap">
           <span>
