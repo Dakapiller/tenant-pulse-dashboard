@@ -337,7 +337,10 @@ function CSHistoryPage() {
     });
 
     const totalActions = entries.length;
-    const clubs = new Set(entries.map((e) => e.tenant)).size;
+    // "Clubes contactados" só conta contactos efetivos — tarefas anuladas não
+    // representam contacto com o clube.
+    const contacted = entries.filter((e) => e.kind === "bug" || e.task.status === "completed");
+    const clubs = new Set(contacted.map((e) => e.tenant)).size;
     const counts: Record<string, number> = {};
     for (const e of entries) {
       let key: string;
