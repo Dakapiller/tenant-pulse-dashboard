@@ -57,6 +57,10 @@ export function ClubQuickView({ tenant, onClose, onChanged }: ClubQuickViewProps
   const [loading, setLoading] = useState(true);
   const [taskOpen, setTaskOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
+  const [editingStatus, setEditingStatus] = useState(false);
+  const [nextStatus, setNextStatus] = useState<ClubStatus>("active");
+  const [nextCompetitor, setNextCompetitor] = useState<string>(COMPETITOR_OPTIONS[0].value);
+  const [savingStatus, setSavingStatus] = useState(false);
 
   async function loadAll() {
     setLoading(true);
