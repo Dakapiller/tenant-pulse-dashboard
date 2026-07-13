@@ -601,20 +601,51 @@ function CSHistoryPage() {
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="range"
-              selected={{ from: dateFrom, to: dateTo }}
-              onSelect={(range) => {
-                setDateFrom(range?.from);
-                setDateTo(range?.to);
-              }}
-              numberOfMonths={2}
-              locale={pt}
-              className={cn("p-3 pointer-events-auto")}
-            />
-            <div className="flex items-center justify-between gap-2 border-t border-border p-2">
-              <button onClick={setCurrentMonth} className="text-xs px-2 py-1 rounded hover:bg-muted">Mês atual</button>
-              <button onClick={clearDateRange} className="text-xs px-2 py-1 rounded hover:bg-muted text-muted-foreground">Limpar</button>
+            <div className="flex flex-col sm:flex-row">
+              <div className="flex sm:flex-col gap-1 p-2 sm:border-r border-b sm:border-b-0 border-border sm:w-[140px] overflow-x-auto">
+                {(
+                  [
+                    { key: "today", label: "Hoje" },
+                    { key: "yesterday", label: "Ontem" },
+                    { key: "7d", label: "Últimos 7 dias" },
+                    { key: "30d", label: "Últimos 30 dias" },
+                    { key: "this_month", label: "Este mês" },
+                    { key: "last_month", label: "Mês passado" },
+                    { key: "ytd", label: "Este ano" },
+                    { key: "all", label: "Tudo" },
+                  ] as const
+                ).map((p) => (
+                  <button
+                    key={p.key}
+                    onClick={() => applyPreset(p.key)}
+                    className={cn(
+                      "shrink-0 text-left text-xs px-2.5 py-1.5 rounded hover:bg-muted transition-colors whitespace-nowrap",
+                      isPresetActive(p.key) && "bg-primary/10 text-primary font-medium",
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-col">
+                <div className="px-3 pt-3 text-[11px] text-muted-foreground">
+                  Clica no dia inicial e depois no dia final.
+                </div>
+                <Calendar
+                  mode="range"
+                  selected={{ from: dateFrom, to: dateTo }}
+                  onSelect={(range) => {
+                    setDateFrom(range?.from);
+                    setDateTo(range?.to);
+                  }}
+                  numberOfMonths={2}
+                  locale={pt}
+                  className={cn("p-3 pointer-events-auto")}
+                />
+                <div className="flex items-center justify-end gap-2 border-t border-border p-2">
+                  <button onClick={clearDateRange} className="text-xs px-2 py-1 rounded hover:bg-muted text-muted-foreground">Limpar</button>
+                </div>
+              </div>
             </div>
           </PopoverContent>
         </Popover>
