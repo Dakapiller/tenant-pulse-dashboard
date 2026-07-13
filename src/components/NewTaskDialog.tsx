@@ -119,6 +119,7 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
       setPriority(60);
       setMarkCompleted(false);
       setOutcome(OUTCOME_OPTIONS[0].value);
+      setOutcomeCompetitor(COMPETITOR_OPTIONS[0].value);
       setCompletedNote("");
       setFutureMode("1w");
       setCustomDate(addDaysISO(7));
