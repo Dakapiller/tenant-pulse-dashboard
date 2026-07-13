@@ -215,6 +215,7 @@ export function NewTaskDialog({ open, onClose, onCreated, tenant, activeClubs = 
             weekStart,
             outcome,
             note: completedNote,
+            competitor: outcome === "churned" ? outcomeCompetitor : null,
           });
         } else {
           await insertManualCSTask({
