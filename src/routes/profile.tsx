@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { updateMyName } from "@/server/auth.functions";
+import { updateMyName } from "@/lib/auth.functions";
 
 export const Route = createFileRoute("/profile")({
   component: ProfilePage,

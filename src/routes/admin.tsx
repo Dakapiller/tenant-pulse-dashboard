@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { approveUser, revokeUser, rejectUser, listUsers, type AdminUserRow } from "@/server/admin-users.functions";
+import { approveUser, revokeUser, rejectUser, listUsers, type AdminUserRow } from "@/lib/admin-users.functions";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
